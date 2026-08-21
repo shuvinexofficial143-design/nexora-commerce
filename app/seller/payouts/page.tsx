@@ -1,0 +1,3 @@
+import {SellerPayoutTable} from "@/components/seller/seller-payout-table";
+import {sellerPayouts} from "@/lib/seller-data";
+export default function Page(){return <div className="space-y-6"><div><p className="text-xs font-black uppercase tracking-[.18em] text-black/40">Settlements</p><h2 className="mt-2 text-3xl font-black">Payouts</h2><p className="mt-2 text-sm text-black/55">Weekly settlements to your verified bank account.</p></div><section className="rounded-[30px] bg-[#121613] p-6 text-white"><p className="text-sm font-bold text-white/50">Next estimated payout</p><p className="mt-2 text-4xl font-black">₹3,21,024</p><p className="mt-2 text-sm text-white/55">Expected 22 Aug · HDFC Bank •••• 9302</p></section><SellerPayoutTable items={sellerPayouts}/></div>}

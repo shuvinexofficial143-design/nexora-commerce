@@ -1,0 +1,6 @@
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { SignOutButton } from "@/components/account/sign-out-button";
+const links=[["Overview","/account","⌂"],["Orders","/account/orders","□"],["Rewards","/account/rewards","✦"],["Referrals","/account/referrals","↗"],["Product Alerts","/account/alerts","↓"],["Profile","/account/profile","◉"],["Addresses","/account/addresses","⌖"],["Returns","/account/returns","↩"],["Wallet","/account/wallet","₹"],["Coupons","/account/coupons","%"],["Notifications","/account/notifications","◌"],["Wishlist","/wishlist","♡"]];
+export function AccountSidebar(){const pathname=usePathname();return <aside className="h-fit rounded-3xl border border-black/10 bg-white p-3"><nav className="space-y-1" aria-label="Account navigation">{links.map(([label,href,icon])=>{const active=href==="/account"?pathname===href:pathname.startsWith(href);return <Link key={label} href={href} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition ${active?"bg-black text-white":"hover:bg-black/5"}`}><span className="w-5 text-center">{icon}</span>{label}</Link>})}</nav><div className="mt-3 border-t border-black/10 pt-3"><SignOutButton/></div></aside>}

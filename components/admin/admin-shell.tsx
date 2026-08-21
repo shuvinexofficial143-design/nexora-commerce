@@ -1,0 +1,2 @@
+import {AdminSidebar} from "@/components/admin/admin-sidebar";import {AdminTopbar} from "@/components/admin/admin-topbar";
+export function AdminShell({children}:{children:React.ReactNode}){return <div className="min-h-screen lg:grid lg:grid-cols-[270px_minmax(0,1fr)]"><AdminSidebar/><div className="min-w-0"><AdminTopbar/><div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">{children}</div></div></div>}

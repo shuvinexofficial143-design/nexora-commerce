@@ -1,0 +1,4 @@
+import {SellerReviewList} from "@/components/seller/seller-review-list";
+import {sellerReviews} from "@/lib/seller-data";
+export default function Page(){return <div className="space-y-6"><div><p className="text-xs font-black uppercase tracking-[.18em] text-black/40">Reputation</p><h2 className="mt-2 text-3xl font-black">Customer reviews</h2><p className="mt-2 text-sm text-black/55">Reply to feedback and learn what customers value.</p></div><div className="grid gap-4 sm:grid-cols-3"><Stat l="Average rating" v="4.8/5"/><Stat l="Reviews this month" v="286"/><Stat l="Response rate" v="91%"/></div><SellerReviewList reviews={sellerReviews}/></div>}
+function Stat({l,v}:{l:string;v:string}){return <div className="rounded-[24px] border border-black/10 bg-white p-5"><p className="text-sm font-bold text-black/45">{l}</p><p className="mt-2 text-3xl font-black">{v}</p></div>}

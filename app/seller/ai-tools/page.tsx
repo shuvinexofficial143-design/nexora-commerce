@@ -1,0 +1,3 @@
+import { AiListingAssistant } from "@/components/seller/ai-listing-assistant";
+import { AiSellerCopilot } from "@/components/seller/ai-seller-copilot";
+export default function SellerAiToolsPage(){return <div className="space-y-6"><div><p className="text-xs font-black uppercase tracking-[.16em] text-black/40">Seller Intelligence</p><h1 className="mt-1 text-3xl font-black tracking-[-.04em]">AI Tools</h1><p className="mt-2 text-sm text-black/55">Generate listing drafts and prioritize daily store actions from one workspace.</p></div><div className="grid gap-6 xl:grid-cols-[1.1fr_.9fr]"><AiListingAssistant/><AiSellerCopilot/></div></div>}

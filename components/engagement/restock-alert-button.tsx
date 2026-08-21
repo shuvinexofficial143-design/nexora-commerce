@@ -1,0 +1,4 @@
+"use client";
+import { useEffect, useState } from "react";
+import { hasProductAlert, upsertProductAlert } from "@/lib/engagement-store";
+export function RestockAlertButton({product}:{product:{id:string;slug:string;name:string;image:string;price:number}}){const [active,setActive]=useState(false);useEffect(()=>setActive(hasProductAlert(product.id,"back-in-stock")),[product.id]);const enable=()=>{upsertProductAlert({id:`stock-${product.id}`,productId:product.id,slug:product.slug,name:product.name,image:product.image,kind:"back-in-stock",currentPrice:product.price,active:true,createdAt:new Date().toISOString()});setActive(true)};return <button type="button" onClick={enable} disabled={active} className="w-full rounded-full bg-black px-5 py-4 text-sm font-black text-white disabled:bg-emerald-700">{active?"✓ Restock alert enabled":"Notify me when available"}</button>}

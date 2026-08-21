@@ -1,0 +1,10 @@
+export type InventoryStatus = "Healthy" | "Low" | "Critical" | "Out";
+export type InventoryItem = { sku:string; name:string; category:string; onHand:number; reserved:number; available:number; reorderAt:number; warehouse:string; status:InventoryStatus };
+export type Warehouse = { id:string; name:string; city:string; capacity:number; used:number; ordersToday:number; sla:string; manager:string };
+export type StockAlert = { sku:string; product:string; warehouse:string; available:number; reorderAt:number; severity:"Low"|"Critical"|"Out"; suggested:number };
+export type StockMovement = { id:string; label:string; sku:string; quantity:number; kind:"Inbound"|"Outbound"|"Transfer"|"Adjustment"; time:string };
+export type SellerStatus = "Active" | "Pending" | "Suspended";
+export type Seller = { id:string; name:string; category:string; rating:number; orders:number; revenue:number; commission:number; status:SellerStatus };
+export type SellerApplication = { id:string; business:string; owner:string; category:string; city:string; submitted:string; documents:number };
+export type Payout = { id:string; seller:string; period:string; gross:number; fees:number; net:number; method:string; status:"Scheduled"|"Processing"|"Paid" };
+export type Campaign = { id:string; name:string; channel:string; audience:string; spend:number; revenue:number; orders:number; status:"Live"|"Scheduled"|"Paused" };

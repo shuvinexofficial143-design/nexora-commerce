@@ -1,0 +1,9 @@
+import Link from "next/link";
+import { currency } from "@/lib/cart-utils";
+import type { CartLine } from "@/types/cart";
+import type { CheckoutAddress, DeliveryOption, PaymentMethodId } from "@/types/checkout";
+
+export function OrderReview({ lines, address, delivery, paymentId }: { lines: CartLine[]; address?: CheckoutAddress; delivery: DeliveryOption; paymentId: PaymentMethodId }) {
+  return <section className="rounded-[30px] border border-black/10 bg-white p-5 sm:p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-black uppercase tracking-[.16em] text-black/35">04 · Review</p><h2 className="mt-1 text-xl font-black">Check everything once</h2></div><Link href="/cart" className="text-xs font-black underline underline-offset-4">Edit bag</Link></div><div className="mt-5 divide-y divide-black/8">{lines.map((line) => <div key={line.lineId} className="flex items-center justify-between gap-4 py-3"><div><p className="text-sm font-black">{line.name}</p><p className="mt-1 text-xs font-bold text-black/40">Qty {line.quantity}{line.color ? ` · ${line.color}` : ""}{line.size ? ` · ${line.size}` : ""}</p></div><p className="text-sm font-black">{currency.format(line.price * line.quantity)}</p></div>)}</div><div className="mt-5 grid gap-3 sm:grid-cols-3"><ReviewMini title="Deliver to" body={address ? `${address.city}, ${address.postalCode}` : "Select address"} /><ReviewMini title="Speed" body={delivery.label} /><ReviewMini title="Payment" body={paymentId.toUpperCase()} /></div></section>;
+}
+function ReviewMini({ title, body }: { title: string; body: string }) { return <div className="rounded-2xl bg-[#f4f4f0] p-3"><p className="text-[10px] font-black uppercase tracking-[.14em] text-black/35">{title}</p><p className="mt-1 text-xs font-black">{body}</p></div>; }

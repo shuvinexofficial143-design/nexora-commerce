@@ -1,0 +1,4 @@
+import type { ProductOffer } from "@/types/product-detail";
+export function OfferList({ offers }: { offers: ProductOffer[] }) {
+  return <div><div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-black">Best offers</h3><span className="text-xs font-bold text-black/40">Auto-applied when eligible</span></div><div className="space-y-2">{offers.map((offer) => <div key={offer.title} className={`rounded-2xl border border-black/8 p-3 ${offer.tone === "lime" ? "bg-[#efffc0]" : offer.tone === "warm" ? "bg-[#fff0e5]" : "bg-white"}`}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black">{offer.title}</p><p className="mt-1 text-xs leading-5 text-black/55">{offer.description}</p></div>{offer.code ? <span className="rounded-full border border-black/10 bg-white/70 px-2 py-1 text-[10px] font-black">{offer.code}</span> : null}</div></div>)}</div></div>;
+}

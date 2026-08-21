@@ -1,0 +1,14 @@
+
+NEXORA production backend:
+https://nexora-commerce-tau.vercel.app
+
+Expected health:
+ok = true
+database = connected
+environment = production
+
+Admin Android app:
+C:\WebProjects\nexora-admin-app\.env.android
+
+APK build command:
+npm.cmd run android:apk

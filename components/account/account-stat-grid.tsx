@@ -1,0 +1,3 @@
+import Link from "next/link";
+type Stat = { label: string; value: string; caption: string; href: string };
+export function AccountStatGrid({ stats }: { stats: Stat[] }) { return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats.map((stat)=><Link key={stat.label} href={stat.href} className="group rounded-3xl border border-black/10 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-lg"><p className="text-xs font-black uppercase tracking-[.16em] text-black/40">{stat.label}</p><p className="mt-3 text-3xl font-black tracking-tight">{stat.value}</p><p className="mt-2 text-xs font-bold text-black/45">{stat.caption}</p><span className="mt-4 inline-block text-xs font-black group-hover:underline">View details →</span></Link>)}</div>; }

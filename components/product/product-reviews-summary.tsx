@@ -1,0 +1,5 @@
+import type { ProductDetail } from "@/types/product-detail";
+export function ProductReviewsSummary({ product }: { product: ProductDetail }) {
+  const distribution = [[5, 72], [4, 19], [3, 6], [2, 2], [1, 1]];
+  return <div className="rounded-[28px] bg-[#f0f0eb] p-6"><div className="flex items-end gap-3"><span className="text-5xl font-black tracking-[-0.06em]">{product.rating.toFixed(1)}</span><div className="pb-1"><div className="text-lg tracking-[0.12em]">★★★★★</div><p className="text-xs font-bold text-black/45">{product.reviews.toLocaleString("en-IN")} ratings</p></div></div><div className="mt-5 space-y-2">{distribution.map(([stars, percent]) => <div key={stars} className="grid grid-cols-[28px_1fr_35px] items-center gap-2 text-[11px] font-bold"><span>{stars}★</span><div className="h-2 overflow-hidden rounded-full bg-black/8"><div className="h-full rounded-full bg-black" style={{ width: `${percent}%` }} /></div><span className="text-right text-black/40">{percent}%</span></div>)}</div></div>;
+}

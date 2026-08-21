@@ -1,0 +1,4 @@
+export function SecurityCard() {
+  const rows = [["Password","Protected","Change"],["Two-step verification","Recommended","Enable"],["Active sessions","1 device","Review"]];
+  return <article id="security" className="rounded-3xl border border-black/10 bg-white p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-lg font-black">Security centre</p><p className="mt-1 text-sm text-black/45">Manage sign-in protection and devices.</p></div><span className="rounded-full bg-[#f5ffe0] px-3 py-1 text-xs font-black">Healthy</span></div><div className="mt-5 divide-y divide-black/10">{rows.map(([label,status,action]) => <div key={label} className="flex items-center justify-between gap-4 py-4"><div><p className="text-sm font-black">{label}</p><p className="mt-1 text-xs text-black/45">{status}</p></div><button className="text-xs font-black underline underline-offset-4">{action}</button></div>)}</div></article>;
+}
