@@ -22,12 +22,12 @@ export default function HomePage() {
     <>
       <HeroSection />
       <CategoryStrip />
+      <NewArrivalsSection />
       <TrendingSearches />
       <FlashSaleSpotlight />
       <FlashDealsSection />
       <FeaturedBrands />
       <EditorialBanner />
-      <NewArrivalsSection />
       <CategoryShowcase />
       <PromoGrid />
       <PersonalizedSection />
