@@ -1,4 +1,3 @@
-import { AnnouncementBar } from "@/components/home/announcement-bar";
 import { AppDownloadBanner } from "@/components/home/app-download-banner";
 import { CategoryShowcase } from "@/components/home/category-showcase";
 import { CategoryStrip } from "@/components/home/category-strip";
@@ -17,4 +16,28 @@ import { RecentlyViewedSection } from "@/components/home/recently-viewed-section
 import { SocialProofStrip } from "@/components/home/social-proof-strip";
 import { TrendingSearches } from "@/components/home/trending-searches";
 import { TrustStrip } from "@/components/home/trust-strip";
-export default function HomePage(){return <><AnnouncementBar/><HeroSection/><CategoryStrip/><TrendingSearches/><FlashSaleSpotlight/><FlashDealsSection/><FeaturedBrands/><EditorialBanner/><NewArrivalsSection/><CategoryShowcase/><PromoGrid/><PersonalizedSection/><DealStrip/><MemberBanner/><RecentlyViewedSection/><AppDownloadBanner/><SocialProofStrip/><NewsletterSection/><TrustStrip/></>}
+
+export default function HomePage() {
+  return (
+    <>
+      <HeroSection />
+      <CategoryStrip />
+      <TrendingSearches />
+      <FlashSaleSpotlight />
+      <FlashDealsSection />
+      <FeaturedBrands />
+      <EditorialBanner />
+      <NewArrivalsSection />
+      <CategoryShowcase />
+      <PromoGrid />
+      <PersonalizedSection />
+      <DealStrip />
+      <MemberBanner />
+      <RecentlyViewedSection />
+      <AppDownloadBanner />
+      <SocialProofStrip />
+      <NewsletterSection />
+      <TrustStrip />
+    </>
+  );
+}
