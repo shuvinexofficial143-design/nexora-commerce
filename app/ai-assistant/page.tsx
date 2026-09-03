@@ -1,4 +1,11 @@
 import type { Metadata } from "next";
 import { AiShopShell } from "@/components/ai/ai-shop-shell";
-export const metadata:Metadata={title:"AI Shopping Assistant | NEXORA",description:"Natural-language AI product discovery, recommendations and comparison for the NEXORA catalog."};
-export default function AiAssistantPage(){return <AiShopShell/>}
+
+export const metadata: Metadata = {
+  title: "Ganesh Murti Assistant | Prakriti Ganesh",
+  description: "Get size, budget, material and eco-friendly Ganesh murti recommendations from the Prakriti Ganesh catalog.",
+};
+
+export default function AiAssistantPage() {
+  return <AiShopShell />;
+}
