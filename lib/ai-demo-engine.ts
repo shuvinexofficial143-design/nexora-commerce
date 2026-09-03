@@ -1,14 +1,23 @@
-import { catalogProducts, categoryLabels } from "@/lib/catalog-data";
+import { catalogProducts } from "@/lib/catalog-data";
 import type { CatalogProduct } from "@/types/catalog";
 import type { AiAssistantResponse, AiShoppingIntent } from "@/types/ai";
 
+const categoryLabels: Record<string, string> = {
+  "shadu-mati": "Shadu Mati murtis",
+  "home-murtis": "home Ganesh murtis",
+  "seed-ganesh": "Seed Ganesh murtis",
+  premium: "premium artisan murtis",
+  "natural-finish": "natural finish murtis",
+  "bulk-orders": "society and bulk murtis",
+};
+
 const categoryKeywords: Record<string, string[]> = {
-  electronics: ["electronic", "headphone", "camera", "phone", "keyboard", "speaker", "gadget", "tech", "gaming"],
-  fashion: ["fashion", "shirt", "jacket", "clothes", "wear", "outfit"],
-  home: ["home", "desk", "lamp", "blanket", "diffuser", "bottle", "decor"],
-  beauty: ["beauty", "skin", "serum", "makeup", "cleanser", "face"],
-  fitness: ["fitness", "gym", "training", "dumbbell", "yoga", "workout"],
-  accessories: ["accessory", "watch", "bag", "backpack", "sunglass", "wallet"],
+  "shadu-mati": ["shadu", "shaadu", "mati", "clay", "traditional", "visarjan"],
+  "home-murtis": ["home", "ghar", "small", "mini", "compact", "gifting", "gift"],
+  "seed-ganesh": ["seed", "plantable", "plant", "vriksha", "ankur"],
+  premium: ["premium", "artisan", "handmade", "hand-finished", "large", "festival"],
+  "natural-finish": ["natural", "raw clay", "terracotta", "earthy", "minimal"],
+  "bulk-orders": ["bulk", "society", "mandal", "office", "corporate", "community", "30 inch", "24 inch"],
 };
 
 function extractBudget(input: string) {
@@ -40,8 +49,24 @@ export function inferShoppingIntent(query: string): AiShoppingIntent {
   const category = detectCategory(query);
   const budget = extractBudget(query);
   const brands = [...new Set(catalogProducts.filter((p) => q.includes(p.brand.toLowerCase())).map((p) => p.brand))];
-  const features = ["premium", "wireless", "camera", "travel", "gym", "skin", "minimal", "running", "5g"].filter((feature) => q.includes(feature));
-  const sortBy = q.includes("cheap") || q.includes("sasta") || q.includes("lowest") ? "price" : q.includes("rating") || q.includes("best") ? "rating" : "relevance";
+  const features = [
+    "shadu",
+    "seed",
+    "plantable",
+    "natural",
+    "premium",
+    "artisan",
+    "eco-friendly",
+    "bulk",
+    "society",
+    "gift",
+    "mini",
+  ].filter((feature) => q.includes(feature));
+  const sortBy = q.includes("cheap") || q.includes("sasta") || q.includes("lowest")
+    ? "price"
+    : q.includes("rating") || q.includes("best") || q.includes("top")
+      ? "rating"
+      : "relevance";
   return { category, budget, brands, features, sortBy };
 }
 
@@ -58,18 +83,18 @@ export function runDemoAssistant(query: string): AiAssistantResponse {
   }
 
   const products = ranked.slice(0, 4);
-  const categoryLabel = intent.category ? categoryLabels[intent.category] : "store";
+  const categoryLabel = intent.category ? categoryLabels[intent.category] ?? "Ganesh murtis" : "Ganesh collection";
   const budgetText = intent.budget ? ` ₹${intent.budget.toLocaleString("en-IN")} ke budget me` : "";
   const top = products[0];
   const answer = top
-    ? `Maine ${categoryLabel} se${budgetText} strong matches nikale hain. ${top.name} sabse balanced pick lag raha hai: ${top.rating}/5 rating, ₹${top.price.toLocaleString("en-IN")} price aur ${top.delivery.toLowerCase()} delivery. Neeche alternatives bhi compare kar sakte ho.`
-    : "Is request ke liye exact product nahi mila. Budget ya category thoda broad karke dobara try karo.";
+    ? `Maine ${categoryLabel} me${budgetText} best matches nikale hain. ${top.name} strong pick hai: ${top.rating}/5 rating, ₹${top.price.toLocaleString("en-IN")} price aur ${top.delivery.toLowerCase()} delivery. Material, size aur visarjan preference ke hisaab se neeche alternatives bhi dekh sakte ho.`
+    : "Is preference ke liye exact murti nahi mili. Budget, size ya material thoda broad karke dobara try karo.";
 
   return {
     answer,
     products,
     intent,
-    followUps: ["Sabse value-for-money kaunsa hai?", "Top 3 compare karo", "Sirf in-stock options dikhao"],
+    followUps: ["Ghar ke liye best size kaunsa hai?", "Top 3 Shadu murtis compare karo", "Sirf in-stock eco options dikhao"],
     mode: "demo",
   };
 }
