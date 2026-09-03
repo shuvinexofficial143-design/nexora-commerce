@@ -6,8 +6,8 @@ import { Container } from "@/components/ui/container";
 import { catalogProducts } from "@/lib/catalog-data";
 
 export const metadata: Metadata = {
-  title: "Shop All | Nexora Commerce",
-  description: "Explore curated electronics, fashion, home, beauty, fitness and accessories with smart filters and premium discovery.",
+  title: "Shop Eco-Friendly Ganesh Murtis",
+  description: "Browse handcrafted Shadu Mati, Seed Ganesh, natural-finish, premium and bulk-order friendly Ganesh murtis.",
 };
 
 export default function ShopPage() {
