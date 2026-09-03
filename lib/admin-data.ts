@@ -1,12 +1,80 @@
-import type {AdminCoupon,AdminCustomer,AdminKpi,AdminOrder,AdminProduct,AdminReturn,AdminReview,OrderStatusSummary,RevenuePoint} from "@/types/admin";
-export const adminKpis:AdminKpi[]=[{label:"Gross revenue",value:"₹18.42L",trend:18.4,icon:"₹"},{label:"Orders",value:"1,284",trend:12.8,icon:"▣"},{label:"Customers",value:"8,912",trend:9.6,icon:"◉"},{label:"Conversion",value:"4.83%",trend:-1.2,icon:"↗"}];
-export const revenueSeries:RevenuePoint[]=[{label:"Mon",revenue:186000},{label:"Tue",revenue:224000},{label:"Wed",revenue:198000},{label:"Thu",revenue:312000},{label:"Fri",revenue:278000},{label:"Sat",revenue:346000},{label:"Sun",revenue:298000}];
-export const orderStatusSummary:OrderStatusSummary[]=[{label:"Processing",count:118},{label:"Packed",count:84},{label:"Shipped",count:246},{label:"Delivered",count:817},{label:"Returned",count:19}];
-export const recentOrders:AdminOrder[]=[{id:"NX82401931",customer:"Aarav Sharma",date:"20 Aug · 7:14 PM",items:2,payment:"UPI",total:7498,status:"Shipped"},{id:"NX82401930",customer:"Meera Patel",date:"20 Aug · 6:52 PM",items:1,payment:"Card",total:5999,status:"Packed"},{id:"NX82401929",customer:"Rohan Verma",date:"20 Aug · 6:31 PM",items:4,payment:"COD",total:12840,status:"Processing"},{id:"NX82401928",customer:"Ishita Jain",date:"20 Aug · 5:58 PM",items:1,payment:"UPI",total:3499,status:"Delivered"},{id:"NX82401927",customer:"Kabir Khan",date:"20 Aug · 5:22 PM",items:3,payment:"Card",total:18499,status:"Shipped"},{id:"NX82401926",customer:"Ananya Singh",date:"20 Aug · 4:47 PM",items:2,payment:"Wallet",total:6298,status:"Returned"},{id:"NX82401925",customer:"Dev Malhotra",date:"20 Aug · 4:18 PM",items:1,payment:"UPI",total:2499,status:"Delivered"}];
-export const adminProducts:AdminProduct[]=[{sku:"NX-SHO-101",name:"Aero Run Pro Sneakers",image:"👟",category:"Footwear",price:3499,stock:42,sales:824,active:true},{sku:"NX-AUD-204",name:"Orbit ANC Headphones",image:"🎧",category:"Audio",price:5999,stock:18,sales:612,active:true},{sku:"NX-WAT-318",name:"Pulse Fit Smartwatch",image:"⌚",category:"Wearables",price:4499,stock:9,sales:488,active:true},{sku:"NX-BAG-421",name:"Metro Carry Backpack",image:"🎒",category:"Bags",price:2499,stock:74,sales:397,active:true},{sku:"NX-HOM-522",name:"Halo Desk Lamp",image:"💡",category:"Home",price:1899,stock:12,sales:283,active:true},{sku:"NX-BEA-602",name:"Glow Daily Care Kit",image:"✨",category:"Beauty",price:1299,stock:0,sales:216,active:false}];
-export const adminCustomers:AdminCustomer[]=[{name:"Aarav Sharma",email:"aarav@example.com",segment:"Platinum",orders:18,ltv:86240,lastOrder:"Today",status:"Active"},{name:"Meera Patel",email:"meera@example.com",segment:"Gold",orders:11,ltv:48990,lastOrder:"Today",status:"Active"},{name:"Rohan Verma",email:"rohan@example.com",segment:"New",orders:2,ltv:16239,lastOrder:"Today",status:"Active"},{name:"Ishita Jain",email:"ishita@example.com",segment:"Gold",orders:9,ltv:41780,lastOrder:"1 day ago",status:"Active"},{name:"Kabir Khan",email:"kabir@example.com",segment:"At risk",orders:7,ltv:38540,lastOrder:"18 days ago",status:"Inactive"}];
-export const categorySummary=[{name:"Electronics",products:128,revenue:684200},{name:"Fashion",products:214,revenue:522800},{name:"Home & living",products:96,revenue:312400},{name:"Beauty",products:78,revenue:198600},{name:"Sports",products:64,revenue:164900}];export const brandSummary=[{name:"Nexora",share:34},{name:"Orbit",share:24},{name:"Aero",share:18},{name:"Halo",share:13},{name:"Other",share:11}];
-export const adminCoupons:AdminCoupon[]=[{code:"HELLO10",type:"New customer",offer:"10% off up to ₹750",uses:1248,revenue:682400,ends:"31 Aug",active:true},{code:"SAVE500",type:"Cart value",offer:"₹500 off above ₹4,999",uses:864,revenue:924800,ends:"25 Aug",active:true},{code:"NEXORA20",type:"Category",offer:"20% off selected fashion",uses:512,revenue:438600,ends:"23 Aug",active:true},{code:"FREESHIP",type:"Delivery",offer:"Free express shipping",uses:390,revenue:226900,ends:"—",active:false}];
-export const adminReviews:AdminReview[]=[{id:"RV-1048",product:"Aero Run Pro Sneakers",customer:"Aarav Sharma",rating:5,status:"Published",text:"Very comfortable for daily running and the cushioning feels premium."},{id:"RV-1047",product:"Orbit ANC Headphones",customer:"Meera Patel",rating:4,status:"Published",text:"Noise cancellation is excellent. The ear cups feel slightly warm after long sessions."},{id:"RV-1046",product:"Pulse Fit Smartwatch",customer:"Dev Malhotra",rating:2,status:"Needs review",text:"Battery was lower than expected on the first week. Support has contacted me."}];
-export const adminReturns:AdminReturn[]=[{id:"RT-2081",orderId:"NX82401926",customer:"Ananya Singh",reason:"Size issue",amount:3499,status:"Pickup scheduled"},{id:"RT-2080",orderId:"NX82399812",customer:"Vivan Shah",reason:"Damaged in transit",amount:5999,status:"Inspection pending"},{id:"RT-2079",orderId:"NX82398440",customer:"Riya Soni",reason:"Changed mind",amount:1899,status:"Refund approved"}];
-export const analyticsFunnel=[{label:"Store sessions",value:48240,percent:100},{label:"Product views",value:31780,percent:66},{label:"Added to cart",value:8240,percent:31},{label:"Checkout started",value:3940,percent:18},{label:"Orders placed",value:2330,percent:10}];export const trafficSources=[{name:"Organic search",sessions:16240,share:34},{name:"Paid social",sessions:12860,share:27},{name:"Direct",sessions:9180,share:19},{name:"Email & CRM",sessions:5820,share:12},{name:"Referral",sessions:4140,share:8}];
+import type {AdminBulkEnquiry,AdminCoupon,AdminCustomer,AdminKpi,AdminOrder,AdminProduct,AdminReturn,AdminReview,OrderStatusSummary,RevenuePoint} from "@/types/admin";
+
+export const adminKpis:AdminKpi[]=[
+  {label:"Festival revenue",value:"₹8.74L",trend:22.6,icon:"₹"},
+  {label:"Murti orders",value:"486",trend:18.9,icon:"🪔"},
+  {label:"Bulk enquiries",value:"37",trend:31.4,icon:"🏛"},
+  {label:"Eco conversion",value:"6.42%",trend:1.8,icon:"🌿"},
+];
+
+export const revenueSeries:RevenuePoint[]=[
+  {label:"Mon",revenue:74000},{label:"Tue",revenue:92000},{label:"Wed",revenue:118000},{label:"Thu",revenue:126000},{label:"Fri",revenue:148000},{label:"Sat",revenue:169000},{label:"Sun",revenue:147000},
+];
+
+export const orderStatusSummary:OrderStatusSummary[]=[
+  {label:"Processing",count:54},{label:"Packed",count:46},{label:"Shipped",count:82},{label:"Delivered",count:292},{label:"Returned",count:12},
+];
+
+export const recentOrders:AdminOrder[]=[
+  {id:"PG82401931",customer:"Aarav Sharma",date:"03 Sep · 5:14 PM",items:1,payment:"UPI",total:1768,status:"Shipped"},
+  {id:"PG82401930",customer:"Meera Patel",date:"03 Sep · 4:52 PM",items:2,payment:"Card",total:2598,status:"Packed"},
+  {id:"PG82401929",customer:"Rohan Verma",date:"03 Sep · 4:31 PM",items:1,payment:"COD",total:3499,status:"Processing"},
+  {id:"PG82401928",customer:"Ishita Jain",date:"03 Sep · 3:58 PM",items:3,payment:"UPI",total:3297,status:"Delivered"},
+  {id:"PG82401927",customer:"Kabir Khan",date:"03 Sep · 3:22 PM",items:1,payment:"Card",total:4799,status:"Shipped"},
+  {id:"PG82401926",customer:"Ananya Singh",date:"03 Sep · 2:47 PM",items:1,payment:"UPI",total:899,status:"Returned"},
+];
+
+export const adminProducts:AdminProduct[]=[
+  {sku:"PG-00001",name:"Shree Shadu Ganesh — 12 inch",image:"🪔",category:"Shadu Mati",price:1499,stock:38,sales:184,active:true},
+  {sku:"PG-00002",name:"Bal Ganesh Home Murti — 8 inch",image:"🌿",category:"Home Murtis",price:899,stock:52,sales:126,active:true},
+  {sku:"PG-00003",name:"Vriksha Seed Ganesh — 10 inch",image:"🌱",category:"Seed Ganesh",price:1299,stock:27,sales:92,active:true},
+  {sku:"PG-00004",name:"Rajadhiraj Premium Ganesh — 18 inch",image:"👑",category:"Premium",price:3499,stock:7,sales:78,active:true},
+  {sku:"PG-00011",name:"Vakratunda Premium Ganesh — 21 inch",image:"✨",category:"Premium",price:4799,stock:4,sales:56,active:true},
+  {sku:"PG-00017",name:"Mandal Eco Ganesh — 30 inch",image:"🏛",category:"Bulk Orders",price:7999,stock:3,sales:24,active:true},
+];
+
+export const adminCustomers:AdminCustomer[]=[
+  {name:"Aarav Sharma",email:"aarav@example.com",segment:"Festival repeat",orders:4,ltv:8240,lastOrder:"Today",status:"Active"},
+  {name:"Meera Patel",email:"meera@example.com",segment:"Eco loyal",orders:3,ltv:6490,lastOrder:"Today",status:"Active"},
+  {name:"Rohan Verma",email:"rohan@example.com",segment:"New",orders:1,ltv:3499,lastOrder:"Today",status:"Active"},
+  {name:"Ishita Jain",email:"ishita@example.com",segment:"Gifting",orders:5,ltv:11840,lastOrder:"1 day ago",status:"Active"},
+  {name:"Kabir Khan",email:"kabir@example.com",segment:"Premium",orders:2,ltv:8298,lastOrder:"3 days ago",status:"Active"},
+];
+
+export const categorySummary=[
+  {name:"Shadu Mati",products:4,revenue:244800},{name:"Home Murtis",products:3,revenue:148600},{name:"Seed Ganesh",products:3,revenue:126900},{name:"Premium",products:3,revenue:252400},{name:"Bulk Orders",products:3,revenue:101300},{name:"Natural Finish",products:2,revenue:67400},
+];
+export const brandSummary=[{name:"Prakriti Studio",share:44},{name:"Prakriti Earth",share:31},{name:"Prakriti Artisan",share:25}];
+
+export const adminCoupons:AdminCoupon[]=[
+  {code:"GANESH10",type:"Festival welcome",offer:"10% off up to ₹750",uses:248,revenue:282400,ends:"15 Sep",active:true},
+  {code:"ECO500",type:"High value",offer:"₹500 off above ₹4,999",uses:64,revenue:424800,ends:"12 Sep",active:true},
+  {code:"BULK10",type:"Society orders",offer:"Special bulk pricing",uses:18,revenue:318600,ends:"30 Sep",active:true},
+  {code:"FREESHIP",type:"Delivery",offer:"Protected delivery benefit",uses:90,revenue:126900,ends:"—",active:false},
+];
+
+export const adminReviews:AdminReview[]=[
+  {id:"PG-RV-1048",product:"Shree Shadu Ganesh — 12 inch",customer:"Aarav Sharma",rating:5,status:"Published",text:"Natural clay finish looked beautiful and the protective packing was excellent."},
+  {id:"PG-RV-1047",product:"Vriksha Seed Ganesh — 10 inch",customer:"Meera Patel",rating:5,status:"Published",text:"Loved the plantable concept and earthy finish. Perfect for our home celebration."},
+  {id:"PG-RV-1046",product:"Rajadhiraj Premium Ganesh — 18 inch",customer:"Dev Malhotra",rating:3,status:"Needs review",text:"Murti was beautiful but outer packaging arrived slightly dented."},
+];
+
+export const adminReturns:AdminReturn[]=[
+  {id:"PG-RT-2081",orderId:"PG82401926",customer:"Ananya Singh",reason:"Transit damage",amount:899,status:"Replacement arranged"},
+  {id:"PG-RT-2080",orderId:"PG82399812",customer:"Vivan Shah",reason:"Finish variation",amount:1599,status:"Photo review pending"},
+  {id:"PG-RT-2079",orderId:"PG82398440",customer:"Riya Soni",reason:"Delivery timing",amount:1199,status:"Refund approved"},
+];
+
+export const bulkEnquiries:AdminBulkEnquiry[]=[
+  {id:"BE-2401",name:"Rahul Joshi",organization:"Mahakal Residency",phone:"+91 98••• 4210",city:"Ujjain",size:"24–30 inch",quantity:2,budget:"₹12k–₹18k",neededBy:"12 Sep",status:"New"},
+  {id:"BE-2400",name:"Neha Patil",organization:"Aarambh Tech",phone:"+91 97••• 8321",city:"Indore",size:"Gifting minis",quantity:60,budget:"₹25k–₹35k",neededBy:"10 Sep",status:"Contacted"},
+  {id:"BE-2399",name:"Vikas Mehta",organization:"Shree Ganesh Mandal",phone:"+91 99••• 1608",city:"Dewas",size:"30+ inch",quantity:1,budget:"₹8k–₹12k",neededBy:"11 Sep",status:"Quoted"},
+  {id:"BE-2398",name:"Priya Jain",organization:"Green Park Society",phone:"+91 96••• 5580",city:"Bhopal",size:"18–24 inch",quantity:4,budget:"₹18k–₹24k",neededBy:"13 Sep",status:"Confirmed"},
+];
+
+export const analyticsFunnel=[
+  {label:"Store sessions",value:18420,percent:100},{label:"Murti views",value:12680,percent:69},{label:"Added to cart",value:3240,percent:26},{label:"Checkout started",value:1680,percent:13},{label:"Orders placed",value:486,percent:6},
+];
+export const trafficSources=[
+  {name:"Organic search",sessions:6240,share:34},{name:"Instagram & social",sessions:5180,share:28},{name:"Direct",sessions:3640,share:20},{name:"WhatsApp referrals",sessions:2180,share:12},{name:"Other referrals",sessions:1180,share:6},
+];
