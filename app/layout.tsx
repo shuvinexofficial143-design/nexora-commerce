@@ -5,15 +5,15 @@ import { AuthProvider } from "@/components/auth/auth-provider";
 import { SiteChrome } from "@/components/layout/site-chrome";
 
 export const metadata: Metadata = {
-  title: { default: "Nexora Commerce — Shop Beyond Ordinary", template: "%s | Nexora Commerce" },
-  description: "A premium AI-ready ecommerce experience for discovery, comparison and effortless checkout.",
+  title: { default: "Prakriti Ganesh — Eco-Friendly Ganesh Murtis", template: "%s | Prakriti Ganesh" },
+  description: "Handcrafted eco-friendly Ganesh murtis made with natural clay, thoughtful finishes and planet-friendly materials.",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f8f8f6",
+  themeColor: "#fffaf0",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
