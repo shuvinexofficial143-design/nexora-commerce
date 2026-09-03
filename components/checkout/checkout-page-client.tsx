@@ -22,7 +22,7 @@ export function CheckoutPageClient() {
   const router = useRouter();
   const { lines, hydrated, clearCart, coupon } = useCart();
   const [step, setStep] = useState<CheckoutStep>(1);
-  const [email, setEmail] = useState("customer@nexora.demo");
+  const [email, setEmail] = useState("customer@prakritiganesh.demo");
   const [addresses, setAddresses] = useState<CheckoutAddress[]>(defaultAddresses);
   const [addressId, setAddressId] = useState(defaultAddresses[0]?.id ?? "");
   const [deliveryId, setDeliveryId] = useState(deliveryOptions[0].id);
@@ -70,7 +70,7 @@ export function CheckoutPageClient() {
       const unresolved = lines.filter((line) => !bySlug.has(line.slug));
       if (unresolved.length) {
         throw new Error(
-          `${unresolved[0].name} is not in the production database yet. Run the NEXORA database seed first.`,
+          `${unresolved[0].name} is not in the production database yet. Seed the Prakriti Ganesh database before placing live orders.`,
         );
       }
 
@@ -99,7 +99,7 @@ export function CheckoutPageClient() {
       });
 
       sessionStorage.setItem(
-        "nexora-last-order",
+        "prakriti-ganesh-last-order",
         JSON.stringify({
           orderId: order.orderNumber,
           email,
