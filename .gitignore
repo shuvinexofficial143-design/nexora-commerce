@@ -1,5 +1,6 @@
 .vercel
 .env*
+!.env.prakriti.example
 .env.local
 .env*.local
 node_modules
