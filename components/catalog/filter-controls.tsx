@@ -33,13 +33,13 @@ export function FilterControls({ filters, categories, brands, onChange }: Filter
 
   return (
     <div>
-      <Section title="Category">
+      <Section title="Murti type">
         <CheckboxFilter options={categories} selected={filters.categories} onToggle={(value) => toggle("categories", value)} />
       </Section>
-      <Section title="Brand">
+      <Section title="Studio / artisan">
         <CheckboxFilter options={brands} selected={filters.brands} onToggle={(value) => toggle("brands", value)} />
       </Section>
-      <Section title="Price">
+      <Section title="Budget">
         <PriceRangeFilter
           min={filters.minPrice}
           max={filters.maxPrice}
@@ -48,13 +48,13 @@ export function FilterControls({ filters, categories, brands, onChange }: Filter
           onChange={(minPrice, maxPrice) => onChange({ ...filters, minPrice, maxPrice })}
         />
       </Section>
-      <Section title="Customer rating">
+      <Section title="Devotee rating">
         <RatingFilter value={filters.minRating} onChange={(minRating) => onChange({ ...filters, minRating })} />
       </Section>
-      <Section title="Availability">
+      <Section title="Festival availability">
         <StockFilter value={filters.stock} onChange={(stock) => onChange({ ...filters, stock })} />
       </Section>
-      <Section title="Discount">
+      <Section title="Festival saving">
         <DiscountFilter value={filters.minDiscount} onChange={(minDiscount) => onChange({ ...filters, minDiscount })} />
       </Section>
     </div>
