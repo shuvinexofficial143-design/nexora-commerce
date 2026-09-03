@@ -1,7 +1,18 @@
 export type CheckoutStep = 1 | 2 | 3 | 4;
 
 export type CheckoutAddress = {
-  id: string; label: string; fullName: string; phone: string; line1: string; city: string; state: string; postalCode: string; country: string;
+  id: string;
+  label: string;
+  fullName: string;
+  phone: string;
+  alternatePhone?: string;
+  line1: string;
+  areaColony: string;
+  landmark?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
 };
 
 export type DeliveryOption = { id: string; label: string; eta: string; price: number; badge?: string };
