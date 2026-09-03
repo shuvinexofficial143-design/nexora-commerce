@@ -4,17 +4,32 @@ import { Container } from "@/components/ui/container";
 const footerGroups = [
   {
     title: "Shop",
-    links: ["Clay Ganesh", "Seed Ganesh", "Premium Murtis", "Bulk orders"],
+    links: [
+      ["Shadu Mati", "/category/shadu-mati"],
+      ["Seed Ganesh", "/category/seed-ganesh"],
+      ["Premium Murtis", "/category/premium"],
+      ["Bulk orders", "/bulk-orders"],
+    ],
   },
   {
     title: "Help",
-    links: ["Track order", "Delivery", "Care guide", "Contact support"],
+    links: [
+      ["Track order", "/track-order"],
+      ["Ganesh FAQ", "/faq"],
+      ["Murti guide", "/ai-assistant"],
+      ["Saved murtis", "/wishlist"],
+    ],
   },
   {
-    title: "Our Promise",
-    links: ["Natural materials", "Artisan made", "Eco visarjan", "Sustainability"],
+    title: "Prakriti",
+    links: [
+      ["About us", "/about"],
+      ["Natural finish", "/category/natural-finish"],
+      ["Home murtis", "/category/home-murtis"],
+      ["Shop all", "/shop"],
+    ],
   },
-];
+] as const;
 
 export function SiteFooter() {
   return (
@@ -24,7 +39,7 @@ export function SiteFooter() {
           <div>
             <p className="text-3xl font-black tracking-[-0.06em]">PRAKRITI GANESH.</p>
             <p className="mt-4 max-w-sm text-sm leading-6 text-white/60">
-              Handcrafted Ganesh murtis created with natural clay and mindful materials, so devotion and nature can be celebrated together.
+              A focused collection of eco-conscious Ganesh murtis for homes, gifting, societies and mindful celebrations.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
@@ -32,8 +47,8 @@ export function SiteFooter() {
               <div key={group.title}>
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f6c453]">{group.title}</p>
                 <div className="mt-4 space-y-3">
-                  {group.links.map((label) => (
-                    <Link key={label} href="/shop" className="block text-sm text-white/65 hover:text-white">
+                  {group.links.map(([label, href]) => (
+                    <Link key={href} href={href} className="block text-sm text-white/65 hover:text-white">
                       {label}
                     </Link>
                   ))}
@@ -44,7 +59,7 @@ export function SiteFooter() {
         </div>
         <div className="flex flex-col gap-3 pt-6 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
           <p>© 2026 Prakriti Ganesh. Celebrate devotion, protect nature.</p>
-          <p>Privacy · Terms · Shipping</p>
+          <p>Eco-conscious collection · Secure checkout · Order tracking</p>
         </div>
       </Container>
     </footer>
