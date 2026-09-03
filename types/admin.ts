@@ -1,1 +1,12 @@
-export type AdminKpi={label:string;value:string;trend:number;icon:string};export type RevenuePoint={label:string;revenue:number};export type OrderStatusSummary={label:string;count:number};export type AdminOrderStatus="Processing"|"Packed"|"Shipped"|"Delivered"|"Returned";export type AdminOrder={id:string;customer:string;date:string;items:number;payment:string;total:number;status:AdminOrderStatus};export type AdminProduct={sku:string;name:string;image:string;category:string;price:number;stock:number;sales:number;active:boolean};export type AdminCustomer={name:string;email:string;segment:string;orders:number;ltv:number;lastOrder:string;status:"Active"|"Inactive"};export type AdminCoupon={code:string;type:string;offer:string;uses:number;revenue:number;ends:string;active:boolean};export type AdminReview={id:string;product:string;customer:string;rating:number;status:"Published"|"Needs review";text:string};export type AdminReturn={id:string;orderId:string;customer:string;reason:string;amount:number;status:string};
+export type AdminKpi={label:string;value:string;trend:number;icon:string};
+export type RevenuePoint={label:string;revenue:number};
+export type OrderStatusSummary={label:string;count:number};
+export type AdminOrderStatus="Processing"|"Packed"|"Shipped"|"Delivered"|"Returned";
+export type AdminOrder={id:string;customer:string;date:string;items:number;payment:string;total:number;status:AdminOrderStatus};
+export type AdminProduct={sku:string;name:string;image:string;category:string;price:number;stock:number;sales:number;active:boolean};
+export type AdminCustomer={name:string;email:string;segment:string;orders:number;ltv:number;lastOrder:string;status:"Active"|"Inactive"};
+export type AdminCoupon={code:string;type:string;offer:string;uses:number;revenue:number;ends:string;active:boolean};
+export type AdminReview={id:string;product:string;customer:string;rating:number;status:"Published"|"Needs review";text:string};
+export type AdminReturn={id:string;orderId:string;customer:string;reason:string;amount:number;status:string};
+export type AdminBulkEnquiryStatus="New"|"Contacted"|"Quoted"|"Confirmed";
+export type AdminBulkEnquiry={id:string;name:string;organization:string;phone:string;city:string;size:string;quantity:number;budget:string;neededBy:string;status:AdminBulkEnquiryStatus};
