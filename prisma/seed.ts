@@ -163,7 +163,17 @@ async function main() {
     });
   }
 
+  await prisma.bulkEnquiry.deleteMany();
+  await prisma.bulkEnquiry.createMany({
+    data: [
+      { name: "Rahul Joshi", organization: "Mahakal Residency", phone: "+91 98765 44210", city: "Ujjain", size: "24–30 inch", quantity: 2, budget: "₹12k–₹18k", requirement: "Natural clay finish for society installation", status: "NEW" },
+      { name: "Neha Patil", organization: "Aarambh Tech", phone: "+91 97654 48321", email: "neha@example.com", city: "Indore", size: "Gifting minis", quantity: 60, budget: "₹25k–₹35k", requirement: "Office gifting packs with simple eco packaging", status: "CONTACTED" },
+      { name: "Vikas Mehta", organization: "Shree Ganesh Mandal", phone: "+91 99887 71608", city: "Dewas", size: "30+ inch", quantity: 1, budget: "₹8k–₹12k", requirement: "Large Shadu Mati murti with protected transport", status: "QUOTED" },
+    ],
+  });
+
   console.log(`Seeded ${catalogProducts.length} Prakriti Ganesh products.`);
+  console.log(`Seeded Prakriti Ganesh bulk enquiry demo queue.`);
   console.log(`Admin: ${admin.email}`);
   console.log(`Customer: ${customer.email}`);
 }
