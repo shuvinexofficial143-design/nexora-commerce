@@ -10,10 +10,10 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 function backendFailureMessage(error: unknown) {
   if (error instanceof ApiClientError && error.status === 503) {
-    return "Database is not configured yet. Add the NEXORA Supabase connection strings to .env.local.";
+    return "Database is not configured yet. Add the Prakriti Ganesh database connection strings to .env.local.";
   }
   if (error instanceof ApiClientError && error.status === 0) {
-    return "The NEXORA backend could not be reached.";
+    return "The Prakriti Ganesh account service could not be reached.";
   }
   return error instanceof Error ? error.message : "Backend is unavailable.";
 }
@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const next = result.session ? mapBackendSession(result.session) : null;
       setSession(next);
       setBackend("ready");
-      setBackendMessage("Secure database-backed accounts are online.");
+      setBackendMessage("Secure Prakriti Ganesh accounts are online.");
       return next;
     } catch (error) {
       setSession(null);
@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     setSession(next);
     setBackend("ready");
-    setBackendMessage("Secure database-backed accounts are online.");
+    setBackendMessage("Secure Prakriti Ganesh accounts are online.");
     return next;
   }, []);
 
@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     setSession(next);
     setBackend("ready");
-    setBackendMessage("Secure database-backed accounts are online.");
+    setBackendMessage("Secure Prakriti Ganesh accounts are online.");
     return next;
   }, []);
 
