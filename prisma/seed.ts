@@ -5,7 +5,7 @@ import { hashPassword } from "../lib/auth/password";
 import { catalogProducts } from "../lib/catalog-data";
 
 const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
-if (!connectionString) throw new Error("DIRECT_URL or DATABASE_URL is required to seed NEXORA.");
+if (!connectionString) throw new Error("DIRECT_URL or DATABASE_URL is required to seed Prakriti Ganesh.");
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString }),
@@ -28,37 +28,38 @@ function titleCase(value: string) {
 }
 
 async function main() {
-  const passwordHash = await hashPassword("NexoraDemo@123");
+  const demoPassword = "PrakritiDemo@123";
+  const passwordHash = await hashPassword(demoPassword);
 
   const admin = await prisma.user.upsert({
-    where: { email: "admin@nexora.demo" },
+    where: { email: "admin@prakritiganesh.demo" },
     update: { passwordHash, role: "ADMIN", status: "ACTIVE" },
     create: {
-      email: "admin@nexora.demo",
-      name: "NEXORA Admin",
+      email: "admin@prakritiganesh.demo",
+      name: "Prakriti Ganesh Admin",
       passwordHash,
       role: "ADMIN",
     },
   });
 
   const customer = await prisma.user.upsert({
-    where: { email: "customer@nexora.demo" },
+    where: { email: "customer@prakritiganesh.demo" },
     update: { passwordHash, status: "ACTIVE" },
     create: {
-      email: "customer@nexora.demo",
-      name: "Demo Customer",
+      email: "customer@prakritiganesh.demo",
+      name: "Prakriti Customer",
       passwordHash,
       role: "CUSTOMER",
     },
   });
 
   const warehouse = await prisma.warehouse.upsert({
-    where: { code: "IND-01" },
+    where: { code: "UJN-01" },
     update: { active: true },
     create: {
-      code: "IND-01",
-      name: "Indore Fulfilment Centre",
-      city: "Indore",
+      code: "UJN-01",
+      name: "Ujjain Murti Fulfilment Centre",
+      city: "Ujjain",
       state: "Madhya Pradesh",
     },
   });
@@ -88,10 +89,10 @@ async function main() {
     const product = await prisma.product.upsert({
       where: { slug: item.slug },
       update: {
-        sku: `NX-${item.id.replace("cat_", "").padStart(5, "0")}`,
+        sku: `PG-${item.id.replace("cat_", "").padStart(5, "0")}`,
         name: item.name,
-        shortDescription: `${item.brand} ${titleCase(item.category)} selected by NEXORA`,
-        description: `${item.name} is part of the NEXORA curated ${titleCase(item.category)} collection.`,
+        shortDescription: `${item.brand} ${titleCase(item.category)} eco-friendly Ganesh murti`,
+        description: `${item.name} is part of the Prakriti Ganesh ${titleCase(item.category)} collection, curated for mindful Ganesh Chaturthi celebrations.`,
         priceMinor: Math.round(item.price * 100),
         compareAtMinor: item.compareAtPrice ? Math.round(item.compareAtPrice * 100) : null,
         rating: item.rating,
@@ -104,10 +105,10 @@ async function main() {
       create: {
         id: item.id,
         slug: item.slug,
-        sku: `NX-${item.id.replace("cat_", "").padStart(5, "0")}`,
+        sku: `PG-${item.id.replace("cat_", "").padStart(5, "0")}`,
         name: item.name,
-        shortDescription: `${item.brand} ${titleCase(item.category)} selected by NEXORA`,
-        description: `${item.name} is part of the NEXORA curated ${titleCase(item.category)} collection.`,
+        shortDescription: `${item.brand} ${titleCase(item.category)} eco-friendly Ganesh murti`,
+        description: `${item.name} is part of the Prakriti Ganesh ${titleCase(item.category)} collection, curated for mindful Ganesh Chaturthi celebrations.`,
         priceMinor: Math.round(item.price * 100),
         compareAtMinor: item.compareAtPrice ? Math.round(item.compareAtPrice * 100) : null,
         rating: item.rating,
@@ -162,9 +163,9 @@ async function main() {
     });
   }
 
-  console.log(`Seeded ${catalogProducts.length} storefront products.`);
-  console.log(`Admin: ${admin.email} / NexoraDemo@123`);
-  console.log(`Customer: ${customer.email} / NexoraDemo@123`);
+  console.log(`Seeded ${catalogProducts.length} Prakriti Ganesh products.`);
+  console.log(`Admin: ${admin.email}`);
+  console.log(`Customer: ${customer.email}`);
 }
 
 main()
