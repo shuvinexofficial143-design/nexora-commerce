@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { getPrisma } from "@/lib/db/prisma";
 import { serializeUser } from "@/lib/db/users";
 
-const COOKIE_NAME = "nexora_session";
+const COOKIE_NAME = "prakriti_ganesh_session";
 const SESSION_DAYS = 30;
 
 function tokenHash(token: string) {
