@@ -1,8 +1,6 @@
 import type { CheckoutAddress, DeliveryOption, PaymentMethod } from "@/types/checkout";
 
-export const defaultAddresses: CheckoutAddress[] = [
-  { id:"home", label:"Home", fullName:"Prakriti Customer", phone:"9876543210", alternatePhone:"", line1:"42 Mahakal Road", areaColony:"Mahakal Marg", landmark:"Near Mahakaleshwar area", city:"Ujjain", state:"Madhya Pradesh", postalCode:"456001", country:"India" },
-];
+export const defaultAddresses: CheckoutAddress[] = [];
 
 export const deliveryOptions: DeliveryOption[] = [
   { id:"standard", label:"Careful standard delivery", eta:"Protective packing · estimated 3–5 business days", price:0, badge:"Free" },
