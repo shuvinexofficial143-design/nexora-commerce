@@ -3,76 +3,76 @@ import type { Brand, Promo, SearchTrend, SocialProof } from "@/types/home";
 import { featuredProducts } from "@/lib/store-data";
 
 export const brands: Brand[] = [
-  { name: "Auralab", label: "Audio", href: "/brand/auralab" },
-  { name: "NORTHLINE", label: "Streetwear", href: "/brand/northline" },
-  { name: "forme", label: "Home", href: "/brand/forme" },
-  { name: "MORI", label: "Watches", href: "/brand/mori" },
-  { name: "SEREIN", label: "Beauty", href: "/brand/serein" },
-  { name: "KINETIC", label: "Fitness", href: "/brand/kinetic" },
+  { name: "Prakriti Studio", label: "Shadu Mati", href: "/category/shadu-mati" },
+  { name: "Prakriti Earth", label: "Seed Ganesh", href: "/category/seed-ganesh" },
+  { name: "Prakriti Artisan", label: "Premium", href: "/category/premium" },
+  { name: "Natural Finish", label: "Raw clay", href: "/category/natural-finish" },
+  { name: "Home Collection", label: "Compact", href: "/category/home-murtis" },
+  { name: "Society Orders", label: "Bulk", href: "/category/bulk-orders" },
 ];
 
 export const promos: Promo[] = [
   {
-    eyebrow: "Creator setup",
-    title: "Build a desk that makes focus easier.",
-    description: "Clean tech, considered lighting and tools selected for a calmer workflow.",
-    cta: "Shop the edit",
-    href: "/collections/creator-desk",
-    image: "https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1400&q=85",
-    tone: "dark",
+    eyebrow: "Natural clay",
+    title: "Celebrate Bappa with materials that return gently to nature.",
+    description: "Explore handcrafted Shadu Mati murtis with earthy texture and traditional detailing.",
+    cta: "Shop Shadu Mati",
+    href: "/category/shadu-mati",
+    image: "https://images.unsplash.com/photo-1622033482784-86c436688b36?auto=format&fit=crop&w=1400&q=85",
+    tone: "warm",
   },
   {
-    eyebrow: "Move daily",
-    title: "Training essentials, minus the noise.",
-    description: "Performance pieces for gym sessions, walks and everything between.",
-    cta: "Explore fitness",
-    href: "/category/fitness",
-    image: "https://images.unsplash.com/photo-1538805060514-97d9cc17730c?auto=format&fit=crop&w=1200&q=85",
+    eyebrow: "Plant after visarjan",
+    title: "A greener ritual with Seed Ganesh.",
+    description: "Thoughtful eco options for families who want the celebration to leave something living behind.",
+    cta: "Explore Seed Ganesh",
+    href: "/category/seed-ganesh",
+    image: "https://images.unsplash.com/photo-1753545245731-1f37d75d891a?auto=format&fit=crop&w=1200&q=85",
     tone: "lime",
   },
   {
-    eyebrow: "Home reset",
-    title: "Small changes. Better spaces.",
-    description: "Warm textures and functional objects that make a room feel finished.",
-    cta: "Refresh your space",
-    href: "/category/home",
-    image: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=1200&q=85",
-    tone: "warm",
+    eyebrow: "Society & office orders",
+    title: "Planning a larger celebration? We can help you choose at scale.",
+    description: "Browse bigger sizes and bulk-order friendly collections for communities and teams.",
+    cta: "View bulk collection",
+    href: "/category/bulk-orders",
+    image: "https://images.unsplash.com/photo-1769326309581-7419e22c6eee?auto=format&fit=crop&w=1200&q=85",
+    tone: "dark",
   },
 ];
 
 export const trendingSearches: SearchTrend[] = [
-  { label: "Wireless headphones", href: "/search?q=wireless+headphones" },
-  { label: "Running shoes", href: "/search?q=running+shoes" },
-  { label: "Minimal watches", href: "/search?q=minimal+watches" },
-  { label: "Skincare sets", href: "/search?q=skincare+sets" },
-  { label: "Desk setup", href: "/search?q=desk+setup" },
-  { label: "Travel bags", href: "/search?q=travel+bags" },
+  { label: "Shadu Mati Ganesh", href: "/search?q=shadu+mati+ganesh" },
+  { label: "8 inch Ganesh", href: "/search?q=8+inch+ganesh" },
+  { label: "Seed Ganesh", href: "/search?q=seed+ganesh" },
+  { label: "Natural clay", href: "/search?q=natural+clay" },
+  { label: "Premium Ganesh", href: "/search?q=premium+ganesh" },
+  { label: "Bulk Ganesh order", href: "/search?q=bulk+ganesh" },
 ];
 
 export const socialProof: SocialProof[] = [
-  { value: "4.8/5", label: "average product rating" },
-  { value: "24h", label: "priority dispatch on eligible items" },
-  { value: "10k+", label: "happy early shoppers" },
-  { value: "7-day", label: "easy return window" },
+  { value: "Natural", label: "clay-forward materials" },
+  { value: "Handmade", label: "artisan crafted murtis" },
+  { value: "Pan-India", label: "delivery-ready storefront" },
+  { value: "Eco", label: "visarjan-conscious collection" },
 ];
 
 export const flashDealProducts: Product[] = featuredProducts.slice(0, 6);
 export const newArrivalProducts: Product[] = [
   featuredProducts[6],
+  featuredProducts[2],
   featuredProducts[3],
-  featuredProducts[4],
-  featuredProducts[1],
+  featuredProducts[0],
 ];
 export const personalizedProducts: Product[] = [
-  featuredProducts[7],
-  featuredProducts[0],
+  featuredProducts[1],
+  featuredProducts[4],
   featuredProducts[5],
-  featuredProducts[2],
+  featuredProducts[7],
 ];
 export const recentProducts: Product[] = [
+  featuredProducts[0],
+  featuredProducts[3],
   featuredProducts[2],
   featuredProducts[6],
-  featuredProducts[1],
-  featuredProducts[7],
 ];
