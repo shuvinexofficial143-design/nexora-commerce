@@ -23,8 +23,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const product = getProductDetail(slug);
   return product
-    ? { title: `${product.name} | NEXORA`, description: product.subtitle }
-    : { title: "Product not found | NEXORA" };
+    ? { title: `${product.name} | Prakriti Ganesh`, description: product.subtitle }
+    : { title: "Murti not found | Prakriti Ganesh" };
 }
 
 export default async function ProductPage({ params }: PageProps) {
@@ -56,11 +56,7 @@ export default async function ProductPage({ params }: PageProps) {
         <RelatedProducts products={related} />
       </div>
 
-      <ProductStickyBuybar
-        name={product.name}
-        price={product.price}
-        unavailable={product.stock === "out-of-stock"}
-      />
+      <ProductStickyBuybar name={product.name} price={product.price} unavailable={product.stock === "out-of-stock"} />
     </main>
   );
 }
