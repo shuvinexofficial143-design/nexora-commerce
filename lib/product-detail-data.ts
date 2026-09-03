@@ -3,40 +3,62 @@ import type { CatalogProduct } from "@/types/catalog";
 import type { ProductDetail, ProductReview, ProductSpecGroup } from "@/types/product-detail";
 
 const defaultReviews: ProductReview[] = [
-  { id: "rev-1", author: "Aarav M.", rating: 5, title: "Premium feel and great value", body: "Packaging felt premium, the product matched the photos and delivery was quicker than expected.", verified: true, helpful: 186, date: "12 Aug 2026" },
-  { id: "rev-2", author: "Meera S.", rating: 4, title: "Very good everyday pick", body: "Quality is strong for the price. I would like one more colour option, but overall I am happy with it.", verified: true, helpful: 94, date: "08 Aug 2026" },
-  { id: "rev-3", author: "Rohan K.", rating: 5, title: "Would buy again", body: "Easy purchase experience and the product has been reliable since day one.", verified: true, helpful: 71, date: "03 Aug 2026" },
+  { id: "rev-1", author: "Aarav M.", rating: 5, title: "Beautiful handmade finish", body: "The murti looked beautiful and the natural clay texture made it feel genuinely handcrafted.", verified: true, helpful: 186, date: "28 Aug 2026" },
+  { id: "rev-2", author: "Meera S.", rating: 5, title: "Perfect size for our home", body: "The size was easy to understand from the listing and the murti arrived well packed for the festival.", verified: true, helpful: 94, date: "24 Aug 2026" },
+  { id: "rev-3", author: "Rohan K.", rating: 4, title: "Loved the eco focus", body: "A good option for families who want a more nature-conscious Ganesh Chaturthi celebration.", verified: true, helpful: 71, date: "21 Aug 2026" },
 ];
+
+function sizeFromName(name: string) {
+  const match = name.match(/(\d+)\s*inch/i);
+  return match ? `${match[1]} inch` : "See product title";
+}
+
+function categoryLabel(category: string) {
+  return category
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function materialFor(product: CatalogProduct) {
+  if (product.category === "seed-ganesh") return "Natural clay / seed-based eco concept";
+  if (product.category === "shadu-mati") return "Shadu Mati / natural clay";
+  if (product.category === "natural-finish") return "Natural clay with minimal finish";
+  return "Eco-conscious clay-focused construction";
+}
 
 function categorySpecs(product: CatalogProduct): ProductSpecGroup[] {
   const common = [
-    { label: "Brand", value: product.brand },
-    { label: "Category", value: product.category.replace(/(^.|-.)/g, (part) => part.toUpperCase()) },
+    { label: "Collection", value: categoryLabel(product.category) },
+    { label: "Size", value: sizeFromName(product.name) },
+    { label: "Material", value: materialFor(product) },
     { label: "Availability", value: product.stock === "in-stock" ? "In stock" : product.stock === "low-stock" ? "Limited stock" : "Restocking" },
   ];
 
-  if (product.category === "electronics") {
-    return [
-      { title: "Product", items: common },
-      { title: "Technical", items: [{ label: "Connectivity", value: "Wireless / USB-C ready" }, { label: "Power", value: "Rechargeable" }, { label: "Compatibility", value: "Universal" }] },
-      { title: "In the box", items: [{ label: "Included", value: "Main unit, cable, quick-start guide" }, { label: "Warranty", value: "1 year limited warranty" }] },
-    ];
-  }
-  if (product.category === "fashion" || product.category === "accessories") {
-    return [
-      { title: "Product", items: common },
-      { title: "Material & care", items: [{ label: "Finish", value: "Premium everyday finish" }, { label: "Care", value: "Wipe clean / gentle care recommended" }, { label: "Fit", value: "Designed for everyday comfort" }] },
-    ];
-  }
   return [
-    { title: "Product", items: common },
-    { title: "Details", items: [{ label: "Use", value: "Everyday use" }, { label: "Finish", value: "Premium retail finish" }, { label: "Origin", value: "Responsibly sourced" }] },
+    { title: "Murti details", items: common },
+    {
+      title: "Handmade character",
+      items: [
+        { label: "Finish", value: product.colors.join(" / ") || "Natural" },
+        { label: "Craft", value: "Hand-finished; small variations are part of handmade work" },
+        { label: "Use", value: product.category === "bulk-orders" ? "Society, office or community celebration" : "Ganesh Chaturthi home celebration" },
+      ],
+    },
+    {
+      title: "Eco care",
+      items: [
+        { label: "Visarjan", value: "Follow local eco-visarjan guidance and product care instructions" },
+        { label: "Storage", value: "Keep dry and handle gently before installation" },
+        { label: "Packaging", value: "Protective festival-ready packing" },
+      ],
+    },
   ];
 }
 
 function alternateImage(url: string, index: number) {
   const join = url.includes("?") ? "&" : "?";
-  return `${url}${join}crop=entropy&ixid=nexora-pdp-${index}`;
+  return `${url}${join}crop=entropy&ixid=prakriti-ganesh-pdp-${index}`;
 }
 
 export function getProductDetail(slug: string): ProductDetail | undefined {
@@ -44,28 +66,31 @@ export function getProductDetail(slug: string): ProductDetail | undefined {
   if (!product) return undefined;
 
   const colorOptions = product.colors.map((color) => ({ label: color, value: color.toLowerCase().replace(/\s+/g, "-") }));
-  const hasSizes = ["fashion", "fitness"].includes(product.category);
-  const sizes = hasSizes ? ["XS", "S", "M", "L", "XL"].map((size, index) => ({ label: size, value: size, available: index !== 0 })) : [];
 
   return {
     ...product,
-    subtitle: `A refined ${product.category} essential from ${product.brand}, selected for everyday performance and premium design.`,
-    description: `${product.name} combines considered design, dependable quality and an easy everyday experience. It is part of the NEXORA curated catalogue and includes protected checkout, simple returns and responsive support.`,
+    subtitle: `Handcrafted ${categoryLabel(product.category)} murti from ${product.brand}, selected for a mindful Ganesh Chaturthi celebration.`,
+    description: `${product.name} is part of the Prakriti Ganesh eco-friendly collection. The store focuses on clay-forward materials, artisan finishing and clear size information so you can choose a murti that suits your home and celebration.`,
     images: [0, 1, 2, 3].map((index) => ({ src: index === 0 ? product.image : alternateImage(product.image, index), alt: `${product.name} view ${index + 1}` })),
-    sizes,
+    sizes: [],
     colorOptions,
-    highlights: ["Curated premium quality", product.delivery === "Tomorrow" ? "Fast delivery available" : `Delivery in ${product.delivery}`, "Secure checkout and buyer protection", "Easy 7-day return eligibility"],
+    highlights: [
+      materialFor(product),
+      `Approx. size: ${sizeFromName(product.name)}`,
+      `Delivery: ${product.delivery}`,
+      "Secure checkout and careful festival-ready packing",
+    ],
     offers: [
-      { title: "Welcome offer", description: "Get 10% off up to ₹750 on your first NEXORA order.", code: "HELLO10", tone: "lime" },
-      { title: "Bank offer", description: "Extra ₹500 instant saving on eligible card purchases above ₹4,999.", tone: "plain" },
-      { title: "Bundle saving", description: "Add a recommended companion item and unlock an extra bundle discount.", tone: "warm" },
+      { title: "Festive welcome", description: "Introductory seasonal pricing is already reflected on selected murtis.", tone: "lime" },
+      { title: "Bulk planning", description: "Society and office collections are available in the Bulk Orders category.", tone: "plain" },
+      { title: "Choose thoughtfully", description: "Compare size, material and finish before placing your order.", tone: "warm" },
     ],
     specifications: categorySpecs(product),
     reviewsList: defaultReviews,
-    warranty: product.category === "electronics" ? "1 year manufacturer-style limited warranty" : "Quality assurance included",
-    returnPolicy: "Easy 7-day return on eligible unused items",
-    seller: "NEXORA Select",
-    sku: `NX-${product.id.replace("cat_", "").padStart(5, "0")}`,
+    warranty: "Handmade quality assurance",
+    returnPolicy: "Return eligibility depends on condition, damage status and festival delivery terms",
+    seller: "Prakriti Ganesh",
+    sku: `PG-${product.id.replace("cat_", "").padStart(5, "0")}`,
   };
 }
 
