@@ -270,3 +270,75 @@ export async function getSellerEarnings(userId: string) {
     salesSeries,
   };
 }
+
+
+type SellerTopProductRow = {
+  name: string;
+  units: bigint | number;
+  revenueMinor: bigint | number;
+};
+
+type SellerStatusRow = {
+  status: string;
+  orders: bigint | number;
+};
+
+export async function getSellerAnalytics(userId: string) {
+  const seller = await getSellerProfile(userId);
+  if (!seller) {
+    return {
+      topProducts: [] as Array<{ name: string; units: number; revenue: number }>,
+      orderStatuses: [] as Array<{ label: string; count: number }>,
+    };
+  }
+
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const [topRows, statusRows] = await Promise.all([
+    getPrisma().$queryRaw<SellerTopProductRow[]>`
+      select
+        oi."productName" as "name",
+        sum(oi."quantity")::bigint as "units",
+        sum(oi."totalMinor")::bigint as "revenueMinor"
+      from "SellerProduct" sp
+      join "OrderItem" oi on oi."productId"=sp."productId"
+      join "Order" o on o."id"=oi."orderId"
+      where sp."sellerProfileId"=${seller.id}
+        and o."createdAt">=${monthStart}
+        and o."status" not in ('CANCELLED','RETURNED','REFUNDED')
+      group by oi."productId",oi."productName"
+      order by "revenueMinor" desc
+      limit 5
+    `,
+    getPrisma().$queryRaw<SellerStatusRow[]>`
+      select
+        o."status"::text as "status",
+        count(distinct o."id")::bigint as "orders"
+      from "SellerProduct" sp
+      join "OrderItem" oi on oi."productId"=sp."productId"
+      join "Order" o on o."id"=oi."orderId"
+      where sp."sellerProfileId"=${seller.id}
+        and o."createdAt">=${monthStart}
+      group by o."status"
+    `,
+  ]);
+
+  const statusMap = new Map<string, number>();
+  for (const row of statusRows) {
+    const label = mapOrderStatus(row.status);
+    statusMap.set(label, (statusMap.get(label) ?? 0) + Number(row.orders));
+  }
+
+  return {
+    topProducts: topRows.map((row) => ({
+      name: row.name,
+      units: Number(row.units),
+      revenue: Number(row.revenueMinor) / 100,
+    })),
+    orderStatuses: [...statusMap.entries()]
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count),
+  };
+}
