@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { BackendStatus } from "@/components/auth/backend-status";
 import { PasswordField } from "@/components/auth/password-field";
@@ -9,6 +10,7 @@ import { SocialLoginButtons } from "@/components/auth/social-login-buttons";
 import { useAuth } from "@/components/auth/auth-provider";
 
 export function RegisterForm() {
+  const router = useRouter();
   const { register, backend } = useAuth();
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
   const [error, setError] = useState("");
@@ -31,7 +33,8 @@ export function RegisterForm() {
 
     try {
       await register(form);
-      window.location.assign("/account");
+      router.push("/account");
+      router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Registration failed.");
       setBusy(false);
