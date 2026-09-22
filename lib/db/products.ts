@@ -13,15 +13,29 @@ function serializeProduct(product: {
   currency: string;
   rating: number;
   reviewCount: number;
+  createdAt: Date;
   brand: { name: string; slug: string } | null;
   category: { name: string; slug: string } | null;
   images: Array<{ url: string; alt: string }>;
   inventory: Array<{ onHand: number; reserved: number }>;
 }): BackendProduct {
   return {
-    ...product,
+    id: product.id,
+    slug: product.slug,
+    sku: product.sku,
+    name: product.name,
+    shortDescription: product.shortDescription,
+    description: product.description,
+    priceMinor: product.priceMinor,
+    compareAtMinor: product.compareAtMinor,
+    currency: product.currency,
+    rating: product.rating,
+    reviewCount: product.reviewCount,
+    brand: product.brand,
+    category: product.category,
     images: product.images,
     availableStock: product.inventory.reduce((sum, item) => sum + Math.max(0, item.onHand - item.reserved), 0),
+    createdAt: product.createdAt.toISOString(),
   };
 }
 

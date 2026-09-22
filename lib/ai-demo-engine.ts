@@ -1,6 +1,6 @@
 import { catalogProducts, categoryLabels } from "@/lib/catalog-data";
 import type { CatalogProduct } from "@/types/catalog";
-import type { AiAssistantResponse, AiShoppingIntent } from "@/types/ai";
+import type { AiAssistantResponse, AiMode, AiShoppingIntent } from "@/types/ai";
 
 const categoryKeywords: Record<string, string[]> = {
   electronics: ["electronic", "headphone", "camera", "phone", "keyboard", "speaker", "gadget", "tech", "gaming"],
@@ -17,9 +17,13 @@ function extractBudget(input: string) {
   return match ? Number(match[1]) : undefined;
 }
 
-function detectCategory(input: string) {
+function detectCategory(input: string, products: CatalogProduct[]) {
   const q = input.toLowerCase();
-  return Object.entries(categoryKeywords).find(([, words]) => words.some((word) => q.includes(word)))?.[0];
+  const known = Object.entries(categoryKeywords).find(([, words]) => words.some((word) => q.includes(word)))?.[0];
+  if (known) return known;
+
+  const categories = [...new Set(products.map((product) => product.category).filter(Boolean))];
+  return categories.find((category) => q.includes(category.toLowerCase().replace(/-/g, " ")));
 }
 
 function scoreProduct(product: CatalogProduct, query: string, intent: AiShoppingIntent) {
@@ -35,19 +39,23 @@ function scoreProduct(product: CatalogProduct, query: string, intent: AiShopping
   return score;
 }
 
-export function inferShoppingIntent(query: string): AiShoppingIntent {
+export function inferShoppingIntent(query: string, products: CatalogProduct[] = catalogProducts): AiShoppingIntent {
   const q = query.toLowerCase();
-  const category = detectCategory(query);
+  const category = detectCategory(query, products);
   const budget = extractBudget(query);
-  const brands = [...new Set(catalogProducts.filter((p) => q.includes(p.brand.toLowerCase())).map((p) => p.brand))];
+  const brands = [...new Set(products.filter((p) => q.includes(p.brand.toLowerCase())).map((p) => p.brand))];
   const features = ["premium", "wireless", "camera", "travel", "gym", "skin", "minimal", "running", "5g"].filter((feature) => q.includes(feature));
   const sortBy = q.includes("cheap") || q.includes("sasta") || q.includes("lowest") ? "price" : q.includes("rating") || q.includes("best") ? "rating" : "relevance";
   return { category, budget, brands, features, sortBy };
 }
 
-export function runDemoAssistant(query: string): AiAssistantResponse {
-  const intent = inferShoppingIntent(query);
-  let ranked = catalogProducts
+export function runCatalogAssistant(
+  query: string,
+  productsSource: CatalogProduct[],
+  mode: AiMode = "catalog",
+): AiAssistantResponse {
+  const intent = inferShoppingIntent(query, productsSource);
+  let ranked = productsSource
     .map((product) => ({ product, score: scoreProduct(product, query, intent) }))
     .sort((a, b) => b.score - a.score)
     .map(({ product }) => product);
@@ -58,7 +66,9 @@ export function runDemoAssistant(query: string): AiAssistantResponse {
   }
 
   const products = ranked.slice(0, 4);
-  const categoryLabel = intent.category ? categoryLabels[intent.category] : "store";
+  const categoryLabel = intent.category
+    ? categoryLabels[intent.category] ?? intent.category.replace(/(^.|-.)/g, (part) => part.toUpperCase())
+    : "store";
   const budgetText = intent.budget ? ` ₹${intent.budget.toLocaleString("en-IN")} ke budget me` : "";
   const top = products[0];
   const answer = top
@@ -70,6 +80,10 @@ export function runDemoAssistant(query: string): AiAssistantResponse {
     products,
     intent,
     followUps: ["Sabse value-for-money kaunsa hai?", "Top 3 compare karo", "Sirf in-stock options dikhao"],
-    mode: "demo",
+    mode,
   };
+}
+
+export function runDemoAssistant(query: string): AiAssistantResponse {
+  return runCatalogAssistant(query, catalogProducts, "demo");
 }

@@ -1,6 +1,6 @@
 import { catalogProducts } from "@/lib/catalog-data";
 import type { CatalogProduct } from "@/types/catalog";
-import type { ProductDetail, ProductReview, ProductSpecGroup } from "@/types/product-detail";
+import type { ProductDetail, ProductImage, ProductReview, ProductSpecGroup } from "@/types/product-detail";
 
 const defaultReviews: ProductReview[] = [
   { id: "rev-1", author: "Aarav M.", rating: 5, title: "Premium feel and great value", body: "Packaging felt premium, the product matched the photos and delivery was quicker than expected.", verified: true, helpful: 186, date: "12 Aug 2026" },
@@ -39,19 +39,27 @@ function alternateImage(url: string, index: number) {
   return `${url}${join}crop=entropy&ixid=nexora-pdp-${index}`;
 }
 
-export function getProductDetail(slug: string): ProductDetail | undefined {
-  const product = catalogProducts.find((item) => item.slug === slug);
-  if (!product) return undefined;
+type ProductDetailOverrides = {
+  subtitle?: string;
+  description?: string;
+  sku?: string;
+  images?: ProductImage[];
+};
 
+export function buildProductDetail(product: CatalogProduct, overrides: ProductDetailOverrides = {}): ProductDetail {
   const colorOptions = product.colors.map((color) => ({ label: color, value: color.toLowerCase().replace(/\s+/g, "-") }));
   const hasSizes = ["fashion", "fitness"].includes(product.category);
   const sizes = hasSizes ? ["XS", "S", "M", "L", "XL"].map((size, index) => ({ label: size, value: size, available: index !== 0 })) : [];
+  const defaultImages = [0, 1, 2, 3].map((index) => ({
+    src: index === 0 ? product.image : alternateImage(product.image, index),
+    alt: `${product.name} view ${index + 1}`,
+  }));
 
   return {
     ...product,
-    subtitle: `A refined ${product.category} essential from ${product.brand}, selected for everyday performance and premium design.`,
-    description: `${product.name} combines considered design, dependable quality and an easy everyday experience. It is part of the NEXORA curated catalogue and includes protected checkout, simple returns and responsive support.`,
-    images: [0, 1, 2, 3].map((index) => ({ src: index === 0 ? product.image : alternateImage(product.image, index), alt: `${product.name} view ${index + 1}` })),
+    subtitle: overrides.subtitle ?? `A refined ${product.category} essential from ${product.brand}, selected for everyday performance and premium design.`,
+    description: overrides.description ?? `${product.name} combines considered design, dependable quality and an easy everyday experience. It is part of the NEXORA curated catalogue and includes protected checkout, simple returns and responsive support.`,
+    images: overrides.images?.length ? overrides.images : defaultImages,
     sizes,
     colorOptions,
     highlights: ["Curated premium quality", product.delivery === "Tomorrow" ? "Fast delivery available" : `Delivery in ${product.delivery}`, "Secure checkout and buyer protection", "Easy 7-day return eligibility"],
@@ -65,16 +73,21 @@ export function getProductDetail(slug: string): ProductDetail | undefined {
     warranty: product.category === "electronics" ? "1 year manufacturer-style limited warranty" : "Quality assurance included",
     returnPolicy: "Easy 7-day return on eligible unused items",
     seller: "NEXORA Select",
-    sku: `NX-${product.id.replace("cat_", "").padStart(5, "0")}`,
+    sku: overrides.sku ?? `NX-${product.id.replace("cat_", "").padStart(5, "0")}`,
   };
 }
 
-export function getRelatedProducts(product: CatalogProduct, limit = 4) {
-  const sameCategory = catalogProducts.filter((item) => item.slug !== product.slug && item.category === product.category);
-  const fallback = catalogProducts.filter((item) => item.slug !== product.slug && item.category !== product.category);
+export function getProductDetail(slug: string): ProductDetail | undefined {
+  const product = catalogProducts.find((item) => item.slug === slug);
+  return product ? buildProductDetail(product) : undefined;
+}
+
+export function getRelatedProducts(product: CatalogProduct, limit = 4, source: CatalogProduct[] = catalogProducts) {
+  const sameCategory = source.filter((item) => item.slug !== product.slug && item.category === product.category);
+  const fallback = source.filter((item) => item.slug !== product.slug && item.category !== product.category);
   return [...sameCategory, ...fallback].slice(0, limit);
 }
 
-export function getBundleProducts(product: CatalogProduct) {
-  return getRelatedProducts(product, 2);
+export function getBundleProducts(product: CatalogProduct, source: CatalogProduct[] = catalogProducts) {
+  return getRelatedProducts(product, 2, source);
 }
