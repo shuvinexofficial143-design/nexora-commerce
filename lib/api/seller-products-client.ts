@@ -19,3 +19,35 @@ export function createMySellerProduct(input: {
     },
   );
 }
+
+
+export function updateMySellerProduct(
+  productId: string,
+  input: {
+    name?: string;
+    price?: number;
+    status?: "Live" | "Draft" | "Paused";
+  },
+) {
+  return apiFetch<{
+    id: string;
+    name: string;
+    price: number;
+    status: "Live" | "Draft" | "Paused";
+  }>(`/api/backend/seller/products/${productId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "update", ...input }),
+  });
+}
+
+export function adjustMySellerProductStock(productId: string, delta: number) {
+  return apiFetch<{
+    productId: string;
+    onHand: number;
+    reserved: number;
+    available: number;
+  }>(`/api/backend/seller/products/${productId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "stock", delta }),
+  });
+}
