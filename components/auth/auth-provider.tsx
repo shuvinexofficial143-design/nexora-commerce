@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { fetchBackendSession, loginBackend, logoutBackend, registerBackend } from "@/lib/api/auth-client";
 import { ApiClientError } from "@/lib/api/http";
 import { mapBackendSession, mapBackendUser } from "@/lib/backend-mappers";
@@ -19,6 +20,7 @@ function backendFailureMessage(error: unknown) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [session, setSession] = useState<AuthSession | null>(null);
   const [ready, setReady] = useState(false);
   const [backend, setBackend] = useState<BackendState>("checking");
@@ -44,7 +46,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refreshSession();
+    queueMicrotask(() => {
+      void refreshSession();
+    });
   }, [refreshSession]);
 
   const login = useCallback(async (input: LoginInput) => {
@@ -78,9 +82,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await logoutBackend();
     } finally {
       setSession(null);
-      window.location.assign("/");
+      router.push("/");
+      router.refresh();
     }
-  }, []);
+  }, [router]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
