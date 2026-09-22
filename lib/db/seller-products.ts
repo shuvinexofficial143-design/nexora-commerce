@@ -5,6 +5,7 @@ import type { SellerProduct } from "@/types/seller";
 
 type SellerProductRow = {
   id: string;
+  slug: string;
   sku: string;
   name: string;
   category: string | null;
@@ -24,6 +25,7 @@ function mapStatus(status: SellerProductRow["status"]): SellerProduct["status"] 
 function mapRow(row: SellerProductRow): SellerProduct {
   return {
     id: row.id,
+    slug: row.slug,
     sku: row.sku,
     name: row.name,
     category: row.category ?? "Uncategorized",
@@ -70,6 +72,7 @@ export async function listSellerProducts(userId: string) {
   const rows = await getPrisma().$queryRaw<SellerProductRow[]>`
     select
       p."id",
+      p."slug",
       p."sku",
       p."name",
       c."name" as "category",
@@ -88,7 +91,7 @@ export async function listSellerProducts(userId: string) {
       group by "productId"
     ) sold on sold."productId"=p."id"
     where sp."sellerProfileId"=${sellerProfileId}
-    group by p."id",p."sku",p."name",c."name",p."priceMinor",sold."quantity",p."rating",p."status",p."createdAt"
+    group by p."id",p."slug",p."sku",p."name",c."name",p."priceMinor",sold."quantity",p."rating",p."status",p."createdAt"
     order by p."createdAt" desc
   `;
 
