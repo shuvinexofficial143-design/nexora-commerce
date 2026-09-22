@@ -96,9 +96,9 @@ export function SellerProductTable({ products }: { products: SellerProduct[] }) 
                   </span>
                 </td>
                 <td className="py-4">
-                  {product.status === "Live" ? (
+                  {product.status === "Live" && product.slug ? (
                     <Link
-                      href={`/product/${product.id}`}
+                      href={`/product/${product.slug}`}
                       className="rounded-full border border-black/10 px-3 py-2 text-xs font-black"
                     >
                       View
