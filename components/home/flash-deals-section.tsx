@@ -1,10 +1,10 @@
 import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { flashDealProducts } from "@/lib/home-data";
+import type { Product } from "@/types/commerce";
 import { FlashCountdown } from "./flash-countdown";
 import { ProductCarousel } from "./product-carousel";
 
-export function FlashDealsSection() {
+export function FlashDealsSection({ products }: { products: Product[] }) {
   return (
     <section className="py-16 sm:py-20">
       <Container>
@@ -19,7 +19,7 @@ export function FlashDealsSection() {
             />
             <FlashCountdown />
           </div>
-          <ProductCarousel products={flashDealProducts} />
+          <ProductCarousel products={products} />
         </div>
       </Container>
     </section>
