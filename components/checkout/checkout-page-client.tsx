@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/cart/cart-provider";
 import { CheckoutAuthGate } from "@/components/checkout/checkout-auth-gate";
@@ -13,7 +13,8 @@ import { PaymentSection } from "@/components/checkout/payment-section";
 import { OrderReview } from "@/components/checkout/order-review";
 import { CheckoutSummary } from "@/components/checkout/checkout-summary";
 import { CheckoutEmpty } from "@/components/checkout/checkout-empty";
-import { defaultAddresses, deliveryOptions, paymentMethods } from "@/lib/checkout-data";
+import { deliveryOptions, paymentMethods } from "@/lib/checkout-data";
+import { createMyAddress, fetchMyAddresses } from "@/lib/api/addresses-client";
 import { resolveProductSlugs } from "@/lib/api/products-client";
 import { submitBackendOrder } from "@/lib/api/orders-client";
 import type { CheckoutAddress, CheckoutStep, DeliveryOption, PaymentMethodId } from "@/types/checkout";
@@ -23,8 +24,8 @@ export function CheckoutPageClient() {
   const { lines, hydrated, clearCart, coupon } = useCart();
   const [step, setStep] = useState<CheckoutStep>(1);
   const [email, setEmail] = useState("customer@nexora.demo");
-  const [addresses, setAddresses] = useState<CheckoutAddress[]>(defaultAddresses);
-  const [addressId, setAddressId] = useState(defaultAddresses[0]?.id ?? "");
+  const [addresses, setAddresses] = useState<CheckoutAddress[]>([]);
+  const [addressId, setAddressId] = useState("");
   const [deliveryId, setDeliveryId] = useState(deliveryOptions[0].id);
   const [paymentId, setPaymentId] = useState<PaymentMethodId>("upi");
   const [placing, setPlacing] = useState(false);
@@ -37,6 +38,25 @@ export function CheckoutPageClient() {
 
   const address = addresses.find((item) => item.id === addressId) ?? addresses[0];
 
+  useEffect(() => {
+    let active = true;
+
+    fetchMyAddresses()
+      .then((rows) => {
+        if (!active) return;
+        setAddresses(rows);
+        setAddressId((current) => current || rows[0]?.id || "");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setSubmitError(error instanceof Error ? error.message : "Could not load saved addresses.");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   if (!hydrated) {
     return (
       <div className="mx-auto max-w-[1440px] px-4 py-16 font-bold text-black/50 sm:px-6 lg:px-8">
@@ -47,9 +67,24 @@ export function CheckoutPageClient() {
 
   if (!lines.length) return <CheckoutEmpty />;
 
-  const addAddress = (next: CheckoutAddress) => {
-    setAddresses((current) => [next, ...current]);
-    setAddressId(next.id);
+  const addAddress = async (next: CheckoutAddress) => {
+    try {
+      const created = await createMyAddress({
+        label: next.label,
+        fullName: next.fullName,
+        phone: next.phone,
+        line1: next.line1,
+        city: next.city,
+        state: next.state,
+        postalCode: next.postalCode,
+        country: next.country,
+      });
+      setAddresses((current) => [created, ...current]);
+      setAddressId(created.id);
+      setSubmitError("");
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Could not save delivery address.");
+    }
   };
 
   const placeOrder = async () => {
