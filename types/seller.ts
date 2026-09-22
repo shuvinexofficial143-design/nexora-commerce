@@ -1,4 +1,4 @@
-export type SellerOrderStatus = "New" | "Processing" | "Packed" | "Shipped" | "Delivered" | "Cancelled";
+export type SellerOrderStatus = "New" | "Processing" | "Packed" | "Shipped" | "Delivered" | "Returned" | "Refunded" | "Cancelled";
 export type SellerProductStatus = "Live" | "Draft" | "Paused";
 export type SellerInventoryStatus = "Healthy" | "Low" | "Critical" | "Out";
 export type SellerPayoutStatus = "Scheduled" | "Processing" | "Paid";
