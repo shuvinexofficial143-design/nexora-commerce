@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { catalogProducts } from "@/lib/catalog-data";
-import { getBundleProducts, getProductDetail, getRelatedProducts } from "@/lib/product-detail-data";
+import { mapBackendProductToCatalog } from "@/lib/catalog-backend";
+import { getProductBySlug, listProducts } from "@/lib/db/products";
+import { buildProductDetail, getBundleProducts, getProductDetail, getRelatedProducts } from "@/lib/product-detail-data";
 import { ProductBreadcrumbs } from "@/components/product/product-breadcrumbs";
 import { ProductGallery } from "@/components/product/product-gallery";
 import { ProductInfo } from "@/components/product/product-info";
@@ -12,16 +14,51 @@ import { ProductReviewsPreview } from "@/components/product/product-reviews-prev
 import { FrequentlyBoughtTogether } from "@/components/product/frequently-bought-together";
 import { RelatedProducts } from "@/components/product/related-products";
 import { ProductStickyBuybar } from "@/components/product/product-sticky-buybar";
+import type { ProductDetail } from "@/types/product-detail";
 
 type PageProps = { params: Promise<{ slug: string }> };
+
+export const revalidate = 60;
 
 export function generateStaticParams() {
   return catalogProducts.map((product) => ({ slug: product.slug }));
 }
 
+async function loadProduct(slug: string): Promise<{ product?: ProductDetail; live: boolean }> {
+  try {
+    const backendProduct = await getProductBySlug(slug);
+    if (backendProduct) {
+      const catalogProduct = mapBackendProductToCatalog(backendProduct);
+      return {
+        live: true,
+        product: buildProductDetail(catalogProduct, {
+          subtitle: backendProduct.shortDescription ?? undefined,
+          description: backendProduct.description || undefined,
+          sku: backendProduct.sku,
+        }),
+      };
+    }
+
+    return { live: true };
+  } catch (error) {
+    console.warn(`NEXORA product database unavailable for ${slug}; using bundled fallback.`, error);
+    return { product: getProductDetail(slug), live: false };
+  }
+}
+
+async function loadLiveCatalog() {
+  try {
+    const result = await listProducts({ limit: 100 });
+    return result.items.map(mapBackendProductToCatalog);
+  } catch (error) {
+    console.warn("NEXORA related-product database lookup unavailable; using bundled fallback.", error);
+    return catalogProducts;
+  }
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProductDetail(slug);
+  const { product } = await loadProduct(slug);
   return product
     ? { title: `${product.name} | NEXORA`, description: product.subtitle }
     : { title: "Product not found | NEXORA" };
@@ -29,14 +66,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ProductPage({ params }: PageProps) {
   const { slug } = await params;
-  const product = getProductDetail(slug);
+  const { product, live } = await loadProduct(slug);
+
   if (!product) {
     notFound();
     return null;
   }
 
-  const related = getRelatedProducts(product, 4);
-  const companions = getBundleProducts(product);
+  const source = live ? await loadLiveCatalog() : catalogProducts;
+  const related = getRelatedProducts(product, 4, source);
+  const companions = getBundleProducts(product, source);
 
   return (
     <main className="pb-24 lg:pb-16">
