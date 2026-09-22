@@ -17,11 +17,13 @@ function serializeProduct(product: {
   category: { name: string; slug: string } | null;
   images: Array<{ url: string; alt: string }>;
   inventory: Array<{ onHand: number; reserved: number }>;
+  createdAt: Date;
 }): BackendProduct {
   return {
     ...product,
     images: product.images,
     availableStock: product.inventory.reduce((sum, item) => sum + Math.max(0, item.onHand - item.reserved), 0),
+    createdAt: product.createdAt.toISOString(),
   };
 }
 
