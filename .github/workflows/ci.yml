@@ -31,10 +31,10 @@ jobs:
       - name: Type check
         run: npm run type-check
 
-      - name: Lint
-        run: npm run lint
-
       - name: Production build
         env:
           NODE_ENV: production
         run: npm run build
+
+      - name: Lint
+        run: npm run lint
