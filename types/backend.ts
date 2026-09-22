@@ -91,6 +91,19 @@ export type BackendOrder = {
   items: BackendOrderItem[];
 };
 
+export type BackendReturn = {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  reason: string;
+  details: string | null;
+  status: string;
+  refundMinor: number;
+  resolutionNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ProductResolution = {
   slug: string;
   id: string;
