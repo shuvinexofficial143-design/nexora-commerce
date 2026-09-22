@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { catalogProducts } from "@/lib/catalog-data";
-import { getBundleProducts, getProductDetail, getRelatedProducts } from "@/lib/product-detail-data";
+import { getCatalogProductBySlug, getCatalogProducts } from "@/lib/catalog-backend";
+import { buildProductDetail, getBundleProducts, getRelatedProducts } from "@/lib/product-detail-data";
 import { ProductBreadcrumbs } from "@/components/product/product-breadcrumbs";
 import { ProductGallery } from "@/components/product/product-gallery";
 import { ProductInfo } from "@/components/product/product-info";
@@ -21,7 +22,9 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProductDetail(slug);
+  const catalogProduct = await getCatalogProductBySlug(slug);
+  const product = catalogProduct ? buildProductDetail(catalogProduct) : undefined;
+
   return product
     ? { title: `${product.name} | NEXORA`, description: product.subtitle }
     : { title: "Product not found | NEXORA" };
@@ -29,14 +32,19 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ProductPage({ params }: PageProps) {
   const { slug } = await params;
-  const product = getProductDetail(slug);
-  if (!product) {
+  const [catalogProduct, products] = await Promise.all([
+    getCatalogProductBySlug(slug),
+    getCatalogProducts(),
+  ]);
+
+  if (!catalogProduct) {
     notFound();
     return null;
   }
 
-  const related = getRelatedProducts(product, 4);
-  const companions = getBundleProducts(product);
+  const product = buildProductDetail(catalogProduct);
+  const related = getRelatedProducts(product, 4, products);
+  const companions = getBundleProducts(product, products);
 
   return (
     <main className="pb-24 lg:pb-16">
