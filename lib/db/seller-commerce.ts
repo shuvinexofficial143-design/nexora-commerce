@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { ValidationError } from "@/lib/db/errors";
 import { getPrisma } from "@/lib/db/prisma";
 import type {
   SellerInventory,
@@ -347,14 +348,25 @@ export async function getSellerAnalytics(userId: string) {
     `,
     getPrisma().$queryRaw<SellerStatusRow[]>`
       select
-        o."status"::text as "status",
+        case
+          when o."status"::text in ('DELIVERED','RETURNED','REFUNDED','CANCELLED')
+            then o."status"::text
+          else coalesce(sf."status",'NEW')
+        end as "status",
         count(distinct o."id")::bigint as "orders"
       from "SellerProduct" sp
       join "OrderItem" oi on oi."productId"=sp."productId"
       join "Order" o on o."id"=oi."orderId"
+      left join "SellerOrderFulfillment" sf
+        on sf."orderId"=o."id" and sf."sellerProfileId"=sp."sellerProfileId"
       where sp."sellerProfileId"=${seller.id}
         and o."createdAt">=${monthStart}
-      group by o."status"
+      group by
+        case
+          when o."status"::text in ('DELIVERED','RETURNED','REFUNDED','CANCELLED')
+            then o."status"::text
+          else coalesce(sf."status",'NEW')
+        end
     `,
   ]);
 
