@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
 
-type NotificationRow = Record<string, unknown>;
+type NotificationRow = Record<string, unknown> & { createdAt: Date; readAt: Date | null };
 type NotificationIdRow = { id: string };
 
 export async function notify(input: {
