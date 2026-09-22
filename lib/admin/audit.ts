@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
 
-type AdminActivityRow = Record<string, unknown>;
+type AdminActivityRow = Record<string, unknown> & { createdAt: Date };
 
 export async function logAdmin(input: {
   adminUserId: string;
