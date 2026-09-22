@@ -16,11 +16,18 @@ export function OrderSuccess() {
   const [queryOrder, setQueryOrder] = useState("");
 
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem("nexora-last-order");
-      if (raw) setDetails(JSON.parse(raw));
-      setQueryOrder(new URLSearchParams(window.location.search).get("order") || "");
-    } catch {}
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      try {
+        const raw = sessionStorage.getItem("nexora-last-order");
+        if (raw) setDetails(JSON.parse(raw));
+        setQueryOrder(new URLSearchParams(window.location.search).get("order") || "");
+      } catch {}
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const orderId = queryOrder || details.orderId || "NEXORA-ORDER";
