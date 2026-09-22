@@ -9,3 +9,17 @@ export type SellerPayout = { id:string; period:string; gross:number; commission:
 export type SellerReview = { id:string; customer:string; product:string; rating:number; comment:string; date:string; verified:boolean; replied:boolean };
 export type SellerKpi = { label:string; value:string; detail:string; trend:string };
 export type SellerProfile = { businessName:string; ownerName:string; email:string; phone:string; gstin:string; category:string; pickupCity:string; bankLabel:string; supportEmail:string };
+
+
+export type SellerAccountProfile = {
+  profileId: string | null;
+  userId: string;
+  storeName: string;
+  ownerName: string;
+  email: string;
+  phone: string;
+  gstNumber: string;
+  verificationStatus: string;
+  payoutStatus: string;
+  commissionBps: number;
+};
