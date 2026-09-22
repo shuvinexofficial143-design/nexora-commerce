@@ -445,7 +445,9 @@ export async function advanceSellerOrder(
     throw new ValidationError("Seller order status must move forward one step at a time.");
   }
 
-  await getPrisma().$executeRaw`
+  const prisma = getPrisma();
+
+  await prisma.$executeRaw`
     insert into "SellerOrderFulfillment"(
       "id","sellerProfileId","orderId","status","createdAt","updatedAt"
     )
@@ -460,6 +462,70 @@ export async function advanceSellerOrder(
     on conflict ("sellerProfileId","orderId")
     do update set "status"=${requested},"updatedAt"=now()
   `;
+
+  const coverageRows = await prisma.$queryRaw<
+    Array<{ totalProducts: bigint | number; mappedProducts: bigint | number }>
+  >`
+    select
+      count(distinct oi."productId")::bigint as "totalProducts",
+      count(distinct sp."productId")::bigint as "mappedProducts"
+    from "OrderItem" oi
+    left join "SellerProduct" sp on sp."productId"=oi."productId"
+    where oi."orderId"=${row.orderId}
+  `;
+
+  const coverage = coverageRows[0];
+  if (
+    coverage &&
+    Number(coverage.totalProducts) > 0 &&
+    Number(coverage.totalProducts) === Number(coverage.mappedProducts)
+  ) {
+    const progressRows = await prisma.$queryRaw<
+      Array<{
+        sellers: bigint | number;
+        processing: bigint | number;
+        packed: bigint | number;
+        shipped: bigint | number;
+      }>
+    >`
+      select
+        count(distinct sp."sellerProfileId")::bigint as "sellers",
+        count(distinct case
+          when sf."status" in ('PROCESSING','PACKED','SHIPPED')
+          then sp."sellerProfileId" end)::bigint as "processing",
+        count(distinct case
+          when sf."status" in ('PACKED','SHIPPED')
+          then sp."sellerProfileId" end)::bigint as "packed",
+        count(distinct case
+          when sf."status"='SHIPPED'
+          then sp."sellerProfileId" end)::bigint as "shipped"
+      from "OrderItem" oi
+      join "SellerProduct" sp on sp."productId"=oi."productId"
+      left join "SellerOrderFulfillment" sf
+        on sf."sellerProfileId"=sp."sellerProfileId"
+        and sf."orderId"=oi."orderId"
+      where oi."orderId"=${row.orderId}
+    `;
+
+    const progress = progressRows[0];
+    const sellers = Number(progress?.sellers ?? 0);
+    let globalStatus: "PROCESSING" | "PACKED" | "SHIPPED" | null = null;
+
+    if (sellers > 0 && Number(progress?.shipped ?? 0) === sellers) {
+      globalStatus = "SHIPPED";
+    } else if (sellers > 0 && Number(progress?.packed ?? 0) === sellers) {
+      globalStatus = "PACKED";
+    } else if (sellers > 0 && Number(progress?.processing ?? 0) === sellers) {
+      globalStatus = "PROCESSING";
+    }
+
+    if (globalStatus) {
+      await prisma.order.update({
+        where: { id: row.orderId },
+        data: { status: globalStatus },
+      });
+    }
+  }
 
   return {
     orderNumber,
