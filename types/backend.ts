@@ -30,6 +30,7 @@ export type BackendProduct = {
   category: { name: string; slug: string } | null;
   images: { url: string; alt: string }[];
   availableStock: number;
+  createdAt: string;
 };
 
 export type BackendOrderProduct = {
