@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
 import type {
   SellerInventory,
@@ -437,7 +438,7 @@ export async function advanceSellerOrder(
       "id","sellerProfileId","orderId","status","createdAt","updatedAt"
     )
     values(
-      ${crypto.randomUUID()},
+      ${randomUUID()},
       ${seller.id},
       ${row.orderId},
       ${requested},
