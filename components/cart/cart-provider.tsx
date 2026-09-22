@@ -15,7 +15,29 @@ const CartContext = createContext<CartContextValue | null>(null);
 const STORAGE_KEY = "nexora-commerce-state-v1";
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]); const [saved, setSaved] = useState<SavedLine[]>([]); const [wishlist, setWishlist] = useState<WishlistItem[]>([]); const [coupon, setCoupon] = useState(""); const [hydrated, setHydrated] = useState(false); const [miniOpen, setMiniOpen] = useState(false);
-  useEffect(() => { try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) { const parsed = JSON.parse(raw) as { lines?: CartLine[]; saved?: SavedLine[]; wishlist?: WishlistItem[]; coupon?: string }; setLines(Array.isArray(parsed.lines) ? parsed.lines : []); setSaved(Array.isArray(parsed.saved) ? parsed.saved : []); setWishlist(Array.isArray(parsed.wishlist) ? parsed.wishlist : []); setCoupon(typeof parsed.coupon === "string" ? parsed.coupon : ""); } } catch { localStorage.removeItem(STORAGE_KEY); } finally { setHydrated(true); } }, []);
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { lines?: CartLine[]; saved?: SavedLine[]; wishlist?: WishlistItem[]; coupon?: string };
+          setLines(Array.isArray(parsed.lines) ? parsed.lines : []);
+          setSaved(Array.isArray(parsed.saved) ? parsed.saved : []);
+          setWishlist(Array.isArray(parsed.wishlist) ? parsed.wishlist : []);
+          setCoupon(typeof parsed.coupon === "string" ? parsed.coupon : "");
+        }
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
+      } finally {
+        setHydrated(true);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   useEffect(() => { if (!hydrated) return; localStorage.setItem(STORAGE_KEY, JSON.stringify({ lines, saved, wishlist, coupon })); }, [lines, saved, wishlist, coupon, hydrated]);
   const addItem = useCallback((product: CartProductSnapshot, options: AddOptions = {}) => { if (product.stock === "out-of-stock") return; const lineId = makeLineId(product.id, options.color, options.size); setLines((current) => { const found = current.find((line) => line.lineId === lineId); if (found) return current.map((line) => line.lineId === lineId ? { ...line, quantity: clampQuantity(line.quantity + (options.quantity || 1)) } : line); return [...current, { ...product, lineId, quantity: clampQuantity(options.quantity || 1), color: options.color, size: options.size }]; }); setMiniOpen(true); }, []);
   const removeItem = useCallback((lineId: string) => setLines((current) => current.filter((line) => line.lineId !== lineId)), []); const setQuantity = useCallback((lineId: string, quantity: number) => setLines((current) => current.map((line) => line.lineId === lineId ? { ...line, quantity: clampQuantity(quantity) } : line)), []);
