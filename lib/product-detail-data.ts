@@ -22,12 +22,14 @@ function categorySpecs(product: CatalogProduct): ProductSpecGroup[] {
       { title: "In the box", items: [{ label: "Included", value: "Main unit, cable, quick-start guide" }, { label: "Warranty", value: "1 year limited warranty" }] },
     ];
   }
+
   if (product.category === "fashion" || product.category === "accessories") {
     return [
       { title: "Product", items: common },
       { title: "Material & care", items: [{ label: "Finish", value: "Premium everyday finish" }, { label: "Care", value: "Wipe clean / gentle care recommended" }, { label: "Fit", value: "Designed for everyday comfort" }] },
     ];
   }
+
   return [
     { title: "Product", items: common },
     { title: "Details", items: [{ label: "Use", value: "Everyday use" }, { label: "Finish", value: "Premium retail finish" }, { label: "Origin", value: "Responsibly sourced" }] },
@@ -39,10 +41,7 @@ function alternateImage(url: string, index: number) {
   return `${url}${join}crop=entropy&ixid=nexora-pdp-${index}`;
 }
 
-export function getProductDetail(slug: string): ProductDetail | undefined {
-  const product = catalogProducts.find((item) => item.slug === slug);
-  if (!product) return undefined;
-
+export function buildProductDetail(product: CatalogProduct): ProductDetail {
   const colorOptions = product.colors.map((color) => ({ label: color, value: color.toLowerCase().replace(/\s+/g, "-") }));
   const hasSizes = ["fashion", "fitness"].includes(product.category);
   const sizes = hasSizes ? ["XS", "S", "M", "L", "XL"].map((size, index) => ({ label: size, value: size, available: index !== 0 })) : [];
@@ -65,16 +64,21 @@ export function getProductDetail(slug: string): ProductDetail | undefined {
     warranty: product.category === "electronics" ? "1 year manufacturer-style limited warranty" : "Quality assurance included",
     returnPolicy: "Easy 7-day return on eligible unused items",
     seller: "NEXORA Select",
-    sku: `NX-${product.id.replace("cat_", "").padStart(5, "0")}`,
+    sku: product.id.startsWith("cat_") ? `NX-${product.id.replace("cat_", "").padStart(5, "0")}` : product.id,
   };
 }
 
-export function getRelatedProducts(product: CatalogProduct, limit = 4) {
-  const sameCategory = catalogProducts.filter((item) => item.slug !== product.slug && item.category === product.category);
-  const fallback = catalogProducts.filter((item) => item.slug !== product.slug && item.category !== product.category);
+export function getProductDetail(slug: string): ProductDetail | undefined {
+  const product = catalogProducts.find((item) => item.slug === slug);
+  return product ? buildProductDetail(product) : undefined;
+}
+
+export function getRelatedProducts(product: CatalogProduct, limit = 4, products: CatalogProduct[] = catalogProducts) {
+  const sameCategory = products.filter((item) => item.slug !== product.slug && item.category === product.category);
+  const fallback = products.filter((item) => item.slug !== product.slug && item.category !== product.category);
   return [...sameCategory, ...fallback].slice(0, limit);
 }
 
-export function getBundleProducts(product: CatalogProduct) {
-  return getRelatedProducts(product, 2);
+export function getBundleProducts(product: CatalogProduct, products: CatalogProduct[] = catalogProducts) {
+  return getRelatedProducts(product, 2, products);
 }
