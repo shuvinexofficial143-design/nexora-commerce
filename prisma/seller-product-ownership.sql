@@ -12,3 +12,8 @@ create table if not exists "SellerProduct" (
 
 create index if not exists "SellerProduct_sellerProfileId_idx"
 on "SellerProduct"("sellerProfileId");
+
+
+-- The table lives in Supabase's exposed public schema, so keep it server-only
+-- unless explicit ownership policies are added later.
+alter table "SellerProduct" enable row level security;
