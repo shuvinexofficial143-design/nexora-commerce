@@ -55,6 +55,10 @@ async function ensureSellerProductTable() {
     create index if not exists "SellerProduct_sellerProfileId_idx"
     on "SellerProduct"("sellerProfileId")
   `);
+
+  await prisma.$executeRawUnsafe(`
+    alter table "SellerProduct" enable row level security
+  `);
 }
 
 async function getSellerProfile(userId: string) {
