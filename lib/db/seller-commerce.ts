@@ -61,8 +61,34 @@ async function ensureSellerProductTable() {
   `);
 }
 
+async function ensureSellerFulfillmentTable() {
+  const prisma = getPrisma();
+
+  await prisma.$executeRawUnsafe(`
+    create table if not exists "SellerOrderFulfillment" (
+      "id" text primary key,
+      "sellerProfileId" text not null references "SellerProfile"("id") on delete cascade,
+      "orderId" text not null references "Order"("id") on delete cascade,
+      "status" text not null default 'NEW',
+      "createdAt" timestamp(3) not null default current_timestamp,
+      "updatedAt" timestamp(3) not null default current_timestamp,
+      constraint "SellerOrderFulfillment_seller_order_key" unique ("sellerProfileId","orderId")
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    create index if not exists "SellerOrderFulfillment_sellerProfileId_idx"
+    on "SellerOrderFulfillment"("sellerProfileId")
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    alter table "SellerOrderFulfillment" enable row level security
+  `);
+}
+
 async function getSellerProfile(userId: string) {
   await ensureSellerProductTable();
+  await ensureSellerFulfillmentTable();
   const rows = await getPrisma().$queryRaw<Array<SellerProfileIdRow & { commissionBps: number }>>`
     select "id","commissionBps"
     from "SellerProfile"
@@ -105,13 +131,19 @@ export async function listSellerOrders(userId: string): Promise<SellerOrder[]> {
       sum(oi."quantity")::bigint as "quantity",
       sum(oi."totalMinor")::bigint as "amountMinor",
       o."createdAt",
-      o."status"::text as "status"
+      case
+        when o."status"::text in ('DELIVERED','RETURNED','REFUNDED','CANCELLED')
+          then o."status"::text
+        else coalesce(sf."status",'NEW')
+      end as "status"
     from "SellerProduct" sp
     join "OrderItem" oi on oi."productId"=sp."productId"
     join "Order" o on o."id"=oi."orderId"
     join "User" u on u."id"=o."userId"
+    left join "SellerOrderFulfillment" sf
+      on sf."orderId"=o."id" and sf."sellerProfileId"=sp."sellerProfileId"
     where sp."sellerProfileId"=${seller.id}
-    group by o."id",o."orderNumber",u."name",o."createdAt",o."status"
+    group by o."id",o."orderNumber",u."name",o."createdAt",o."status",sf."status"
     order by o."createdAt" desc
     limit 100
   `;
@@ -340,5 +372,84 @@ export async function getSellerAnalytics(userId: string) {
     orderStatuses: [...statusMap.entries()]
       .map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.count - a.count),
+  };
+}
+
+
+type SellerOrderOwnershipRow = {
+  orderId: string;
+  globalStatus: string;
+  fulfillmentStatus: string | null;
+};
+
+const sellerStatusToDb = {
+  Processing: "PROCESSING",
+  Packed: "PACKED",
+  Shipped: "SHIPPED",
+} as const;
+
+export async function advanceSellerOrder(
+  userId: string,
+  orderNumber: string,
+  nextStatus: "Processing" | "Packed" | "Shipped",
+) {
+  const seller = await getSellerProfile(userId);
+  if (!seller) throw new ValidationError("Seller profile not found.");
+
+  const rows = await getPrisma().$queryRaw<SellerOrderOwnershipRow[]>`
+    select
+      o."id" as "orderId",
+      o."status"::text as "globalStatus",
+      sf."status" as "fulfillmentStatus"
+    from "Order" o
+    join "OrderItem" oi on oi."orderId"=o."id"
+    join "SellerProduct" sp
+      on sp."productId"=oi."productId"
+      and sp."sellerProfileId"=${seller.id}
+    left join "SellerOrderFulfillment" sf
+      on sf."orderId"=o."id"
+      and sf."sellerProfileId"=${seller.id}
+    where o."orderNumber"=${orderNumber}
+    limit 1
+  `;
+
+  const row = rows[0];
+  if (!row) throw new ValidationError("Seller order not found.");
+
+  if (["DELIVERED", "RETURNED", "REFUNDED", "CANCELLED"].includes(row.globalStatus)) {
+    throw new ValidationError("This order can no longer be updated by the seller.");
+  }
+
+  const current = row.fulfillmentStatus ?? "NEW";
+  const allowed: Record<string, string> = {
+    NEW: "PROCESSING",
+    PROCESSING: "PACKED",
+    PACKED: "SHIPPED",
+  };
+  const requested = sellerStatusToDb[nextStatus];
+
+  if (allowed[current] !== requested) {
+    throw new ValidationError("Seller order status must move forward one step at a time.");
+  }
+
+  await getPrisma().$executeRaw`
+    insert into "SellerOrderFulfillment"(
+      "id","sellerProfileId","orderId","status","createdAt","updatedAt"
+    )
+    values(
+      ${crypto.randomUUID()},
+      ${seller.id},
+      ${row.orderId},
+      ${requested},
+      now(),
+      now()
+    )
+    on conflict ("sellerProfileId","orderId")
+    do update set "status"=${requested},"updatedAt"=now()
+  `;
+
+  return {
+    orderNumber,
+    status: nextStatus,
   };
 }
