@@ -39,12 +39,7 @@ export function CheckoutPageClient() {
   );
 
   const address = addresses.find((item) => item.id === addressId) ?? addresses[0];
-
-  useEffect(() => {
-    if (session?.user.email) {
-      setEmail((current) => current || session.user.email);
-    }
-  }, [session?.user.email]);
+  const contactEmail = email || session?.user.email || "";
 
   useEffect(() => {
     let active = true;
@@ -138,14 +133,14 @@ export function CheckoutPageClient() {
         },
         paymentMethod: paymentId,
         coupon: coupon || undefined,
-        notes: email ? `Checkout contact: ${email}` : undefined,
+        notes: contactEmail ? `Checkout contact: ${contactEmail}` : undefined,
       });
 
       sessionStorage.setItem(
         "nexora-last-order",
         JSON.stringify({
           orderId: order.orderNumber,
-          email,
+          email: contactEmail,
           deliveryLabel: delivery.label,
           paymentId,
           itemCount: lines.reduce((sum, line) => sum + line.quantity, 0),
@@ -167,7 +162,7 @@ export function CheckoutPageClient() {
 
         <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_390px] lg:items-start">
           <div className="space-y-5">
-            <ContactPanel email={email} onEmail={setEmail} />
+            <ContactPanel email={contactEmail} onEmail={setEmail} />
             <AddressSection
               addresses={addresses}
               selectedId={addressId}
