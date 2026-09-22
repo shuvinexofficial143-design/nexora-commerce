@@ -1,15 +1,15 @@
 import { Container } from "@/components/ui/container";
 import { ProductCard } from "@/components/ui/product-card";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { recentProducts } from "@/lib/home-data";
+import type { Product } from "@/types/commerce";
 
-export function RecentlyViewedSection() {
+export function RecentlyViewedSection({ products }: { products: Product[] }) {
   return (
     <section className="py-16 sm:py-20">
       <Container>
-        <SectionHeading eyebrow="Pick up where you left off" title="Recently viewed" actionLabel="View history" actionHref="/account/recent" />
+        <SectionHeading eyebrow="Pick up where you left off" title="More from the live catalog" actionLabel="Shop all" actionHref="/shop" />
         <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4 lg:gap-5">
-          {recentProducts.map((product) => <ProductCard key={product.id} product={product} />)}
+          {products.map((product) => <ProductCard key={product.id} product={product} />)}
         </div>
       </Container>
     </section>
