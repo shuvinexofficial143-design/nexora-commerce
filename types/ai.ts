@@ -1,7 +1,7 @@
 import type { CatalogProduct } from "@/types/catalog";
 
 export type AiRole = "user" | "assistant";
-export type AiMode = "demo" | "groq";
+export type AiMode = "demo" | "catalog" | "groq";
 
 export type AiMessage = {
   id: string;
