@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/cart/cart-provider";
+import { useAuth } from "@/components/auth/auth-provider";
 import { CheckoutAuthGate } from "@/components/checkout/checkout-auth-gate";
 import { CheckoutShell } from "@/components/checkout/checkout-shell";
 import { CheckoutSteps } from "@/components/checkout/checkout-steps";
@@ -22,8 +23,9 @@ import type { CheckoutAddress, CheckoutStep, DeliveryOption, PaymentMethodId } f
 export function CheckoutPageClient() {
   const router = useRouter();
   const { lines, hydrated, clearCart, coupon } = useCart();
+  const { session } = useAuth();
   const [step, setStep] = useState<CheckoutStep>(1);
-  const [email, setEmail] = useState("customer@nexora.demo");
+  const [email, setEmail] = useState("");
   const [addresses, setAddresses] = useState<CheckoutAddress[]>([]);
   const [addressId, setAddressId] = useState("");
   const [deliveryId, setDeliveryId] = useState(deliveryOptions[0].id);
@@ -37,6 +39,12 @@ export function CheckoutPageClient() {
   );
 
   const address = addresses.find((item) => item.id === addressId) ?? addresses[0];
+
+  useEffect(() => {
+    if (session?.user.email) {
+      setEmail((current) => current || session.user.email);
+    }
+  }, [session?.user.email]);
 
   useEffect(() => {
     let active = true;
