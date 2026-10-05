@@ -111,7 +111,22 @@ type ReturnRow = {
   details?: string | null;
   status?: string;
   refundMinor?: number;
+  refundProcessedAt?: string | null;
+  restockedAt?: string | null;
+  paymentMethod?: string | null;
+  paymentStatus?: string;
+  orderStatus?: string;
+  totalMinor?: number;
   createdAt?: string;
+};
+
+type RefundActionResult = {
+  state: string;
+  provider?: string;
+  refundId?: string | null;
+  refundArn?: string | null;
+  message?: string | null;
+  finalized?: boolean;
 };
 
 type NotificationRow = {
@@ -634,45 +649,192 @@ function Coupons() {
 function Returns() {
   const [rows, setRows] = useState<ReturnRow[]>([]);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   const load = useCallback(() => {
-    adminFetch<ReturnRow[]>("/api/admin-app/returns").then(setRows).catch((e) => setError(e.message));
+    adminFetch<ReturnRow[]>("/api/admin-app/returns")
+      .then(setRows)
+      .catch((e) => setError(e.message));
   }, []);
   useEffect(() => load(), [load]);
 
+  function explainRefund(result?: RefundActionResult | null) {
+    if (!result) return "";
+    const detail = result.message ? ` — ${result.message}` : "";
+    if (result.state === "SUCCESS") return `Refund confirmed${detail}`;
+    if (result.state === "PENDING" || result.state === "ONHOLD") {
+      return `Refund ${result.state.toLowerCase()}; use Sync refund later${detail}`;
+    }
+    if (result.state === "MANUAL_REQUIRED") return `Manual refund required${detail}`;
+    if (result.state === "NOT_CONFIGURED") return `Cashfree setup required${detail}`;
+    if (result.state === "NOT_REQUIRED") return `No refund required${detail}`;
+    return `Refund state: ${result.state}${detail}`;
+  }
+
   async function process(row: ReturnRow, status: "APPROVED" | "REJECTED") {
-    const refund = status === "APPROVED" ? Number(window.prompt("Refund amount in ₹:", String((row.refundMinor || 0) / 100)) || "0") : 0;
-    const note = window.prompt("Resolution note:", status === "APPROVED" ? "Approved by owner" : "Rejected by owner") || "";
+    const refund =
+      status === "APPROVED"
+        ? Number(
+            window.prompt(
+              "Refund amount in ₹:",
+              String((row.refundMinor || 0) / 100),
+            ) || "0",
+          )
+        : 0;
+    const note =
+      window.prompt(
+        "Resolution note:",
+        status === "APPROVED"
+          ? "Approved by owner"
+          : "Rejected by owner",
+      ) || "";
+
+    setError("");
+    setNotice("");
+
     try {
-      await adminFetch(`/api/admin-app/returns/${encodeURIComponent(row.id)}/process`, {
-        method: "POST",
-        body: JSON.stringify({ status, refund, note, restock: status === "APPROVED" }),
-      });
+      const result = await adminFetch<{
+        refund?: RefundActionResult | null;
+      }>(
+        `/api/admin-app/returns/${encodeURIComponent(row.id)}/process`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            status,
+            refund,
+            note,
+            restock: status === "APPROVED",
+          }),
+        },
+      );
+
+      const refundText = explainRefund(result.refund);
+      setNotice(
+        `Return ${status.toLowerCase()}.${refundText ? ` ${refundText}.` : ""}`,
+      );
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Return update failed.");
     }
   }
 
+  async function syncRefund(row: ReturnRow) {
+    setError("");
+    setNotice("");
+
+    try {
+      const result = await adminFetch<RefundActionResult>(
+        `/api/admin-app/returns/${encodeURIComponent(row.id)}/refund`,
+        { method: "POST" },
+      );
+      setNotice(explainRefund(result));
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Refund sync failed.");
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div><p className="text-xs font-black uppercase tracking-[.18em] text-black/35">After sales</p><h1 className="mt-1 text-3xl font-black tracking-[-.05em]">Returns</h1></div>
+      <div>
+        <p className="text-xs font-black uppercase tracking-[.18em] text-black/35">
+          After sales
+        </p>
+        <h1 className="mt-1 text-3xl font-black tracking-[-.05em]">
+          Returns & refunds
+        </h1>
+      </div>
+
       {error ? <ErrorBlock error={error} retry={load} /> : null}
+      {notice ? (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">
+          {notice}
+        </div>
+      ) : null}
+
       <Panel title="Return requests">
         <div className="space-y-3">
-          {rows.map((row) => (
-            <div key={row.id} className="rounded-2xl border border-black/8 bg-[#fafaf7] p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><p className="font-black">{row.orderNumber}</p><p className="mt-1 text-sm font-bold">{row.reason}</p><p className="text-xs text-black/40">{row.customerName} · {row.customerEmail}</p></div>
-                <span className="rounded-full bg-black/5 px-3 py-1 text-xs font-black">{row.status || "PENDING"}</span>
+          {rows.map((row) => {
+            const approvedRefund = row.refundMinor || 0;
+            const canSync =
+              row.status === "APPROVED" &&
+              approvedRefund > 0 &&
+              row.paymentMethod === "cashfree" &&
+              !row.refundProcessedAt;
+
+            return (
+              <div
+                key={row.id}
+                className="rounded-2xl border border-black/8 bg-[#fafaf7] p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-black">{row.orderNumber}</p>
+                    <p className="mt-1 text-sm font-bold">{row.reason}</p>
+                    <p className="text-xs text-black/40">
+                      {row.customerName} · {row.customerEmail}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-black/5 px-3 py-1 text-xs font-black">
+                      {row.status || "PENDING"}
+                    </span>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-black">
+                      {(row.paymentMethod || "unknown").toUpperCase()} ·{" "}
+                      {row.paymentStatus || "PENDING"}
+                    </span>
+                    {row.refundProcessedAt ? (
+                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">
+                        REFUND CONFIRMED
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                {approvedRefund > 0 ? (
+                  <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs font-bold text-black/55">
+                    Approved refund: {money(approvedRefund)}
+                    {row.restockedAt ? " · Stock restored" : ""}
+                  </div>
+                ) : null}
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {(!row.status || row.status === "PENDING") ? (
+                    <>
+                      <button
+                        onClick={() => void process(row, "APPROVED")}
+                        className="rounded-full bg-[#d7ff47] px-4 py-2 text-xs font-black"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => void process(row, "REJECTED")}
+                        className="rounded-full bg-black px-4 py-2 text-xs font-black text-white"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  ) : null}
+
+                  {canSync ? (
+                    <button
+                      onClick={() => void syncRefund(row)}
+                      className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-black"
+                    >
+                      Sync Cashfree refund
+                    </button>
+                  ) : null}
+                </div>
               </div>
-              <div className="mt-4 flex gap-2">
-                <button onClick={() => void process(row, "APPROVED")} className="rounded-full bg-[#d7ff47] px-4 py-2 text-xs font-black">Approve</button>
-                <button onClick={() => void process(row, "REJECTED")} className="rounded-full bg-black px-4 py-2 text-xs font-black text-white">Reject</button>
-              </div>
-            </div>
-          ))}
-          {!rows.length ? <p className="py-6 text-center text-sm font-bold text-black/35">No return requests.</p> : null}
+            );
+          })}
+
+          {!rows.length ? (
+            <p className="py-6 text-center text-sm font-bold text-black/35">
+              No return requests.
+            </p>
+          ) : null}
         </div>
       </Panel>
     </div>
