@@ -3,6 +3,7 @@ import { createOrder, listOrdersForUser } from "@/lib/db/orders";
 import { getOrCreateGuestCustomer } from "@/lib/db/users";
 import { apiError, ok, validateOrder } from "@/lib/server/backend";
 import { NextResponse } from "next/server";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,19 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const rate = checkRateLimit(request, {
+    scope: "guest-order-create",
+    limit: 8,
+    windowMs: 10 * 60 * 1000,
+  });
+
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Too many order attempts. Try again later." },
+      { status: 429, headers: rateLimitHeaders(rate) },
+    );
+  }
+
   try {
     const payload = validateOrder(await request.json());
     const session = await getCurrentSession();
