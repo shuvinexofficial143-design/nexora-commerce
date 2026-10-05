@@ -115,6 +115,13 @@ function readShippingPhone(shippingAddress: unknown) {
   return "";
 }
 
+function normalizeIndianPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
+  if (digits.length === 10) return digits;
+  return "";
+}
+
 export async function createCashfreePaymentSession(
   orderNumber: string,
   checkoutEmail: string,
@@ -158,12 +165,17 @@ export async function createCashfreePaymentSession(
     throw new Error("NEXT_PUBLIC_APP_URL must be configured before enabling Cashfree.");
   }
 
-  const phone = readShippingPhone(order.shippingAddress) || order.user.phone || "";
-  if (!/^\+?[0-9]{10,15}$/.test(phone.replace(/[\s()-]/g, ""))) {
-    throw new Error("A valid customer phone number is required for online payment.");
+  const phone = normalizeIndianPhone(
+    readShippingPhone(order.shippingAddress) || order.user.phone || "",
+  );
+  if (!phone) {
+    throw new Error("A valid 10-digit Indian phone number is required for online payment.");
   }
 
   const returnUrl = `${appUrl}/checkout/payment-return?order_id={order_id}`;
+  const publicWebhookAvailable =
+    appUrl.startsWith("https://") &&
+    !/\/\/(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(appUrl);
   const notifyUrl = `${appUrl}/api/payments/cashfree/webhook`;
 
   const created = await cashfreeFetch<CashfreeOrderResponse>("/orders", {
@@ -176,11 +188,11 @@ export async function createCashfreePaymentSession(
         customer_id: order.user.id,
         customer_name: order.user.name,
         customer_email: order.user.email,
-        customer_phone: phone.replace(/[^0-9+]/g, ""),
+        customer_phone: phone,
       },
       order_meta: {
         return_url: returnUrl,
-        notify_url: notifyUrl,
+        ...(publicWebhookAvailable ? { notify_url: notifyUrl } : {}),
       },
       order_note: `NEXORA order ${order.orderNumber}`,
       order_tags: {
