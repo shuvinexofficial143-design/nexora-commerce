@@ -63,10 +63,10 @@ export function OrderSuccess() {
           Keep shopping
         </Link>
         <Link
-          href="/contact"
+          href="/track-order"
           className="rounded-full border border-black/10 bg-[#FFD8C7] px-6 py-3.5 text-sm font-black text-black transition hover:bg-[#FFC8B4]"
         >
-          Order support
+          Track order
         </Link>
       </div>
     </section>
