@@ -12,7 +12,8 @@ type OrderEmailEvent =
   | "DELIVERED"
   | "CANCELLED"
   | "RETURN_APPROVED"
-  | "RETURN_REJECTED";
+  | "RETURN_REJECTED"
+  | "REFUND_CONFIRMED";
 
 const currency = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -116,6 +117,13 @@ function eventCopy(event: OrderEmailEvent, orderNumber: string) {
         heading: "Return request reviewed",
         message:
           "Your return request was not approved. Contact support with your order number if you need clarification.",
+      };
+    case "REFUND_CONFIRMED":
+      return {
+        subject: `Refund confirmed for ${readable} · NEXORA`,
+        heading: "Refund confirmed",
+        message:
+          "Your refund has been confirmed by the payment provider. The time it takes to appear in your account depends on the original payment method and bank.",
       };
   }
 }

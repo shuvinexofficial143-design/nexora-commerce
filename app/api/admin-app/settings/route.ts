@@ -9,6 +9,7 @@ import { cashfreeConfigured, cashfreeMode } from "@/lib/payments/cashfree";
 import { cloudinaryConfigured } from "@/lib/media/cloudinary";
 import { customerEmailConfigured } from "@/lib/notifications/customer-email";
 import { deploymentInfo } from "@/lib/config/runtime";
+import { storeProfileStatus } from "@/lib/config/store-profile";
 
 export const runtime = "nodejs";
 
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
 
     return adminJson(request, {
       deployment: deploymentInfo(),
+      storeProfile: storeProfileStatus(),
       integrations: {
         cashfree: {
           configured: cashfreeConfigured(),

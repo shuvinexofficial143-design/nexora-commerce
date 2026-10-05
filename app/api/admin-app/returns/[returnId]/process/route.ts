@@ -1,4 +1,5 @@
 import { processReturn } from "@/lib/admin/return-operations";
+import { syncApprovedRefund } from "@/lib/admin/refund-orchestrator";
 import { logAdmin } from "@/lib/admin/audit";
 import { notify } from "@/lib/admin/notifications";
 import { sendOrderEmailSafe } from "@/lib/notifications/customer-email";
@@ -41,18 +42,51 @@ export async function POST(
 
     const refund = Number(body?.refund || 0);
     if (!Number.isFinite(refund) || refund < 0) {
-      return adminFailure(request, "Refund amount must be zero or greater.", 400);
+      return adminFailure(
+        request,
+        "Refund amount must be zero or greater.",
+        400,
+      );
     }
 
+    const note = String(body?.note || "").slice(0, 1000);
     const result = await processReturn({
       returnId,
       status,
       refundMinor: Math.round(refund * 100),
-      note: String(body?.note || "").slice(0, 1000),
+      note,
       restock: Boolean(body?.restock),
     });
 
-    await Promise.allSettled([
+    let refundResult:
+      | Awaited<ReturnType<typeof syncApprovedRefund>>
+      | null = null;
+
+    if (status === "APPROVED" && result.refundMinor > 0) {
+      try {
+        refundResult = await syncApprovedRefund(returnId, note);
+      } catch (error) {
+        refundResult = {
+          state: "ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Refund processing failed.",
+          finalized: false,
+        };
+
+        await notify({
+          type: "REFUND_ERROR",
+          title: "Refund needs attention",
+          message: `${result.orderNumber}: ${refundResult.message}`,
+          entityType: "ORDER",
+          entityId: result.orderId,
+          severity: "WARNING",
+        }).catch(() => undefined);
+      }
+    }
+
+    const sideEffects: Promise<unknown>[] = [
       logAdmin({
         adminUserId: session.user.id,
         action: "RETURN_PROCESS",
@@ -60,21 +94,33 @@ export async function POST(
         entityId: returnId,
         summary: `${result.orderNumber}: return ${status.toLowerCase()}`,
       }),
-      notify({
-        type: `RETURN_${status}`,
-        title: `Return ${status.toLowerCase()}`,
-        message: `${result.orderNumber} return was ${status.toLowerCase()}`,
-        entityType: "ORDER",
-        entityId: result.orderId,
-        severity: status === "APPROVED" ? "SUCCESS" : "WARNING",
-      }),
-      sendOrderEmailSafe(
-        result.orderId,
-        status === "APPROVED" ? "RETURN_APPROVED" : "RETURN_REJECTED",
-      ),
-    ]);
+    ];
 
-    return adminJson(request, result);
+    if (result.updated) {
+      sideEffects.push(
+        notify({
+          type: `RETURN_${status}`,
+          title: `Return ${status.toLowerCase()}`,
+          message: `${result.orderNumber} return was ${status.toLowerCase()}`,
+          entityType: "ORDER",
+          entityId: result.orderId,
+          severity: status === "APPROVED" ? "SUCCESS" : "WARNING",
+        }),
+        sendOrderEmailSafe(
+          result.orderId,
+          status === "APPROVED"
+            ? "RETURN_APPROVED"
+            : "RETURN_REJECTED",
+        ),
+      );
+    }
+
+    await Promise.allSettled(sideEffects);
+
+    return adminJson(request, {
+      ...result,
+      refund: refundResult,
+    });
   } catch (error) {
     return adminUnexpected(request, error);
   }

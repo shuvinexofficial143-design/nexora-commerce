@@ -1,12 +1,41 @@
 import { getPrisma } from "@/lib/db/prisma";
 
-type ReturnOperationRow = {
+export type ReturnOperationRow = {
   id: string;
   orderId: string;
   orderNumber: string;
+  returnStatus: string | null;
+  refundMinor: number | null;
   restockedAt: Date | null;
   refundProcessedAt: Date | null;
+  paymentMethod: string | null;
+  paymentStatus: string;
+  orderStatus: string;
+  totalMinor: number;
 };
+
+export async function getReturnOperation(returnId: string) {
+  const rows = await getPrisma().$queryRaw<ReturnOperationRow[]>`
+    select
+      r."id",
+      r."orderId",
+      o."orderNumber",
+      r."status" as "returnStatus",
+      r."refundMinor",
+      r."restockedAt",
+      r."refundProcessedAt",
+      o."paymentMethod",
+      o."paymentStatus"::text as "paymentStatus",
+      o."status"::text as "orderStatus",
+      o."totalMinor"
+    from "ReturnRequest" r
+    join "Order" o on o."id"=r."orderId"
+    where r."id"=${returnId}
+    limit 1
+  `;
+
+  return rows[0] ?? null;
+}
 
 export async function processReturn(input: {
   returnId: string;
@@ -15,22 +44,61 @@ export async function processReturn(input: {
   note: string;
   restock: boolean;
 }) {
-  const p = getPrisma();
+  const prisma = getPrisma();
 
-  return p.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<ReturnOperationRow[]>`
-      select r.*,o."orderNumber"
+      select
+        r."id",
+        r."orderId",
+        o."orderNumber",
+        r."status" as "returnStatus",
+        r."refundMinor",
+        r."restockedAt",
+        r."refundProcessedAt",
+        o."paymentMethod",
+        o."paymentStatus"::text as "paymentStatus",
+        o."status"::text as "orderStatus",
+        o."totalMinor"
       from "ReturnRequest" r
       join "Order" o on o."id"=r."orderId"
       where r."id"=${input.returnId}
       limit 1
+      for update
     `;
 
     const row = rows[0];
     if (!row) throw new Error("Return not found.");
 
+    if (input.refundMinor < 0 || input.refundMinor > row.totalMinor) {
+      throw new Error("Refund amount exceeds the order total.");
+    }
+
+    if (
+      row.returnStatus &&
+      row.returnStatus !== "PENDING" &&
+      row.returnStatus !== input.status
+    ) {
+      throw new Error("This return has already been resolved.");
+    }
+
+    if (
+      row.returnStatus === input.status &&
+      (row.refundMinor ?? 0) === input.refundMinor
+    ) {
+      return {
+        updated: false,
+        unchanged: true,
+        ...row,
+        returnStatus: input.status,
+        refundMinor: input.refundMinor,
+      };
+    }
+
     if (input.restock && !row.restockedAt) {
-      const items = await tx.orderItem.findMany({ where: { orderId: row.orderId } });
+      const items = await tx.orderItem.findMany({
+        where: { orderId: row.orderId },
+      });
 
       for (const item of items) {
         const stock = await tx.inventoryItem.findFirst({
@@ -56,17 +124,9 @@ export async function processReturn(input: {
       }
 
       await tx.$executeRaw`
-        update "ReturnRequest" set "restockedAt"=now() where "id"=${row.id}
-      `;
-    }
-
-    if (input.refundMinor > 0 && !row.refundProcessedAt) {
-      await tx.order.update({
-        where: { id: row.orderId },
-        data: { paymentStatus: "REFUNDED", status: "REFUNDED" },
-      });
-      await tx.$executeRaw`
-        update "ReturnRequest" set "refundProcessedAt"=now() where "id"=${row.id}
+        update "ReturnRequest"
+        set "restockedAt"=now()
+        where "id"=${row.id}
       `;
     }
 
@@ -81,10 +141,66 @@ export async function processReturn(input: {
 
     return {
       updated: true,
-      orderId: row.orderId,
-      orderNumber: row.orderNumber,
-      status: input.status,
+      ...row,
+      returnStatus: input.status,
       refundMinor: input.refundMinor,
+    };
+  });
+}
+
+export async function finalizeReturnRefund(input: {
+  returnId: string;
+  orderId: string;
+  refundMinor: number;
+  totalMinor: number;
+}) {
+  const prisma = getPrisma();
+
+  return prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<
+      Array<{ refundProcessedAt: Date | null }>
+    >`
+      select "refundProcessedAt"
+      from "ReturnRequest"
+      where "id"=${input.returnId}
+      limit 1
+      for update
+    `;
+
+    const row = rows[0];
+    if (!row) throw new Error("Return not found.");
+
+    if (row.refundProcessedAt) {
+      return {
+        finalized: true,
+        alreadyProcessed: true,
+        refundProcessedAt: row.refundProcessedAt,
+      };
+    }
+
+    const fullRefund = input.refundMinor >= input.totalMinor;
+
+    await tx.order.update({
+      where: { id: input.orderId },
+      data: {
+        paymentStatus: fullRefund ? "REFUNDED" : "PARTIALLY_REFUNDED",
+        status: fullRefund ? "REFUNDED" : "RETURNED",
+      },
+    });
+
+    const processedAt = new Date();
+    await tx.$executeRaw`
+      update "ReturnRequest"
+      set "refundProcessedAt"=${processedAt},
+          "updatedAt"=now()
+      where "id"=${input.returnId}
+    `;
+
+    return {
+      finalized: true,
+      alreadyProcessed: false,
+      refundProcessedAt: processedAt,
+      fullRefund,
     };
   });
 }
