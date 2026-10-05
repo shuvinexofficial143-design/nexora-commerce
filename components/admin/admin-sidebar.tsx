@@ -10,6 +10,7 @@ const nav = [
   ["Inventory", "/admin/inventory", "▤"],
   ["Coupons", "/admin/coupons", "%"],
   ["Returns", "/admin/returns", "↩"],
+  ["Notifications", "/admin/notifications", "●"],
   ["Settings", "/admin/settings", "⚙"],
 ] as const;
 

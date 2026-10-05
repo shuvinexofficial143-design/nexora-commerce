@@ -1,12 +1,81 @@
 import { processReturn } from "@/lib/admin/return-operations";
 import { logAdmin } from "@/lib/admin/audit";
-import { adminFailure,adminJson,adminOptions,adminUnexpected,requireAdmin } from "@/lib/admin/admin-api";
-export const runtime="nodejs"; export const OPTIONS=(r:Request)=>adminOptions(r);
-export async function POST(r:Request,c:{params:Promise<{returnId:string}>}){
-  try{const s=await requireAdmin(r);if(!s)return adminFailure(r,"Admin authorization required.",401);
-    const{returnId}=await c.params,b=await r.json();
-    const out=await processReturn({returnId,status:String(b.status||"APPROVED"),refundMinor:Math.round(Number(b.refund||0)*100),note:String(b.note||""),restock:Boolean(b.restock)});
-    await logAdmin({adminUserId:s.user.id,action:"RETURN_PROCESS",entityType:"RETURN",entityId:returnId,summary:`Processed return ${returnId}`});
-    return adminJson(r,out);
-  }catch(e){return adminUnexpected(r,e)}
+import { notify } from "@/lib/admin/notifications";
+import { sendOrderEmailSafe } from "@/lib/notifications/customer-email";
+import {
+  adminFailure,
+  adminJson,
+  adminOptions,
+  adminUnexpected,
+  requireAdmin,
+} from "@/lib/admin/admin-api";
+
+export const runtime = "nodejs";
+
+export const OPTIONS = (request: Request) => adminOptions(request);
+
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ returnId: string }> },
+) {
+  try {
+    const session = await requireAdmin(request);
+    if (!session) {
+      return adminFailure(request, "Admin authorization required.", 401);
+    }
+
+    const { returnId } = await context.params;
+    const body = (await request.json().catch(() => null)) as
+      | {
+          status?: unknown;
+          refund?: unknown;
+          note?: unknown;
+          restock?: unknown;
+        }
+      | null;
+
+    const status = String(body?.status || "APPROVED").toUpperCase();
+    if (!["APPROVED", "REJECTED"].includes(status)) {
+      return adminFailure(request, "Invalid return resolution.", 400);
+    }
+
+    const refund = Number(body?.refund || 0);
+    if (!Number.isFinite(refund) || refund < 0) {
+      return adminFailure(request, "Refund amount must be zero or greater.", 400);
+    }
+
+    const result = await processReturn({
+      returnId,
+      status,
+      refundMinor: Math.round(refund * 100),
+      note: String(body?.note || "").slice(0, 1000),
+      restock: Boolean(body?.restock),
+    });
+
+    await Promise.allSettled([
+      logAdmin({
+        adminUserId: session.user.id,
+        action: "RETURN_PROCESS",
+        entityType: "RETURN",
+        entityId: returnId,
+        summary: `${result.orderNumber}: return ${status.toLowerCase()}`,
+      }),
+      notify({
+        type: `RETURN_${status}`,
+        title: `Return ${status.toLowerCase()}`,
+        message: `${result.orderNumber} return was ${status.toLowerCase()}`,
+        entityType: "ORDER",
+        entityId: result.orderId,
+        severity: status === "APPROVED" ? "SUCCESS" : "WARNING",
+      }),
+      sendOrderEmailSafe(
+        result.orderId,
+        status === "APPROVED" ? "RETURN_APPROVED" : "RETURN_REJECTED",
+      ),
+    ]);
+
+    return adminJson(request, result);
+  } catch (error) {
+    return adminUnexpected(request, error);
+  }
 }

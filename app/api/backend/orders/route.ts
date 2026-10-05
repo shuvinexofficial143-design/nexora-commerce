@@ -4,6 +4,8 @@ import { getOrCreateGuestCustomer } from "@/lib/db/users";
 import { apiError, ok, validateOrder } from "@/lib/server/backend";
 import { NextResponse } from "next/server";
 import { consumeRateLimit } from "@/lib/security/rate-limit";
+import { notify } from "@/lib/admin/notifications";
+import { sendOrderEmailSafe } from "@/lib/notifications/customer-email";
 
 export const runtime = "nodejs";
 
@@ -39,6 +41,21 @@ export async function POST(request: Request) {
     });
 
     const order = await createOrder(user.id, payload);
+
+    await Promise.allSettled([
+      notify({
+        type: "NEW_ORDER",
+        title: "New order",
+        message: `${order.orderNumber} was placed for ${user.email}`,
+        entityType: "ORDER",
+        entityId: order.id,
+        severity: "INFO",
+      }),
+      ...(payload.paymentMethod === "cod"
+        ? [sendOrderEmailSafe(order.id, "ORDER_RECEIVED")]
+        : []),
+    ]);
+
     return ok(order, { status: 201 });
   } catch (error) {
     return apiError(error);

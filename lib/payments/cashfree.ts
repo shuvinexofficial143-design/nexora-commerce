@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
 import { getPublicAppUrl } from "@/lib/config/runtime";
+import { notify } from "@/lib/admin/notifications";
+import { sendOrderEmailSafe } from "@/lib/notifications/customer-email";
 
 const API_VERSION = "2025-01-01";
 
@@ -282,6 +284,18 @@ export async function syncCashfreePayment(orderNumber: string) {
           ...(order.status === "PENDING" ? { status: "CONFIRMED" as const } : {}),
         },
       });
+
+      await Promise.allSettled([
+        sendOrderEmailSafe(order.id, "PAYMENT_CONFIRMED"),
+        notify({
+          type: "PAYMENT_PAID",
+          title: "Online payment confirmed",
+          message: `${order.orderNumber} was paid successfully through Cashfree`,
+          entityType: "ORDER",
+          entityId: order.id,
+          severity: "SUCCESS",
+        }),
+      ]);
     }
 
     return {
@@ -301,11 +315,26 @@ export async function syncCashfreePayment(orderNumber: string) {
     };
   }
 
-  if (payments.length && order.paymentStatus !== "PAID") {
+  if (
+    payments.length &&
+    order.paymentStatus !== "PAID" &&
+    order.paymentStatus !== "FAILED"
+  ) {
     await prisma.order.update({
       where: { id: order.id },
       data: { paymentStatus: "FAILED" },
     });
+
+    await Promise.allSettled([
+      notify({
+        type: "PAYMENT_FAILED",
+        title: "Online payment failed",
+        message: `${order.orderNumber} has no successful Cashfree payment`,
+        entityType: "ORDER",
+        entityId: order.id,
+        severity: "WARNING",
+      }),
+    ]);
   }
 
   return {

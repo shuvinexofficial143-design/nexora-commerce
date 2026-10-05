@@ -114,6 +114,40 @@ type ReturnRow = {
   createdAt?: string;
 };
 
+type NotificationRow = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  entityType?: string | null;
+  entityId?: string | null;
+  severity?: string | null;
+  createdAt: string;
+  readAt: string | null;
+};
+
+type IntegrationStatus = {
+  deployment: {
+    appUrl: string;
+    environment: string;
+    commit: string | null;
+  };
+  integrations: {
+    cashfree: {
+      configured: boolean;
+      mode: string;
+      storefrontEnabled: boolean;
+    };
+    cloudinary: {
+      configured: boolean;
+    };
+    email: {
+      configured: boolean;
+      provider: string;
+    };
+  };
+};
+
 const money = (minor: number) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -645,18 +679,238 @@ function Returns() {
   );
 }
 
-function Settings({ me }: { me: AdminMe }) {
+function Notifications() {
+  const [rows, setRows] = useState<NotificationRow[]>([]);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    adminFetch<NotificationRow[]>("/api/admin-app/notifications")
+      .then(setRows)
+      .catch((caught) =>
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Could not load notifications.",
+        ),
+      );
+  }, []);
+
+  useEffect(() => load(), [load]);
+
+  async function markRead(row: NotificationRow) {
+    if (row.readAt) return;
+
+    try {
+      await adminFetch("/api/admin-app/notifications", {
+        method: "PATCH",
+        body: JSON.stringify({ id: row.id }),
+      });
+      setRows((current) =>
+        current.map((item) =>
+          item.id === row.id
+            ? { ...item, readAt: new Date().toISOString() }
+            : item,
+        ),
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not update notification.",
+      );
+    }
+  }
+
+  const unread = rows.filter((row) => !row.readAt).length;
+
   return (
     <div className="space-y-6">
-      <div><p className="text-xs font-black uppercase tracking-[.18em] text-black/35">Private owner mode</p><h1 className="mt-1 text-3xl font-black tracking-[-.05em]">Settings</h1></div>
+      <div>
+        <p className="text-xs font-black uppercase tracking-[.18em] text-black/35">Owner alerts</p>
+        <h1 className="mt-1 text-3xl font-black tracking-[-.05em]">Notifications</h1>
+      </div>
+
+      {error ? <ErrorBlock error={error} retry={load} /> : null}
+
+      <Panel
+        title="Store alerts"
+        description={`${unread} unread · ${rows.length} recent alerts`}
+        action={
+          <button
+            type="button"
+            onClick={load}
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-black"
+          >
+            Refresh
+          </button>
+        }
+      >
+        <div className="space-y-2">
+          {rows.map((row) => {
+            const severity = (row.severity || "INFO").toUpperCase();
+            const badge =
+              severity === "CRITICAL"
+                ? "bg-red-100 text-red-800"
+                : severity === "WARNING"
+                  ? "bg-amber-100 text-amber-800"
+                  : severity === "SUCCESS"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-black/5 text-black/55";
+
+            return (
+              <button
+                key={row.id}
+                type="button"
+                onClick={() => void markRead(row)}
+                className={`w-full rounded-2xl border p-4 text-left transition ${
+                  row.readAt
+                    ? "border-black/8 bg-[#fafaf7] opacity-70"
+                    : "border-black/15 bg-white shadow-sm"
+                }`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {!row.readAt ? (
+                        <span className="h-2 w-2 rounded-full bg-[#9bbc00]" />
+                      ) : null}
+                      <p className="font-black">{row.title}</p>
+                      <span className={`rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wide ${badge}`}>
+                        {severity}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm font-bold leading-5 text-black/50">
+                      {row.message}
+                    </p>
+                    <p className="mt-2 text-[11px] font-bold text-black/30">
+                      {row.type} · {new Date(row.createdAt).toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-wide text-black/35">
+                    {row.readAt ? "Read" : "Tap to mark read"}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+
+          {!rows.length ? (
+            <p className="py-8 text-center text-sm font-bold text-black/35">
+              No notifications right now.
+            </p>
+          ) : null}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function Settings({ me }: { me: AdminMe }) {
+  const [status, setStatus] = useState<IntegrationStatus | null>(null);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    adminFetch<IntegrationStatus>("/api/admin-app/settings")
+      .then(setStatus)
+      .catch((caught) =>
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Could not load integration status.",
+        ),
+      );
+  }, []);
+
+  useEffect(() => load(), [load]);
+
+  const integrations = status
+    ? [
+        {
+          name: "Cashfree",
+          ready: status.integrations.cashfree.configured,
+          detail: status.integrations.cashfree.configured
+            ? `${status.integrations.cashfree.mode} · storefront ${
+                status.integrations.cashfree.storefrontEnabled
+                  ? "enabled"
+                  : "disabled"
+              }`
+            : "API keys required",
+        },
+        {
+          name: "Cloudinary",
+          ready: status.integrations.cloudinary.configured,
+          detail: status.integrations.cloudinary.configured
+            ? "Direct image/video uploads ready"
+            : "Cloud name + API credentials required",
+        },
+        {
+          name: "Order email",
+          ready: status.integrations.email.configured,
+          detail: status.integrations.email.configured
+            ? `${status.integrations.email.provider} ready`
+            : "RESEND_API_KEY + ORDER_EMAIL_FROM required",
+        },
+      ]
+    : [];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-xs font-black uppercase tracking-[.18em] text-black/35">Private owner mode</p>
+        <h1 className="mt-1 text-3xl font-black tracking-[-.05em]">Settings</h1>
+      </div>
+
+      {error ? <ErrorBlock error={error} retry={load} /> : null}
+
       <Panel title="Owner access" description="Separate from customer authentication">
         <dl className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl bg-[#f5f5f1] p-4"><dt className="text-xs font-black uppercase text-black/35">Signed in as</dt><dd className="mt-1 font-black">{me.user.name}</dd></div>
-          <div className="rounded-2xl bg-[#f5f5f1] p-4"><dt className="text-xs font-black uppercase text-black/35">Session expires</dt><dd className="mt-1 font-black">{new Date(me.expiresAt).toLocaleString("en-IN")}</dd></div>
+          <div className="rounded-2xl bg-[#f5f5f1] p-4">
+            <dt className="text-xs font-black uppercase text-black/35">Signed in as</dt>
+            <dd className="mt-1 font-black">{me.user.name}</dd>
+          </div>
+          <div className="rounded-2xl bg-[#f5f5f1] p-4">
+            <dt className="text-xs font-black uppercase text-black/35">Session expires</dt>
+            <dd className="mt-1 font-black">{new Date(me.expiresAt).toLocaleString("en-IN")}</dd>
+          </div>
         </dl>
-        <div className="mt-5 rounded-2xl border border-black/10 bg-white p-4 text-sm leading-6 text-black/60">
-          Set <b>ADMIN_USERNAME</b> and <b>ADMIN_PASSWORD</b> in local/Vercel environment variables. Optional: <b>ADMIN_OWNER_EMAIL</b>. The password is never sent back to the browser after login.
-        </div>
+      </Panel>
+
+      <Panel title="Integrations" description="Secrets are never shown in the browser">
+        {!status ? (
+          <p className="text-sm font-bold text-black/40">Loading integration status…</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-3">
+            {integrations.map((integration) => (
+              <div
+                key={integration.name}
+                className="rounded-2xl border border-black/8 bg-[#fafaf7] p-4"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-black">{integration.name}</p>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wide ${
+                      integration.ready
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    {integration.ready ? "Ready" : "Needs setup"}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs font-bold leading-5 text-black/45">
+                  {integration.detail}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {status ? (
+          <div className="mt-4 rounded-2xl bg-[#f5f5f1] p-4 text-xs font-bold leading-5 text-black/50">
+            Environment: <b>{status.deployment.environment}</b> · App URL:{" "}
+            <b>{status.deployment.appUrl}</b>
+          </div>
+        ) : null}
       </Panel>
     </div>
   );
@@ -689,6 +943,7 @@ export function PersonalAdminApp() {
     if (pathname.startsWith("/admin/inventory")) return <Inventory />;
     if (pathname.startsWith("/admin/coupons")) return <Coupons />;
     if (pathname.startsWith("/admin/returns")) return <Returns />;
+    if (pathname.startsWith("/admin/notifications")) return <Notifications />;
     if (pathname.startsWith("/admin/settings")) return me ? <Settings me={me} /> : null;
     return <Overview />;
   }, [pathname, me]);
