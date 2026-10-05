@@ -86,7 +86,7 @@ export async function POST(
       }
     }
 
-    await Promise.allSettled([
+    const sideEffects: Promise<unknown>[] = [
       logAdmin({
         adminUserId: session.user.id,
         action: "RETURN_PROCESS",
@@ -94,21 +94,28 @@ export async function POST(
         entityId: returnId,
         summary: `${result.orderNumber}: return ${status.toLowerCase()}`,
       }),
-      notify({
-        type: `RETURN_${status}`,
-        title: `Return ${status.toLowerCase()}`,
-        message: `${result.orderNumber} return was ${status.toLowerCase()}`,
-        entityType: "ORDER",
-        entityId: result.orderId,
-        severity: status === "APPROVED" ? "SUCCESS" : "WARNING",
-      }),
-      sendOrderEmailSafe(
-        result.orderId,
-        status === "APPROVED"
-          ? "RETURN_APPROVED"
-          : "RETURN_REJECTED",
-      ),
-    ]);
+    ];
+
+    if (result.updated) {
+      sideEffects.push(
+        notify({
+          type: `RETURN_${status}`,
+          title: `Return ${status.toLowerCase()}`,
+          message: `${result.orderNumber} return was ${status.toLowerCase()}`,
+          entityType: "ORDER",
+          entityId: result.orderId,
+          severity: status === "APPROVED" ? "SUCCESS" : "WARNING",
+        }),
+        sendOrderEmailSafe(
+          result.orderId,
+          status === "APPROVED"
+            ? "RETURN_APPROVED"
+            : "RETURN_REJECTED",
+        ),
+      );
+    }
+
+    await Promise.allSettled(sideEffects);
 
     return adminJson(request, {
       ...result,
