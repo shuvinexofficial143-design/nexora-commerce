@@ -1,10 +1,24 @@
 import { NextResponse } from "next/server";
 import { cashfreeConfigured, syncCashfreePayment } from "@/lib/payments/cashfree";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const rate = checkRateLimit(request, {
+    scope: "cashfree-status",
+    limit: 30,
+    windowMs: 5 * 60 * 1000,
+  });
+
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Too many payment status checks. Try again later." },
+      { status: 429, headers: rateLimitHeaders(rate) },
+    );
+  }
+
   try {
     if (!cashfreeConfigured()) {
       return NextResponse.json(
