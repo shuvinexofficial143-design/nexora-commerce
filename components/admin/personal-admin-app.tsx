@@ -29,6 +29,14 @@ type AdminMe = {
   expiresAt: string;
 };
 
+type IntegrationStatus = {
+  app: { publicUrl: string; environment: string };
+  cashfree: { configured: boolean; enabled: boolean; mode: "sandbox" | "production" };
+  cloudinary: { configured: boolean };
+  email: { configured: boolean };
+  ai: { configured: boolean; model: string | null };
+};
+
 type DashboardData = {
   stats: { revenueMinor: number; orders: number; customers: number; lowStock: number };
   recentOrders: Array<{
@@ -646,17 +654,168 @@ function Returns() {
 }
 
 function Settings({ me }: { me: AdminMe }) {
+  const [integrations, setIntegrations] = useState<IntegrationStatus | null>(null);
+  const [integrationError, setIntegrationError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function refreshIntegrations() {
+    setRefreshing(true);
+    setIntegrationError("");
+    try {
+      setIntegrations(
+        await adminFetch<IntegrationStatus>("/api/admin-app/integrations/status"),
+      );
+    } catch (caught) {
+      setIntegrationError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not load integration status.",
+      );
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+
+    adminFetch<IntegrationStatus>("/api/admin-app/integrations/status")
+      .then((data) => {
+        if (active) setIntegrations(data);
+      })
+      .catch((caught) => {
+        if (active) {
+          setIntegrationError(
+            caught instanceof Error
+              ? caught.message
+              : "Could not load integration status.",
+          );
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const rows = integrations
+    ? [
+        {
+          label: "Cashfree",
+          ready: integrations.cashfree.configured,
+          detail: integrations.cashfree.configured
+            ? `${integrations.cashfree.mode} · ${integrations.cashfree.enabled ? "checkout enabled" : "checkout switch off"}`
+            : "API keys missing",
+        },
+        {
+          label: "Cloudinary",
+          ready: integrations.cloudinary.configured,
+          detail: integrations.cloudinary.configured
+            ? "Direct image/video upload ready"
+            : "Upload credentials missing",
+        },
+        {
+          label: "Customer email",
+          ready: integrations.email.configured,
+          detail: integrations.email.configured
+            ? "Transactional email ready"
+            : "Resend/email sender not configured",
+        },
+        {
+          label: "AI shopping",
+          ready: integrations.ai.configured,
+          detail: integrations.ai.configured
+            ? integrations.ai.model || "Groq API configured"
+            : "Groq API key missing",
+        },
+      ]
+    : [];
+
   return (
     <div className="space-y-6">
-      <div><p className="text-xs font-black uppercase tracking-[.18em] text-black/35">Private owner mode</p><h1 className="mt-1 text-3xl font-black tracking-[-.05em]">Settings</h1></div>
+      <div>
+        <p className="text-xs font-black uppercase tracking-[.18em] text-black/35">
+          Private owner mode
+        </p>
+        <h1 className="mt-1 text-3xl font-black tracking-[-.05em]">Settings</h1>
+      </div>
+
       <Panel title="Owner access" description="Separate from customer authentication">
         <dl className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl bg-[#f5f5f1] p-4"><dt className="text-xs font-black uppercase text-black/35">Signed in as</dt><dd className="mt-1 font-black">{me.user.name}</dd></div>
-          <div className="rounded-2xl bg-[#f5f5f1] p-4"><dt className="text-xs font-black uppercase text-black/35">Session expires</dt><dd className="mt-1 font-black">{new Date(me.expiresAt).toLocaleString("en-IN")}</dd></div>
+          <div className="rounded-2xl bg-[#f5f5f1] p-4">
+            <dt className="text-xs font-black uppercase text-black/35">Signed in as</dt>
+            <dd className="mt-1 font-black">{me.user.name}</dd>
+          </div>
+          <div className="rounded-2xl bg-[#f5f5f1] p-4">
+            <dt className="text-xs font-black uppercase text-black/35">Session expires</dt>
+            <dd className="mt-1 font-black">
+              {new Date(me.expiresAt).toLocaleString("en-IN")}
+            </dd>
+          </div>
         </dl>
         <div className="mt-5 rounded-2xl border border-black/10 bg-white p-4 text-sm leading-6 text-black/60">
-          Set <b>ADMIN_USERNAME</b> and <b>ADMIN_PASSWORD</b> in local/Vercel environment variables. Optional: <b>ADMIN_OWNER_EMAIL</b>. The password is never sent back to the browser after login.
+          Owner credentials are read from <b>ADMIN_USERNAME</b> and <b>ADMIN_PASSWORD</b>.
+          Secrets are never returned by the status API.
         </div>
+      </Panel>
+
+      <Panel
+        title="Integrations"
+        description="Configuration status only — secret values are never shown"
+        action={
+          <button
+            type="button"
+            onClick={() => void refreshIntegrations()}
+            disabled={refreshing}
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-black disabled:opacity-50"
+          >
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
+        }
+      >
+        {integrationError ? (
+          <p className="mb-4 rounded-2xl bg-red-50 p-3 text-xs font-bold text-red-700">
+            {integrationError}
+          </p>
+        ) : null}
+
+        {integrations ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {rows.map((row) => (
+                <div
+                  key={row.label}
+                  className="rounded-2xl border border-black/8 bg-[#fafaf7] p-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-black">{row.label}</p>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
+                        row.ready
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {row.ready ? "READY" : "SETUP NEEDED"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs font-bold leading-5 text-black/45">
+                    {row.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-[#f5f5f1] p-4 text-xs font-bold leading-5 text-black/50">
+              App URL: {integrations.app.publicUrl} · Environment:{" "}
+              {integrations.app.environment}
+            </div>
+          </>
+        ) : (
+          <p className="py-6 text-center text-sm font-bold text-black/35">
+            Loading integration status…
+          </p>
+        )}
       </Panel>
     </div>
   );
