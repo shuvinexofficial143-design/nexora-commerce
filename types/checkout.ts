@@ -6,5 +6,5 @@ export type CheckoutAddress = {
 
 export type DeliveryMethodId = "standard" | "express" | "priority";
 export type DeliveryOption = { id: DeliveryMethodId; label: string; eta: string; price: number; badge?: string };
-export type PaymentMethodId = "upi" | "card" | "cod" | "emi";
+export type PaymentMethodId = "cod" | "cashfree";
 export type PaymentMethod = { id: PaymentMethodId; label: string; description: string; icon: string; available?: boolean; badge?: string };
