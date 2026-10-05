@@ -7,6 +7,7 @@ import {
   ownerAdminConfigured,
   verifyOwnerCredentials,
 } from "@/lib/admin/owner-auth";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/server/rate-limit";
 import {
   adminFailure,
   adminJson,
@@ -21,6 +22,21 @@ export function OPTIONS(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const rate = checkRateLimit(request, {
+    scope: "admin-login",
+    limit: 5,
+    windowMs: 15 * 60 * 1000,
+  });
+
+  if (!rate.allowed) {
+    return adminFailure(
+      request,
+      "Too many admin login attempts. Try again later.",
+      429,
+      rateLimitHeaders(rate),
+    );
+  }
+
   try {
     const body = (await request.json().catch(() => null)) as
       | { username?: unknown; email?: unknown; password?: unknown }
