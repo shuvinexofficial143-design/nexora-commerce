@@ -4,6 +4,7 @@ import { getOrCreateGuestCustomer } from "@/lib/db/users";
 import { apiError, ok, validateOrder } from "@/lib/server/backend";
 import { NextResponse } from "next/server";
 import { consumeRateLimit } from "@/lib/security/rate-limit";
+import { sendOrderConfirmationEmail, tryCustomerEmail } from "@/lib/notifications/customer-email";
 
 export const runtime = "nodejs";
 
@@ -39,6 +40,19 @@ export async function POST(request: Request) {
     });
 
     const order = await createOrder(user.id, payload);
+
+    await tryCustomerEmail(
+      () =>
+        sendOrderConfirmationEmail({
+          to: user.email,
+          customerName: user.name,
+          orderNumber: order.orderNumber,
+          totalMinor: order.totalMinor,
+          paymentMethod: order.paymentMethod,
+        }),
+      `order-confirmation:${order.orderNumber}`,
+    );
+
     return ok(order, { status: 201 });
   } catch (error) {
     return apiError(error);
