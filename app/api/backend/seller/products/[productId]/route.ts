@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { multiVendorEnabled } from "@/lib/config/features";
 import { getCurrentSession } from "@/lib/auth/session";
 import {
   adjustSellerProductStock,
@@ -9,6 +10,16 @@ import { apiError, ok } from "@/lib/server/backend";
 export const runtime = "nodejs";
 
 async function requireSeller() {
+  if (!multiVendorEnabled()) {
+    return {
+      session: null,
+      response: NextResponse.json(
+        { ok: false, error: "Seller workspace is disabled for this store." },
+        { status: 404 },
+      ),
+    };
+  }
+
   const session = await getCurrentSession();
 
   if (!session) {
