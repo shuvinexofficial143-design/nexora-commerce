@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { multiVendorEnabled } from "@/lib/config/features";
 import { getCurrentSession } from "@/lib/auth/session";
 import { getSellerAccountProfile, updateSellerAccountProfile } from "@/lib/db/seller-profile";
 import { apiError, ok } from "@/lib/server/backend";
@@ -7,6 +8,16 @@ import { ValidationError } from "@/lib/db/errors";
 export const runtime = "nodejs";
 
 async function requireSellerSession() {
+  if (!multiVendorEnabled()) {
+    return {
+      session: null,
+      response: NextResponse.json(
+        { ok: false, error: "Seller workspace is disabled for this store." },
+        { status: 404 },
+      ),
+    };
+  }
+
   const session = await getCurrentSession();
 
   if (!session) {

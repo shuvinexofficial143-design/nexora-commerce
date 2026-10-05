@@ -3,12 +3,17 @@ import { SellerSidebar } from "@/components/seller/seller-sidebar";
 import { SellerTopbar } from "@/components/seller/seller-topbar";
 import { getCurrentSession } from "@/lib/auth/session";
 import { getSellerAccountProfile } from "@/lib/db/seller-profile";
+import { multiVendorEnabled } from "@/lib/config/features";
 
 export default async function SellerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  if (!multiVendorEnabled()) {
+    redirect("/admin/products");
+  }
+
   const session = await getCurrentSession();
 
   if (!session) {
