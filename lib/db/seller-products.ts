@@ -157,9 +157,9 @@ export async function createSellerProduct(
   const sku = input.sku.trim().toUpperCase();
   const description = input.description.trim();
   const price = input.price;
-  let media: ReturnType<typeof resolveProductMedia>;
+  let resolvedMedia: ReturnType<typeof resolveProductMedia>;
   try {
-    media = resolveProductMedia({
+    resolvedMedia = resolveProductMedia({
       videoUrl: input.videoUrl,
       posterUrl: input.posterUrl,
     });
@@ -197,22 +197,22 @@ export async function createSellerProduct(
       values(${randomUUID()},${sellerProfileId},${product.id},now())
     `;
 
-    const media = [
-      ...(media.posterUrl
+    const productMedia = [
+      ...(resolvedMedia.posterUrl
         ? [
             {
               productId: product.id,
-              url: media.posterUrl,
+              url: resolvedMedia.posterUrl,
               alt: `${name} poster`,
               sortOrder: 0,
             },
           ]
         : []),
-      ...(media.videoUrl
+      ...(resolvedMedia.videoUrl
         ? [
             {
               productId: product.id,
-              url: media.videoUrl,
+              url: resolvedMedia.videoUrl,
               alt: `${name} product video`,
               sortOrder: 1,
             },
@@ -220,8 +220,8 @@ export async function createSellerProduct(
         : []),
     ];
 
-    if (media.length) {
-      await tx.productImage.createMany({ data: media });
+    if (productMedia.length) {
+      await tx.productImage.createMany({ data: productMedia });
     }
 
     return {
