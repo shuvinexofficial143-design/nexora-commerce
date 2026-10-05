@@ -4,17 +4,33 @@ import { Container } from "@/components/ui/container";
 const footerGroups = [
   {
     title: "Shop",
-    links: ["New arrivals", "Best sellers", "Deals", "Gift cards"],
+    links: [
+      ["Shop all", "/shop"],
+      ["New arrivals", "/shop?sort=newest"],
+      ["Best sellers", "/shop?sort=rating"],
+      ["Deals", "/shop?sort=discount"],
+    ],
   },
   {
     title: "Help",
-    links: ["Track order", "Returns", "Payments", "Contact support"],
+    links: [
+      ["Track order", "/track-order"],
+      ["Shipping policy", "/shipping"],
+      ["Returns & refunds", "/returns-policy"],
+      ["Contact support", "/contact"],
+      ["Wishlist", "/wishlist"],
+    ],
   },
   {
-    title: "Company",
-    links: ["About Nexora", "Careers", "Sustainability", "Seller program"],
+    title: "Legal",
+    links: [
+      ["Privacy policy", "/privacy"],
+      ["Terms & conditions", "/terms"],
+      ["Shipping", "/shipping"],
+      ["Returns", "/returns-policy"],
+    ],
   },
-];
+] as const;
 
 export function SiteFooter() {
   return (
@@ -24,7 +40,7 @@ export function SiteFooter() {
           <div>
             <p className="text-3xl font-black tracking-[-0.06em]">NEXORA.</p>
             <p className="mt-4 max-w-sm text-sm leading-6 text-white/55">
-              A smarter storefront built for discovery, trust and a checkout experience that never gets in your way.
+              A video-first storefront for product discovery, simple checkout and owner-managed fulfilment.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
@@ -32,8 +48,8 @@ export function SiteFooter() {
               <div key={group.title}>
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-[#d7ff47]">{group.title}</p>
                 <div className="mt-4 space-y-3">
-                  {group.links.map((label) => (
-                    <Link key={label} href="#" className="block text-sm text-white/65 hover:text-white">
+                  {group.links.map(([label, href]) => (
+                    <Link key={href} href={href} className="block text-sm text-white/65 hover:text-white">
                       {label}
                     </Link>
                   ))}
@@ -43,8 +59,13 @@ export function SiteFooter() {
           </div>
         </div>
         <div className="flex flex-col gap-3 pt-6 text-xs text-white/40 sm:flex-row sm:items-center sm:justify-between">
-          <p>© 2026 Nexora Commerce. Built for the next generation of shopping.</p>
-          <p>Privacy · Terms · Accessibility</p>
+          <p>© 2026 Nexora Commerce.</p>
+          <div className="flex flex-wrap gap-4">
+            <Link href="/privacy" className="hover:text-white">Privacy</Link>
+            <Link href="/terms" className="hover:text-white">Terms</Link>
+            <Link href="/shipping" className="hover:text-white">Shipping</Link>
+            <Link href="/returns-policy" className="hover:text-white">Returns</Link>
+          </div>
         </div>
       </Container>
     </footer>

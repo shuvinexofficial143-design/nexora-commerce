@@ -1,13 +1,13 @@
 import Link from "next/link";
 
 const links = [
-  ["New & trending", "/new"],
-  ["Electronics", "/category/electronics"],
-  ["Fashion", "/category/fashion"],
-  ["Home", "/category/home"],
-  ["Beauty", "/category/beauty"],
-  ["Fitness", "/category/fitness"],
-  ["Premium", "/premium"],
+  ["New & trending", "/shop?sort=newest"],
+  ["Electronics", "/shop?category=electronics"],
+  ["Fashion", "/shop?category=fashion"],
+  ["Home", "/shop?category=home"],
+  ["Beauty", "/shop?category=beauty"],
+  ["Fitness", "/shop?category=fitness"],
+  ["Premium", "/shop?sort=rating"],
 ] as const;
 
 export function MegaNav() {
@@ -21,7 +21,7 @@ export function MegaNav() {
           {label}
         </Link>
       ))}
-      <Link href="/deals" className="ml-auto whitespace-nowrap font-black text-[#a03b00]">
+      <Link href="/shop?sort=discount" className="ml-auto whitespace-nowrap font-black text-[#a03b00]">
         Sale up to 60%
       </Link>
     </nav>

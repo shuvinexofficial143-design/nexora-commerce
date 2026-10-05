@@ -2,12 +2,12 @@ import Link from "next/link";
 
 const mobileLinks = [
   ["Shop all", "/shop"],
-  ["New & trending", "/new"],
-  ["Electronics", "/category/electronics"],
-  ["Fashion", "/category/fashion"],
-  ["Home & living", "/category/home"],
-  ["Beauty", "/category/beauty"],
-  ["Deals", "/deals"],
+  ["New & trending", "/shop?sort=newest"],
+  ["Electronics", "/shop?category=electronics"],
+  ["Fashion", "/shop?category=fashion"],
+  ["Home & living", "/shop?category=home"],
+  ["Beauty", "/shop?category=beauty"],
+  ["Deals", "/shop?sort=discount"],
 ] as const;
 
 export function MobileNav() {

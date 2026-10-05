@@ -55,6 +55,11 @@ export function validateOrder(value: unknown): CreateOrderPayload {
     if (!String(address[key] ?? "").trim()) throw new ValidationError(`Shipping ${key} is required.`);
   }
 
+  const contactEmail = String(input.contactEmail ?? "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+    throw new ValidationError("Enter a valid checkout email address.");
+  }
+
   const paymentMethod = String(input.paymentMethod ?? "cod").toLowerCase();
   if (paymentMethod !== "cod") {
     throw new ValidationError(
@@ -81,6 +86,7 @@ export function validateOrder(value: unknown): CreateOrderPayload {
     },
     paymentMethod: "cod",
     deliveryMethod: deliveryMethod as "standard" | "express" | "priority",
+    contactEmail,
     coupon: input.coupon ? String(input.coupon).trim().toUpperCase().slice(0, 40) : undefined,
     notes: input.notes ? String(input.notes).slice(0, 500) : undefined,
   };
