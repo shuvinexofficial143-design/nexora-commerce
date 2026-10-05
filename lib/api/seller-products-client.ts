@@ -29,6 +29,8 @@ export function updateMySellerProduct(
     name?: string;
     price?: number;
     status?: "Live" | "Draft" | "Paused";
+    videoUrl?: string;
+    posterUrl?: string;
   },
 ) {
   return apiFetch<{
