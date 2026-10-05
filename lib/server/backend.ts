@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ConflictError, DatabaseNotConfiguredError, NotFoundError, ValidationError } from "@/lib/db/errors";
 import type { CreateOrderPayload } from "@/types/backend";
+import { cashfreeConfigured } from "@/lib/payments/cashfree";
 
 export function ok<T>(data: T, init?: ResponseInit) {
   return NextResponse.json({ ok: true, data }, init);
@@ -61,9 +62,12 @@ export function validateOrder(value: unknown): CreateOrderPayload {
   }
 
   const paymentMethod = String(input.paymentMethod ?? "cod").toLowerCase();
-  if (paymentMethod !== "cod") {
+  if (!["cod", "cashfree"].includes(paymentMethod)) {
+    throw new ValidationError("Choose a valid payment method.");
+  }
+  if (paymentMethod === "cashfree" && !cashfreeConfigured()) {
     throw new ValidationError(
-      "Online payments are not enabled yet. Choose Cash on Delivery to place this order.",
+      "Cashfree online payments are not configured yet. Choose Cash on Delivery.",
     );
   }
 
@@ -84,7 +88,7 @@ export function validateOrder(value: unknown): CreateOrderPayload {
       postalCode: String(address.postalCode).trim(),
       country: address.country ? String(address.country).trim() : "India",
     },
-    paymentMethod: "cod",
+    paymentMethod: paymentMethod as "cod" | "cashfree",
     deliveryMethod: deliveryMethod as "standard" | "express" | "priority",
     contactEmail,
     coupon: input.coupon ? String(input.coupon).trim().toUpperCase().slice(0, 40) : undefined,

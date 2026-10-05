@@ -11,9 +11,25 @@ export const deliveryOptions: DeliveryOption[] = [
   { id: "priority", label: "Priority same-day", eta: "Eligible metros · order before 2 PM", price: 299, badge: "Fastest" },
 ];
 
+const cashfreeEnabled = process.env.NEXT_PUBLIC_CASHFREE_ENABLED === "true";
+
 export const paymentMethods: PaymentMethod[] = [
-  { id: "cod", label: "Cash on delivery", description: "Pay when your order arrives", icon: "📦", available: true, badge: "Available now" },
-  { id: "upi", label: "UPI", description: "Coming after payment gateway activation", icon: "⚡", available: false, badge: "Coming soon" },
-  { id: "card", label: "Card", description: "Coming after payment gateway activation", icon: "💳", available: false, badge: "Coming soon" },
-  { id: "emi", label: "EMI / Pay later", description: "Coming after payment gateway activation", icon: "◫", available: false, badge: "Coming soon" },
+  {
+    id: "cod",
+    label: "Cash on delivery",
+    description: "Pay when your order arrives",
+    icon: "📦",
+    available: true,
+    badge: "Available",
+  },
+  {
+    id: "cashfree",
+    label: "Online payment",
+    description: cashfreeEnabled
+      ? "UPI, cards and other enabled methods via Cashfree"
+      : "Ready in code — enable after Cashfree keys are configured",
+    icon: "⚡",
+    available: cashfreeEnabled,
+    badge: cashfreeEnabled ? "Cashfree" : "Not enabled",
+  },
 ];
