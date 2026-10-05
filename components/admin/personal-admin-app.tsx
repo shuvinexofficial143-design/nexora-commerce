@@ -142,6 +142,10 @@ type NotificationRow = {
 };
 
 type IntegrationStatus = {
+  storeProfile: {
+    configured: boolean;
+    missing: string[];
+  };
   deployment: {
     appUrl: string;
     environment: string;
@@ -1035,6 +1039,32 @@ function Settings({ me }: { me: AdminMe }) {
             <dd className="mt-1 font-black">{new Date(me.expiresAt).toLocaleString("en-IN")}</dd>
           </div>
         </dl>
+      </Panel>
+
+      <Panel title="Store identity" description="Public contact and business details">
+        {!status ? (
+          <p className="text-sm font-bold text-black/40">Loading store profile…</p>
+        ) : (
+          <div className="rounded-2xl border border-black/8 bg-[#fafaf7] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-black">Business contact profile</p>
+              <span
+                className={`rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wide ${
+                  status.storeProfile.configured
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber-100 text-amber-800"
+                }`}
+              >
+                {status.storeProfile.configured ? "Ready" : "Needs setup"}
+              </span>
+            </div>
+            <p className="mt-2 text-xs font-bold leading-5 text-black/45">
+              {status.storeProfile.configured
+                ? "Support email, phone and business address are configured."
+                : `Missing: ${status.storeProfile.missing.join(", ")}`}
+            </p>
+          </div>
+        )}
       </Panel>
 
       <Panel title="Integrations" description="Secrets are never shown in the browser">
