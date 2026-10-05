@@ -5,7 +5,15 @@ type ReturnRow = Record<string, unknown>;
 
 export async function listReturns() {
   return getPrisma().$queryRaw<ReturnRow[]>`
-    select r.*,o."orderNumber",u."name" as "customerName",u."email" as "customerEmail"
+    select
+      r.*,
+      o."orderNumber",
+      o."paymentMethod",
+      o."paymentStatus"::text as "paymentStatus",
+      o."status"::text as "orderStatus",
+      o."totalMinor",
+      u."name" as "customerName",
+      u."email" as "customerEmail"
     from "ReturnRequest" r
     join "Order" o on o."id"=r."orderId"
     join "User" u on u."id"=r."userId"
