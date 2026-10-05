@@ -45,8 +45,8 @@ export function OrderSuccess() {
       </h1>
 
       <p className="mx-auto mt-4 max-w-xl text-sm font-bold leading-6 text-black/45">
-        Order <span className="text-black">{orderId}</span> has been confirmed successfully and saved to your
-        account. {details.email ? `Order updates will be sent to ${details.email}.` : "You can track it from your account."}
+        Order <span className="text-black">{orderId}</span> has been confirmed successfully.
+        {details.email ? ` Order updates will be sent to ${details.email}.` : " Keep this order number for support."}
       </p>
 
       <div className="mx-auto mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
@@ -63,10 +63,10 @@ export function OrderSuccess() {
           Keep shopping
         </Link>
         <Link
-          href="/account/orders"
+          href="/contact"
           className="rounded-full border border-black/10 bg-[#FFD8C7] px-6 py-3.5 text-sm font-black text-black transition hover:bg-[#FFC8B4]"
         >
-          View order
+          Order support
         </Link>
       </div>
     </section>
