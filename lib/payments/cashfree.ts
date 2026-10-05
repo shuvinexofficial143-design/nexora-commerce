@@ -4,7 +4,7 @@ import { getPublicAppUrl } from "@/lib/config/runtime";
 import { notify } from "@/lib/admin/notifications";
 import { sendOrderEmailSafe } from "@/lib/notifications/customer-email";
 
-const API_VERSION = "2025-01-01";
+const API_VERSION = process.env.CASHFREE_API_VERSION?.trim() || "2025-01-01";
 
 type CashfreeMode = "sandbox" | "production";
 
@@ -20,6 +20,27 @@ type CashfreePayment = {
   payment_amount?: number;
   payment_currency?: string;
   payment_time?: string;
+};
+
+export type CashfreeRefund = {
+  cf_payment_id?: string | number;
+  cf_refund_id?: string | number;
+  refund_id: string;
+  order_id: string;
+  refund_amount: number;
+  refund_currency?: string;
+  refund_note?: string;
+  refund_status:
+    | "SUCCESS"
+    | "PENDING"
+    | "CANCELLED"
+    | "ONHOLD"
+    | "FAILED"
+    | string;
+  status_description?: string;
+  refund_arn?: string;
+  created_at?: string;
+  processed_at?: string;
 };
 
 function mode(): CashfreeMode {
@@ -104,6 +125,80 @@ export async function getCashfreePayments(orderNumber: string) {
       { method: "GET" },
     )) ?? []
   );
+}
+
+function cashfreeRefundId(returnId: string) {
+  const compact = returnId.replace(/[^A-Za-z0-9]/g, "");
+  return `NXR${compact}`.slice(0, 40);
+}
+
+export async function getCashfreeRefund(
+  orderNumber: string,
+  returnId: string,
+) {
+  const refundId = cashfreeRefundId(returnId);
+  return cashfreeFetch<CashfreeRefund>(
+    `/orders/${encodeURIComponent(orderNumber)}/refunds/${encodeURIComponent(refundId)}`,
+    { method: "GET" },
+    true,
+  );
+}
+
+export async function createOrGetCashfreeRefund(input: {
+  orderNumber: string;
+  returnId: string;
+  amountMinor: number;
+  note?: string;
+}) {
+  if (!cashfreeConfigured()) {
+    throw new Error("Cashfree refund is not configured yet.");
+  }
+
+  if (
+    !Number.isInteger(input.amountMinor) ||
+    input.amountMinor <= 0
+  ) {
+    throw new Error("Refund amount must be greater than zero.");
+  }
+
+  const existing = await getCashfreeRefund(
+    input.orderNumber,
+    input.returnId,
+  ).catch(() => null);
+
+  if (existing) return existing;
+
+  const refundId = cashfreeRefundId(input.returnId);
+  const rawNote = input.note?.trim() || "NEXORA return refund";
+  const refundNote =
+    rawNote.length < 3
+      ? "NEXORA return refund"
+      : rawNote.slice(0, 100);
+
+  const created = await cashfreeFetch<
+    CashfreeRefund | CashfreeRefund[]
+  >(
+    `/orders/${encodeURIComponent(input.orderNumber)}/refunds`,
+    {
+      method: "POST",
+      headers: {
+        "x-idempotency-key": input.returnId,
+      },
+      body: JSON.stringify({
+        refund_amount: Number((input.amountMinor / 100).toFixed(2)),
+        refund_id: refundId,
+        refund_note: refundNote,
+        refund_speed: "STANDARD",
+      }),
+    },
+  );
+
+  const refund = Array.isArray(created) ? created[0] : created;
+  if (!refund) {
+    throw new Error("Cashfree did not return a refund record.");
+  }
+
+  return refund;
 }
 
 function readShippingPhone(shippingAddress: unknown) {
