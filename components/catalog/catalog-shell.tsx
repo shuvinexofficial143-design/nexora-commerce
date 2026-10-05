@@ -14,9 +14,20 @@ import type { CatalogFilters, CatalogProduct, CatalogView, SortOption } from "@/
 
 const PAGE_SIZE = 12;
 
-export function CatalogShell({ products }: { products: CatalogProduct[] }) {
-  const [filters, setFilters] = useState<CatalogFilters>(defaultCatalogFilters);
-  const [sort, setSort] = useState<SortOption>("featured");
+export function CatalogShell({
+  products,
+  initialCategory,
+  initialSort,
+}: {
+  products: CatalogProduct[];
+  initialCategory?: string;
+  initialSort?: SortOption;
+}) {
+  const [filters, setFilters] = useState<CatalogFilters>(() => ({
+    ...defaultCatalogFilters,
+    categories: initialCategory ? [initialCategory] : [],
+  }));
+  const [sort, setSort] = useState<SortOption>(initialSort ?? "featured");
   const [view, setView] = useState<CatalogView>("grid");
   const [page, setPage] = useState(1);
   const [mobileOpen, setMobileOpen] = useState(false);
