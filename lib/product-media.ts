@@ -16,8 +16,14 @@ export function isHttpUrl(value?: string | null) {
 export function isDirectVideoUrl(value?: string | null) {
   if (!value) return false;
   const candidate = value.trim();
-  if (!isHttpUrl(candidate)) return false;
-  return /\.(mp4|webm|ogg|m4v|mov)(?:$|[?#])/i.test(candidate);
+
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "https:") return false;
+    return /\.(mp4|webm|ogg|m4v|mov)(?:$|[?#])/i.test(candidate);
+  } catch {
+    return false;
+  }
 }
 
 export function getYouTubeVideoId(value?: string | null) {
@@ -88,7 +94,7 @@ export function resolveProductMedia(input: {
   const youtubeVideoId = getYouTubeVideoId(videoUrl);
 
   if (videoUrl && !isSupportedProductVideoUrl(videoUrl)) {
-    throw new Error("Use a valid YouTube link or a direct MP4/WebM/OGG/M4V/MOV URL.");
+    throw new Error("Use a valid YouTube link or a direct HTTPS MP4/WebM/OGG/M4V/MOV URL.");
   }
 
   if (posterUrl && !isSupportedPosterUrl(posterUrl)) {
