@@ -1,14 +1,32 @@
 import { NextResponse } from "next/server";
 import { getCatalogProducts } from "@/lib/catalog-backend";
 import { runDemoAssistant } from "@/lib/ai-demo-engine";
+import { consumeRateLimit } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const rate = consumeRateLimit(request, "ai-shopping", 30, 10 * 60 * 1000);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "Too many AI shopping requests. Try again shortly." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rate.retryAfterSeconds) },
+      },
+    );
+  }
+
   const body = (await request.json().catch(() => ({}))) as { message?: string };
   const message = body.message?.trim();
   if (!message) {
     return NextResponse.json({ error: "Message is required" }, { status: 400 });
+  }
+  if (message.length > 600) {
+    return NextResponse.json(
+      { error: "Message is too long. Keep it under 600 characters." },
+      { status: 400 },
+    );
   }
 
   const catalog = await getCatalogProducts();
