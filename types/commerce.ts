@@ -18,6 +18,8 @@ export type Product = {
   reviews: number;
   badge?: string;
   image: string;
+  videoUrl?: string;
+  youtubeVideoId?: string;
   colors: string[];
 };
 
