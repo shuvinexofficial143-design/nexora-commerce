@@ -191,3 +191,49 @@ export async function tryCustomerEmail(
     console.error(`NEXORA customer email failed (${context})`, error);
   }
 }
+
+
+export async function sendReturnStatusEmail(input: {
+  to: string;
+  customerName: string;
+  orderNumber: string;
+  status: string;
+  refundMinor: number;
+  note?: string;
+}) {
+  const readable = input.status.replaceAll("_", " ").toLowerCase();
+  const customer = escapeHtml(input.customerName || "Customer");
+  const order = escapeHtml(input.orderNumber);
+  const status = escapeHtml(readable);
+  const refund =
+    input.refundMinor > 0
+      ? new Intl.NumberFormat("en-IN", {
+          style: "currency",
+          currency: "INR",
+        }).format(input.refundMinor / 100)
+      : null;
+  const note = input.note?.trim() || "";
+
+  return sendTransactionalEmail({
+    to: input.to,
+    subject: `Nexora return update · ${input.orderNumber}`,
+    idempotencyKey: `return-status/${input.orderNumber}/${input.status}/${input.refundMinor}`,
+    text:
+      `Hi ${input.customerName || "Customer"},\n\n` +
+      `Your return for order ${input.orderNumber} is ${readable}.\n` +
+      (refund ? `Refund: ${refund}\n` : "") +
+      (note ? `Note: ${note}\n` : ""),
+    html: brandShell(
+      `Return ${readable}`,
+      `
+        <p style="font-size:15px;line-height:1.7">Hi ${customer}, your return request has been updated.</p>
+        <div style="background:#f5f5f1;border-radius:18px;padding:18px;margin:20px 0">
+          <p style="margin:0 0 8px"><strong>Order:</strong> ${order}</p>
+          <p style="margin:0 0 8px"><strong>Status:</strong> ${status}</p>
+          ${refund ? `<p style="margin:0 0 8px"><strong>Refund:</strong> ${escapeHtml(refund)}</p>` : ""}
+          ${note ? `<p style="margin:0"><strong>Note:</strong> ${escapeHtml(note)}</p>` : ""}
+        </div>
+      `,
+    ),
+  });
+}
