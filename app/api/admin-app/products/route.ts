@@ -1,4 +1,5 @@
 import { getPrisma } from "@/lib/db/prisma";
+import { getYouTubeVideoId, isDirectVideoUrl } from "@/lib/product-media";
 import {
   adminFailure,
   adminJson,
@@ -27,12 +28,24 @@ export async function GET(request: Request) {
         inventory: {
           select: { onHand: true, reserved: true },
         },
+        images: {
+          orderBy: { sortOrder: "asc" },
+          select: { url: true, alt: true, sortOrder: true },
+        },
       },
     });
 
     return adminJson(
       request,
-      products.map((product) => ({
+      products.map((product) => {
+        const video = product.images.find(
+          (item) => isDirectVideoUrl(item.url) || Boolean(getYouTubeVideoId(item.url)),
+        );
+        const poster = product.images.find(
+          (item) => !isDirectVideoUrl(item.url) && !getYouTubeVideoId(item.url),
+        );
+
+        return {
         id: product.id,
         slug: product.slug,
         sku: product.sku,
@@ -43,8 +56,12 @@ export async function GET(request: Request) {
         category: product.category?.name ?? null,
         onHand: product.inventory.reduce((sum, item) => sum + item.onHand, 0),
         reserved: product.inventory.reduce((sum, item) => sum + item.reserved, 0),
+        videoUrl: video?.url ?? null,
+        posterUrl: poster?.url ?? null,
+        media: product.images,
         updatedAt: product.updatedAt.toISOString(),
-      })),
+      };
+      }),
     );
   } catch (error) {
     return adminUnexpected(request, error);
