@@ -127,7 +127,8 @@ export type CreateOrderPayload = {
     postalCode: string;
     country?: string;
   };
-  paymentMethod?: string;
+  paymentMethod?: "cod" | "upi" | "card" | "emi";
+  deliveryMethod?: "standard" | "express" | "priority";
   coupon?: string;
   notes?: string;
 };
