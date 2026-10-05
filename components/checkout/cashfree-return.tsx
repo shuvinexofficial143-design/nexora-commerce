@@ -43,7 +43,13 @@ export function CashfreeReturn({ orderNumber }: { orderNumber: string }) {
   }
 
   useEffect(() => {
-    void verify();
+    let active = true;
+    queueMicrotask(() => {
+      if (active) void verify();
+    });
+    return () => {
+      active = false;
+    };
     // orderNumber is fixed for this return page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderNumber]);
