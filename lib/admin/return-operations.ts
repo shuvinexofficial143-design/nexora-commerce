@@ -74,6 +74,27 @@ export async function processReturn(input: {
       throw new Error("Refund amount exceeds the order total.");
     }
 
+    if (
+      row.returnStatus &&
+      row.returnStatus !== "PENDING" &&
+      row.returnStatus !== input.status
+    ) {
+      throw new Error("This return has already been resolved.");
+    }
+
+    if (
+      row.returnStatus === input.status &&
+      (row.refundMinor ?? 0) === input.refundMinor
+    ) {
+      return {
+        updated: false,
+        unchanged: true,
+        ...row,
+        returnStatus: input.status,
+        refundMinor: input.refundMinor,
+      };
+    }
+
     if (input.restock && !row.restockedAt) {
       const items = await tx.orderItem.findMany({
         where: { orderId: row.orderId },
