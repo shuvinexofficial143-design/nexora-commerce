@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
 import { ValidationError } from "@/lib/db/errors";
 import type { SellerProduct } from "@/types/seller";
+import { getYouTubeThumbnail, getYouTubeVideoId, isDirectVideoUrl, isHttpUrl } from "@/lib/product-media";
+
+const DEFAULT_PRODUCT_POSTER =
+  "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80";
 
 type SellerProductRow = {
   id: string;
@@ -118,6 +122,8 @@ export async function createSellerProduct(
     sku: string;
     price: number;
     description: string;
+    videoUrl?: string;
+    posterUrl?: string;
   },
 ) {
   await ensureSellerProductTable();
@@ -131,6 +137,9 @@ export async function createSellerProduct(
   const sku = input.sku.trim().toUpperCase();
   const description = input.description.trim();
   const price = input.price;
+  const videoUrl = input.videoUrl?.trim() || undefined;
+  const posterUrl = input.posterUrl?.trim() || undefined;
+  const youtubeVideoId = getYouTubeVideoId(videoUrl);
 
   if (name.length < 2) throw new ValidationError("Product name is required.");
   if (sku.length < 3) throw new ValidationError("SKU must be at least 3 characters.");
@@ -140,6 +149,19 @@ export async function createSellerProduct(
   if (description.length < 10) {
     throw new ValidationError("Description must be at least 10 characters.");
   }
+
+  if (videoUrl && !youtubeVideoId && !isDirectVideoUrl(videoUrl)) {
+    throw new ValidationError("Use a YouTube link or a direct MP4/WebM/OGG product video URL.");
+  }
+
+  if (posterUrl && !isHttpUrl(posterUrl)) {
+    throw new ValidationError("Poster image must be a valid http/https URL.");
+  }
+
+  const resolvedPoster =
+    posterUrl ??
+    getYouTubeThumbnail(youtubeVideoId) ??
+    (videoUrl ? DEFAULT_PRODUCT_POSTER : undefined);
 
   const prisma = getPrisma();
 
@@ -159,6 +181,33 @@ export async function createSellerProduct(
       insert into "SellerProduct"("id","sellerProfileId","productId","createdAt")
       values(${randomUUID()},${sellerProfileId},${product.id},now())
     `;
+
+    const media = [
+      ...(resolvedPoster
+        ? [
+            {
+              productId: product.id,
+              url: resolvedPoster,
+              alt: `${name} poster`,
+              sortOrder: 0,
+            },
+          ]
+        : []),
+      ...(videoUrl
+        ? [
+            {
+              productId: product.id,
+              url: videoUrl,
+              alt: `${name} product video`,
+              sortOrder: 1,
+            },
+          ]
+        : []),
+    ];
+
+    if (media.length) {
+      await tx.productImage.createMany({ data: media });
+    }
 
     return {
       id: product.id,
