@@ -10,7 +10,9 @@ type OrderEmailEvent =
   | "SHIPPED"
   | "OUT_FOR_DELIVERY"
   | "DELIVERED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "RETURN_APPROVED"
+  | "RETURN_REJECTED";
 
 const currency = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -100,6 +102,20 @@ function eventCopy(event: OrderEmailEvent, orderNumber: string) {
         heading: "Order cancelled",
         message:
           "Your order has been cancelled. If a paid order is eligible for a refund, it will be handled according to the refund policy.",
+      };
+    case "RETURN_APPROVED":
+      return {
+        subject: `Return approved for ${readable} · NEXORA`,
+        heading: "Return approved",
+        message:
+          "Your return request has been approved. Any eligible refund will be processed according to the recorded return resolution.",
+      };
+    case "RETURN_REJECTED":
+      return {
+        subject: `Return update for ${readable} · NEXORA`,
+        heading: "Return request reviewed",
+        message:
+          "Your return request was not approved. Contact support with your order number if you need clarification.",
       };
   }
 }
