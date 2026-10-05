@@ -163,7 +163,6 @@ function Overview() {
   const [error, setError] = useState("");
 
   const load = useCallback(() => {
-    setError("");
     adminFetch<DashboardData>("/api/admin-app/dashboard").then(setData).catch((e) => setError(e.message));
   }, []);
 
@@ -235,7 +234,6 @@ function Products() {
   });
 
   const load = useCallback(() => {
-    setError("");
     adminFetch<ProductRow[]>("/api/admin-app/products").then(setRows).catch((e) => setError(e.message));
   }, []);
 
@@ -394,7 +392,6 @@ function Orders() {
   const [error, setError] = useState("");
 
   const load = useCallback(() => {
-    setError("");
     adminFetch<OrderRow[]>("/api/admin-app/orders").then(setRows).catch((e) => setError(e.message));
   }, []);
 
@@ -448,7 +445,6 @@ function Inventory() {
   const [error, setError] = useState("");
 
   const load = useCallback(() => {
-    setError("");
     adminFetch<InventoryRow[]>("/api/admin-app/inventory").then(setRows).catch((e) => setError(e.message));
   }, []);
   useEffect(() => load(), [load]);
@@ -498,7 +494,6 @@ function Coupons() {
   const [form, setForm] = useState({ code: "", kind: "PERCENT", value: "10", minSubtotal: "0", maxDiscount: "" });
 
   const load = useCallback(() => {
-    setError("");
     adminFetch<CouponRow[]>("/api/admin-app/coupons").then(setRows).catch((e) => setError(e.message));
   }, []);
   useEffect(() => load(), [load]);
@@ -568,7 +563,6 @@ function Returns() {
   const [error, setError] = useState("");
 
   const load = useCallback(() => {
-    setError("");
     adminFetch<ReturnRow[]>("/api/admin-app/returns").then(setRows).catch((e) => setError(e.message));
   }, []);
   useEffect(() => load(), [load]);
