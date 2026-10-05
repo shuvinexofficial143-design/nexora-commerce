@@ -35,7 +35,7 @@ function accountStatus(status: BackendOrder["status"]): OrderStatus {
 }
 
 function paymentMethod(value: string | null): PaymentMethodId {
-  return ["upi", "card", "cod", "emi"].includes(value ?? "") ? (value as PaymentMethodId) : "upi";
+  return value === "cashfree" ? "cashfree" : "cod";
 }
 
 function addressText(value: unknown) {
@@ -68,7 +68,7 @@ export function mapBackendOrder(order: BackendOrder): AccountOrder {
     createdAt: order.createdAt,
     status: accountStatus(order.status),
     paymentId: method,
-    paymentLabel: method === "cod" ? "Cash on Delivery" : method === "emi" ? "EMI / Pay Later" : method.toUpperCase(),
+    paymentLabel: method === "cod" ? "Cash on Delivery" : "Online payment",
     deliveryLabel: order.shippingMinor > 0 ? "Priority delivery" : "Standard delivery",
     address: addressText(order.shippingAddress),
     email: "",
