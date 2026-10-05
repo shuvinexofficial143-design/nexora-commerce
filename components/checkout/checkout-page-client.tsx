@@ -15,6 +15,7 @@ import { CheckoutEmpty } from "@/components/checkout/checkout-empty";
 import { deliveryOptions, paymentMethods } from "@/lib/checkout-data";
 import { resolveProductSlugs } from "@/lib/api/products-client";
 import { submitBackendOrder } from "@/lib/api/orders-client";
+import { createCashfreeSession, openCashfreeCheckout } from "@/lib/api/payments-client";
 import type { CheckoutAddress, CheckoutStep, DeliveryOption, PaymentMethodId } from "@/types/checkout";
 
 export function CheckoutPageClient() {
@@ -28,6 +29,7 @@ export function CheckoutPageClient() {
   const [paymentId, setPaymentId] = useState<PaymentMethodId>("cod");
   const [placing, setPlacing] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [pendingOnlineOrder, setPendingOnlineOrder] = useState<string | null>(null);
 
   const delivery = useMemo<DeliveryOption>(
     () => deliveryOptions.find((item) => item.id === deliveryId) ?? deliveryOptions[0],
@@ -70,6 +72,16 @@ export function CheckoutPageClient() {
     setSubmitError("");
 
     try {
+      if (paymentId === "cashfree" && pendingOnlineOrder) {
+        const paymentSession = await createCashfreeSession(
+          pendingOnlineOrder,
+          contactEmail,
+        );
+        await openCashfreeCheckout(paymentSession);
+        setPlacing(false);
+        return;
+      }
+
       const resolved = await resolveProductSlugs(lines.map((line) => line.slug));
       const bySlug = new Map(resolved.map((product) => [product.slug, product]));
 
@@ -117,6 +129,17 @@ export function CheckoutPageClient() {
         }),
       );
 
+      if (paymentId === "cashfree") {
+        setPendingOnlineOrder(order.orderNumber);
+        const paymentSession = await createCashfreeSession(
+          order.orderNumber,
+          contactEmail,
+        );
+        await openCashfreeCheckout(paymentSession);
+        setPlacing(false);
+        return;
+      }
+
       clearCart();
       router.push(`/checkout/success?order=${encodeURIComponent(order.orderNumber)}`);
     } catch (caught) {
@@ -152,6 +175,7 @@ export function CheckoutPageClient() {
 
           <CheckoutSummary
             delivery={delivery}
+            paymentId={paymentId}
             placing={placing}
             onPlaceOrder={() => void placeOrder()}
             onReview={() => setStep(4)}
