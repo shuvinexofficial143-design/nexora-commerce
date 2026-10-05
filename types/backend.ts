@@ -129,6 +129,7 @@ export type CreateOrderPayload = {
   };
   paymentMethod?: "cod" | "upi" | "card" | "emi";
   deliveryMethod?: "standard" | "express" | "priority";
+  contactEmail?: string;
   coupon?: string;
   notes?: string;
 };
