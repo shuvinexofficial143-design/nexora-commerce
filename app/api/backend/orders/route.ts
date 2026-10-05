@@ -41,17 +41,19 @@ export async function POST(request: Request) {
 
     const order = await createOrder(user.id, payload);
 
-    await tryCustomerEmail(
-      () =>
-        sendOrderConfirmationEmail({
-          to: user.email,
-          customerName: user.name,
-          orderNumber: order.orderNumber,
-          totalMinor: order.totalMinor,
-          paymentMethod: order.paymentMethod,
-        }),
-      `order-confirmation:${order.orderNumber}`,
-    );
+    if (order.paymentMethod === "cod") {
+      await tryCustomerEmail(
+        () =>
+          sendOrderConfirmationEmail({
+            to: user.email,
+            customerName: user.name,
+            orderNumber: order.orderNumber,
+            totalMinor: order.totalMinor,
+            paymentMethod: order.paymentMethod,
+          }),
+        `order-confirmation:${order.orderNumber}`,
+      );
+    }
 
     return ok(order, { status: 201 });
   } catch (error) {
