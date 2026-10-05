@@ -2,10 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
 import { ValidationError } from "@/lib/db/errors";
 import type { SellerProduct } from "@/types/seller";
-import { getYouTubeThumbnail, getYouTubeVideoId, isDirectVideoUrl, isHttpUrl } from "@/lib/product-media";
-
-const DEFAULT_PRODUCT_POSTER =
-  "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80";
+import { getYouTubeVideoId, isDirectVideoUrl, isSupportedPosterUrl, isSupportedProductVideoUrl, resolveProductMedia } from "@/lib/product-media";
 
 type SellerProductRow = {
   id: string;
@@ -160,9 +157,17 @@ export async function createSellerProduct(
   const sku = input.sku.trim().toUpperCase();
   const description = input.description.trim();
   const price = input.price;
-  const videoUrl = input.videoUrl?.trim() || undefined;
-  const posterUrl = input.posterUrl?.trim() || undefined;
-  const youtubeVideoId = getYouTubeVideoId(videoUrl);
+  let media: ReturnType<typeof resolveProductMedia>;
+  try {
+    media = resolveProductMedia({
+      videoUrl: input.videoUrl,
+      posterUrl: input.posterUrl,
+    });
+  } catch (error) {
+    throw new ValidationError(
+      error instanceof Error ? error.message : "Invalid product media.",
+    );
+  }
 
   if (name.length < 2) throw new ValidationError("Product name is required.");
   if (sku.length < 3) throw new ValidationError("SKU must be at least 3 characters.");
@@ -172,19 +177,6 @@ export async function createSellerProduct(
   if (description.length < 10) {
     throw new ValidationError("Description must be at least 10 characters.");
   }
-
-  if (videoUrl && !youtubeVideoId && !isDirectVideoUrl(videoUrl)) {
-    throw new ValidationError("Use a YouTube link or a direct MP4/WebM/OGG product video URL.");
-  }
-
-  if (posterUrl && !isHttpUrl(posterUrl)) {
-    throw new ValidationError("Poster image must be a valid http/https URL.");
-  }
-
-  const resolvedPoster =
-    posterUrl ??
-    getYouTubeThumbnail(youtubeVideoId) ??
-    (videoUrl ? DEFAULT_PRODUCT_POSTER : undefined);
 
   const prisma = getPrisma();
 
@@ -206,21 +198,21 @@ export async function createSellerProduct(
     `;
 
     const media = [
-      ...(resolvedPoster
+      ...(media.posterUrl
         ? [
             {
               productId: product.id,
-              url: resolvedPoster,
+              url: media.posterUrl,
               alt: `${name} poster`,
               sortOrder: 0,
             },
           ]
         : []),
-      ...(videoUrl
+      ...(media.videoUrl
         ? [
             {
               productId: product.id,
-              url: videoUrl,
+              url: media.videoUrl,
               alt: `${name} product video`,
               sortOrder: 1,
             },
@@ -291,12 +283,14 @@ export async function updateSellerProduct(
   const nextPosterUrl =
     typeof input.posterUrl === "string" ? input.posterUrl.trim() || null : undefined;
 
-  if (nextVideoUrl && !getYouTubeVideoId(nextVideoUrl) && !isDirectVideoUrl(nextVideoUrl)) {
-    throw new ValidationError("Use a YouTube link or a direct MP4/WebM/OGG product video URL.");
+  if (nextVideoUrl && !isSupportedProductVideoUrl(nextVideoUrl)) {
+    throw new ValidationError("Use a valid YouTube link or a direct MP4/WebM/OGG/M4V/MOV URL.");
   }
 
-  if (nextPosterUrl && !isHttpUrl(nextPosterUrl)) {
-    throw new ValidationError("Poster image must be a valid http/https URL.");
+  if (nextPosterUrl && !isSupportedPosterUrl(nextPosterUrl)) {
+    throw new ValidationError(
+      "Poster image must use HTTPS from Unsplash, YouTube, Cloudinary, or Supabase Storage.",
+    );
   }
 
   if (typeof input.name === "string") {
