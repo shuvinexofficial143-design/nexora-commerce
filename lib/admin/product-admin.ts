@@ -111,7 +111,7 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
     typeof input.posterUrl === "string" ? input.posterUrl.trim() || null : undefined;
 
   if (nextVideoUrl && !isSupportedProductVideoUrl(nextVideoUrl)) {
-    throw new Error("Use a valid YouTube link or a direct MP4/WebM/OGG/M4V/MOV URL.");
+    throw new Error("Use a valid YouTube link or a direct HTTPS MP4/WebM/OGG/M4V/MOV URL.");
   }
 
   if (nextPosterUrl && !isSupportedPosterUrl(nextPosterUrl)) {
