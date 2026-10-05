@@ -31,7 +31,7 @@ jobs:
           npm pkg set dependencies.next=16.3.8
           npm pkg set devDependencies.eslint-config-next=16.3.8
           npm pkg set overrides.deepmerge-ts=8.0.2
-          npm pkg set overrides.fast-uri=3.1.6
+          npm pkg set overrides.fast-uri=3.1.8
           npm pkg set overrides.mysql2=3.24.5
           npm pkg set overrides.sharp=0.35.4
           npm install --package-lock-only --ignore-scripts
