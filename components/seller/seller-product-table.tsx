@@ -314,7 +314,7 @@ function FragmentRow({
                   type="url"
                   value={draft.videoUrl}
                   onChange={(event) => onDraft({ ...draft, videoUrl: event.target.value })}
-                  placeholder="YouTube or direct MP4/WebM URL"
+                  placeholder="YouTube or direct HTTPS MP4/WebM URL"
                   className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 font-bold"
                 />
               </label>
@@ -327,7 +327,7 @@ function FragmentRow({
                   type="url"
                   value={draft.posterUrl}
                   onChange={(event) => onDraft({ ...draft, posterUrl: event.target.value })}
-                  placeholder="Optional thumbnail / fallback"
+                  placeholder="Unsplash / YouTube / Cloudinary / Supabase image"
                   className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 font-bold"
                 />
               </label>
