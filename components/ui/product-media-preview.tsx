@@ -25,6 +25,7 @@ export function ProductMediaPreview({
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [visible, setVisible] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
   const hasVideo = Boolean(videoUrl || youtubeVideoId);
 
   useEffect(() => {
@@ -53,7 +54,7 @@ export function ProductMediaPreview({
 
   return (
     <div ref={rootRef} className="absolute inset-0">
-      {videoUrl ? (
+      {videoUrl && !videoFailed ? (
         <video
           ref={videoRef}
           src={videoUrl}
@@ -63,6 +64,7 @@ export function ProductMediaPreview({
           playsInline
           preload="metadata"
           aria-label={alt}
+          onError={() => setVideoFailed(true)}
           className={`h-full w-full object-cover transition duration-500 group-hover:scale-[1.035] ${unavailable ? "grayscale-[35%] opacity-75" : ""} ${className}`}
         />
       ) : youtubeVideoId && visible ? (
@@ -70,6 +72,8 @@ export function ProductMediaPreview({
           title={`${alt} product video`}
           src={`https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${youtubeVideoId}&playsinline=1&rel=0`}
           allow="autoplay; encrypted-media; picture-in-picture"
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
           className={`pointer-events-none h-full w-full scale-[1.12] border-0 object-cover ${unavailable ? "grayscale-[35%] opacity-75" : ""}`}
         />
       ) : (
