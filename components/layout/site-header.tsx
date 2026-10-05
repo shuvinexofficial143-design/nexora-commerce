@@ -27,6 +27,7 @@ export function SiteHeader() {
 
           <nav className="ml-auto flex shrink-0 items-center gap-0.5" aria-label="Account links">
             <Link href="/ai-assistant" className="hidden rounded-full bg-[#d7ff47] px-3 py-2 text-xs font-black lg:block">AI Shop ✦</Link>
+            <Link href="/track-order" className="hidden rounded-full px-3 py-2 text-sm font-bold hover:bg-black/5 md:block">Track order</Link>
             <Link href="/wishlist" className="hidden rounded-full px-3 py-2 text-sm font-bold hover:bg-black/5 sm:block">Wishlist</Link>
             <CartIconLink />
           </nav>
