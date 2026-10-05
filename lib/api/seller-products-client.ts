@@ -10,6 +10,8 @@ export function createMySellerProduct(input: {
   sku: string;
   price: number;
   description: string;
+  videoUrl?: string;
+  posterUrl?: string;
 }) {
   return apiFetch<{ id: string; slug: string; sku: string; status: "Draft" }>(
     "/api/backend/seller/products",
