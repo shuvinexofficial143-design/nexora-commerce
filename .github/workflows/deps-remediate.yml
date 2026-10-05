@@ -1,0 +1,50 @@
+name: Temporary Dependency Remediation
+
+on:
+  push:
+    branches: [chatgpt/media-upload-security]
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    if: ${{ !contains(github.event.head_commit.message, '[deps-remediated]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v4
+        with:
+          ref: chatgpt/media-upload-security
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Regenerate patched dependency lockfile
+        run: |
+          npm pkg set dependencies.next=16.3.8
+          npm pkg set devDependencies.eslint-config-next=16.3.8
+          npm pkg set overrides.deepmerge-ts=8.0.2
+          npm pkg set overrides.fast-uri=3.1.6
+          npm pkg set overrides.mysql2=3.24.5
+          npm pkg set overrides.sharp=0.35.4
+          npm install --package-lock-only --ignore-scripts
+          npm audit --omit=dev --audit-level=high
+
+      - name: Commit remediated lockfile
+        run: |
+          git config user.name "nexora-security-bot"
+          git config user.email "nexora-security-bot@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No dependency changes to commit."
+            exit 0
+          fi
+          git commit -m "security: remediate audited dependencies [deps-remediated]"
+          git push origin HEAD:chatgpt/media-upload-security
