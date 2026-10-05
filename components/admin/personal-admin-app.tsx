@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -289,20 +290,50 @@ function Products() {
             ["name", "Product name", "Gift product"],
             ["sku", "SKU", "NX-GIFT-001"],
             ["price", "Price (₹)", "999"],
-            ["videoUrl", "Video URL", "YouTube or HTTPS MP4/WebM"],
-            ["posterUrl", "Poster image URL", "Cloudinary / Supabase / YouTube / Unsplash"],
           ].map(([key, label, placeholder]) => (
-            <label key={key} className={key === "posterUrl" || key === "videoUrl" ? "md:col-span-2" : ""}>
+            <label key={key}>
               <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">{label}</span>
               <input
                 value={form[key as keyof typeof form]}
                 onChange={(e) => setForm((current) => ({ ...current, [key]: e.target.value }))}
                 placeholder={placeholder}
-                type={key === "price" ? "number" : key.includes("Url") ? "url" : "text"}
+                type={key === "price" ? "number" : "text"}
                 className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none focus:border-black"
               />
             </label>
           ))}
+
+          <label className="md:col-span-2">
+            <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">Product video</span>
+            <input
+              value={form.videoUrl}
+              onChange={(e) => setForm((current) => ({ ...current, videoUrl: e.target.value }))}
+              placeholder="YouTube or HTTPS MP4/WebM URL"
+              type="url"
+              className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none focus:border-black"
+            />
+            <AdminMediaUpload
+              resourceType="video"
+              label="Upload product video"
+              onUploaded={(url) => setForm((current) => ({ ...current, videoUrl: url }))}
+            />
+          </label>
+
+          <label className="md:col-span-2">
+            <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">Poster image</span>
+            <input
+              value={form.posterUrl}
+              onChange={(e) => setForm((current) => ({ ...current, posterUrl: e.target.value }))}
+              placeholder="Cloudinary / Supabase / YouTube / Unsplash URL"
+              type="url"
+              className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none focus:border-black"
+            />
+            <AdminMediaUpload
+              resourceType="image"
+              label="Upload poster image"
+              onUploaded={(url) => setForm((current) => ({ ...current, posterUrl: url }))}
+            />
+          </label>
           <label className="md:col-span-2">
             <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">Description</span>
             <textarea
@@ -366,8 +397,16 @@ function ProductEditForm({ product, onSave }: { product: ProductRow; onSave: (pa
     <form onSubmit={save} className="mt-4 grid gap-3 border-t border-black/8 pt-4 md:grid-cols-2">
       <input value={name} onChange={(e) => setName(e.target.value)} className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
       <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
-      <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="Product video URL" className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold md:col-span-2" />
-      <input value={posterUrl} onChange={(e) => setPosterUrl(e.target.value)} placeholder="Poster image URL" className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold md:col-span-2" />
+      <label className="md:col-span-2">
+        <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-black/35">Product video</span>
+        <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="YouTube or HTTPS MP4/WebM URL" className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
+        <AdminMediaUpload resourceType="video" label="Upload new video" onUploaded={setVideoUrl} />
+      </label>
+      <label className="md:col-span-2">
+        <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-black/35">Poster image</span>
+        <input value={posterUrl} onChange={(e) => setPosterUrl(e.target.value)} placeholder="Poster image URL" className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
+        <AdminMediaUpload resourceType="image" label="Upload new poster" onUploaded={setPosterUrl} />
+      </label>
       <div className="flex flex-wrap gap-2 md:col-span-2">
         <button disabled={busy} className="rounded-full bg-black px-4 py-2 text-xs font-black text-white">{busy ? "Saving…" : "Save changes"}</button>
         {["DRAFT", "ACTIVE", "ARCHIVED"].map((status) => (
