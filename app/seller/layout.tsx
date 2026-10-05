@@ -1,14 +1,17 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { SellerSidebar } from "@/components/seller/seller-sidebar";
 import { SellerTopbar } from "@/components/seller/seller-topbar";
 import { getCurrentSession } from "@/lib/auth/session";
 import { getSellerAccountProfile } from "@/lib/db/seller-profile";
+import { sellerPortalEnabled } from "@/lib/auth/features";
 
 export default async function SellerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  if (!sellerPortalEnabled()) notFound();
+
   const session = await getCurrentSession();
 
   if (!session) {
