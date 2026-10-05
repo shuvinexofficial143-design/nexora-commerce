@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
+import { OWNER_ADMIN_COOKIE } from "@/lib/admin/owner-auth";
 
 const ADMIN_SESSION_HOURS = 12;
 
@@ -10,8 +11,15 @@ function tokenHash(token: string) {
 function bearerToken(request: Request) {
   const header = request.headers.get("authorization") ?? "";
   const [scheme, token] = header.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
-  return token;
+  if (scheme?.toLowerCase() === "bearer" && token) return token;
+
+  const cookie = request.headers.get("cookie") ?? "";
+  const ownerCookie = cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${OWNER_ADMIN_COOKIE}=`));
+
+  return ownerCookie ? decodeURIComponent(ownerCookie.slice(OWNER_ADMIN_COOKIE.length + 1)) : null;
 }
 
 export async function issueAdminToken(userId: string) {
