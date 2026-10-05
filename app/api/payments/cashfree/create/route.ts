@@ -3,10 +3,24 @@ import {
   cashfreeConfigured,
   createCashfreePaymentSession,
 } from "@/lib/payments/cashfree";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const rate = checkRateLimit(request, {
+    scope: "cashfree-session-create",
+    limit: 10,
+    windowMs: 10 * 60 * 1000,
+  });
+
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Too many payment attempts. Try again later." },
+      { status: 429, headers: rateLimitHeaders(rate) },
+    );
+  }
+
   try {
     if (!cashfreeConfigured()) {
       return NextResponse.json(
