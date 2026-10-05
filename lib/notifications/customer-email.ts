@@ -115,22 +115,27 @@ export async function sendOrderConfirmationEmail(input: {
       ? "Online payment"
       : "Cash on Delivery";
 
-  const title = `Order ${input.orderNumber} received`;
+  const paidOnline = input.paymentMethod === "cashfree";
+  const title = paidOnline
+    ? `Payment confirmed for ${input.orderNumber}`
+    : `Order ${input.orderNumber} received`;
   const text =
     `Hi ${input.customerName || "Customer"},\n\n` +
-    `We received your Nexora order ${input.orderNumber}.\n` +
+    (paidOnline
+      ? `Your payment was verified and Nexora order ${input.orderNumber} is confirmed.\n`
+      : `We received your Nexora order ${input.orderNumber}.\n`) +
     `Total: ${total}\nPayment: ${payment}\n\n` +
     "Keep your order number to track or contact support.";
 
   return sendTransactionalEmail({
     to: input.to,
-    subject: `Nexora order confirmed · ${input.orderNumber}`,
+    subject: `${paidOnline ? "Payment confirmed" : "Order received"} · ${input.orderNumber}`,
     idempotencyKey: `order-confirmed/${input.orderNumber}`,
     text,
     html: brandShell(
       title,
       `
-        <p style="font-size:15px;line-height:1.7">Hi ${customer}, we received your order.</p>
+        <p style="font-size:15px;line-height:1.7">Hi ${customer}, ${paidOnline ? "your payment is verified and your order is confirmed." : "we received your order."}</p>
         <div style="background:#f5f5f1;border-radius:18px;padding:18px;margin:20px 0">
           <p style="margin:0 0 8px"><strong>Order:</strong> ${order}</p>
           <p style="margin:0 0 8px"><strong>Total:</strong> ${escapeHtml(total)}</p>
