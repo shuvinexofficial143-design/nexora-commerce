@@ -51,10 +51,21 @@ export function adminJson<T>(request: Request, data: T, status = 200) {
   );
 }
 
-export function adminFailure(request: Request, error: string, status = 400) {
+export function adminFailure(
+  request: Request,
+  error: string,
+  status = 400,
+  extraHeaders: Record<string, string> = {},
+) {
   return NextResponse.json(
     { ok: false, error },
-    { status, headers: adminCorsHeaders(request) },
+    {
+      status,
+      headers: {
+        ...adminCorsHeaders(request),
+        ...extraHeaders,
+      },
+    },
   );
 }
 
