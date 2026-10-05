@@ -116,11 +116,11 @@ export function SellerNewProductForm() {
                 name="videoUrl"
                 type="url"
                 inputMode="url"
-                placeholder="YouTube link or direct .mp4/.webm URL"
+                placeholder="YouTube link or direct HTTPS .mp4/.webm URL"
                 className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none"
               />
               <span className="mt-1.5 block text-[11px] font-bold leading-4 text-black/35">
-                Video-first cards autoplay silently. YouTube and direct MP4/WebM links are supported.
+                Video-first cards autoplay silently. Use YouTube or a direct HTTPS MP4/WebM link.
               </span>
             </label>
 
@@ -132,7 +132,7 @@ export function SellerNewProductForm() {
                 name="posterUrl"
                 type="url"
                 inputMode="url"
-                placeholder="Optional thumbnail / fallback image"
+                placeholder="Optional Unsplash / YouTube / Cloudinary / Supabase image"
                 className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none"
               />
             </label>
