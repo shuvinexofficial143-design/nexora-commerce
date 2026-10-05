@@ -79,6 +79,12 @@ export async function processReturn(input: {
       where "id"=${row.id}
     `;
 
-    return { updated: true };
+    return {
+      updated: true,
+      orderId: row.orderId,
+      orderNumber: row.orderNumber,
+      status: input.status,
+      refundMinor: input.refundMinor,
+    };
   });
 }
