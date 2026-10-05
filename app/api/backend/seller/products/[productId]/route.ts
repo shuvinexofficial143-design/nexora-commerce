@@ -63,6 +63,8 @@ export async function PATCH(
         ...(body.status === "Live" || body.status === "Draft" || body.status === "Paused"
           ? { status: body.status }
           : {}),
+        ...(typeof body.videoUrl === "string" ? { videoUrl: body.videoUrl } : {}),
+        ...(typeof body.posterUrl === "string" ? { posterUrl: body.posterUrl } : {}),
       }),
     );
   } catch (error) {

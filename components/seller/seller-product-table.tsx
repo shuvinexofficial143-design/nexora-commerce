@@ -23,7 +23,7 @@ export function SellerProductTable({ products }: { products: SellerProduct[] }) 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [draft, setDraft] = useState({ name: "", price: "" });
+  const [draft, setDraft] = useState({ name: "", price: "", videoUrl: "", posterUrl: "" });
   const [stockDelta, setStockDelta] = useState("1");
 
   const rows = useMemo(
@@ -40,7 +40,7 @@ export function SellerProductTable({ products }: { products: SellerProduct[] }) 
 
   function beginEdit(product: SellerProduct) {
     setEditingId(product.id);
-    setDraft({ name: product.name, price: String(product.price) });
+    setDraft({ name: product.name, price: String(product.price), videoUrl: product.videoUrl ?? "", posterUrl: product.posterUrl ?? "" });
     setStockDelta("1");
     setError("");
   }
@@ -54,6 +54,8 @@ export function SellerProductTable({ products }: { products: SellerProduct[] }) 
       await updateMySellerProduct(product.id, {
         name: draft.name,
         price: Number(draft.price),
+        videoUrl: draft.videoUrl,
+        posterUrl: draft.posterUrl,
       });
       setEditingId(null);
       router.refresh();
@@ -219,11 +221,11 @@ function FragmentRow({
   product: SellerProduct;
   editing: boolean;
   busy: boolean;
-  draft: { name: string; price: string };
+  draft: { name: string; price: string; videoUrl: string; posterUrl: string };
   stockDelta: string;
   onBeginEdit: () => void;
   onCancel: () => void;
-  onDraft: (value: { name: string; price: string }) => void;
+  onDraft: (value: { name: string; price: string; videoUrl: string; posterUrl: string }) => void;
   onStockDelta: (value: string) => void;
   onSave: () => void;
   onStatus: () => void;
@@ -278,7 +280,7 @@ function FragmentRow({
       {editing ? (
         <tr className="bg-[#fafaf7]">
           <td colSpan={7} className="px-3 py-4">
-            <div className="grid gap-3 lg:grid-cols-[1.3fr_.7fr_auto_auto] lg:items-end">
+            <div className="grid gap-3 lg:grid-cols-2">
               <label>
                 <span className="mb-1 block text-xs font-black uppercase text-black/40">
                   Product name
@@ -300,6 +302,32 @@ function FragmentRow({
                   step="0.01"
                   value={draft.price}
                   onChange={(event) => onDraft({ ...draft, price: event.target.value })}
+                  className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 font-bold"
+                />
+              </label>
+
+              <label>
+                <span className="mb-1 block text-xs font-black uppercase text-black/40">
+                  Product video URL
+                </span>
+                <input
+                  type="url"
+                  value={draft.videoUrl}
+                  onChange={(event) => onDraft({ ...draft, videoUrl: event.target.value })}
+                  placeholder="YouTube or direct MP4/WebM URL"
+                  className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 font-bold"
+                />
+              </label>
+
+              <label>
+                <span className="mb-1 block text-xs font-black uppercase text-black/40">
+                  Poster image URL
+                </span>
+                <input
+                  type="url"
+                  value={draft.posterUrl}
+                  onChange={(event) => onDraft({ ...draft, posterUrl: event.target.value })}
+                  placeholder="Optional thumbnail / fallback"
                   className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 font-bold"
                 />
               </label>
@@ -336,7 +364,7 @@ function FragmentRow({
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-end gap-2 lg:justify-end">
                 <button
                   type="button"
                   disabled={busy}

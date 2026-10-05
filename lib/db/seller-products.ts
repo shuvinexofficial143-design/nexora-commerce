@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
 import { ValidationError } from "@/lib/db/errors";
 import type { SellerProduct } from "@/types/seller";
+import { getYouTubeThumbnail, getYouTubeVideoId, isDirectVideoUrl, isHttpUrl } from "@/lib/product-media";
+
+const DEFAULT_PRODUCT_POSTER =
+  "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80";
 
 type SellerProductRow = {
   id: string;
@@ -22,7 +26,7 @@ function mapStatus(status: SellerProductRow["status"]): SellerProduct["status"] 
   return "Draft";
 }
 
-function mapRow(row: SellerProductRow): SellerProduct {
+function mapRow(row: SellerProductRow, media?: { videoUrl?: string; posterUrl?: string }): SellerProduct {
   return {
     id: row.id,
     slug: row.slug,
@@ -34,6 +38,8 @@ function mapRow(row: SellerProductRow): SellerProduct {
     sold: Number(row.sold),
     rating: row.rating,
     status: mapStatus(row.status),
+    videoUrl: media?.videoUrl,
+    posterUrl: media?.posterUrl,
   };
 }
 
@@ -73,7 +79,8 @@ export async function listSellerProducts(userId: string) {
   const sellerProfileId = await getSellerProfileId(userId);
   if (!sellerProfileId) return [];
 
-  const rows = await getPrisma().$queryRaw<SellerProductRow[]>`
+  const prisma = getPrisma();
+  const rows = await prisma.$queryRaw<SellerProductRow[]>`
     select
       p."id",
       p."slug",
@@ -99,7 +106,27 @@ export async function listSellerProducts(userId: string) {
     order by p."createdAt" desc
   `;
 
-  return rows.map(mapRow);
+  const mediaRows = rows.length
+    ? await prisma.productImage.findMany({
+        where: { productId: { in: rows.map((row) => row.id) } },
+        orderBy: [{ productId: "asc" }, { sortOrder: "asc" }],
+        select: { productId: true, url: true },
+      })
+    : [];
+
+  const mediaByProduct = new Map<string, string[]>();
+  for (const media of mediaRows) {
+    const list = mediaByProduct.get(media.productId) ?? [];
+    list.push(media.url);
+    mediaByProduct.set(media.productId, list);
+  }
+
+  return rows.map((row) => {
+    const urls = mediaByProduct.get(row.id) ?? [];
+    const videoUrl = urls.find((url) => isDirectVideoUrl(url) || Boolean(getYouTubeVideoId(url)));
+    const posterUrl = urls.find((url) => !isDirectVideoUrl(url) && !getYouTubeVideoId(url));
+    return mapRow(row, { videoUrl, posterUrl });
+  });
 }
 
 function slugify(value: string) {
@@ -118,6 +145,8 @@ export async function createSellerProduct(
     sku: string;
     price: number;
     description: string;
+    videoUrl?: string;
+    posterUrl?: string;
   },
 ) {
   await ensureSellerProductTable();
@@ -131,6 +160,9 @@ export async function createSellerProduct(
   const sku = input.sku.trim().toUpperCase();
   const description = input.description.trim();
   const price = input.price;
+  const videoUrl = input.videoUrl?.trim() || undefined;
+  const posterUrl = input.posterUrl?.trim() || undefined;
+  const youtubeVideoId = getYouTubeVideoId(videoUrl);
 
   if (name.length < 2) throw new ValidationError("Product name is required.");
   if (sku.length < 3) throw new ValidationError("SKU must be at least 3 characters.");
@@ -140,6 +172,19 @@ export async function createSellerProduct(
   if (description.length < 10) {
     throw new ValidationError("Description must be at least 10 characters.");
   }
+
+  if (videoUrl && !youtubeVideoId && !isDirectVideoUrl(videoUrl)) {
+    throw new ValidationError("Use a YouTube link or a direct MP4/WebM/OGG product video URL.");
+  }
+
+  if (posterUrl && !isHttpUrl(posterUrl)) {
+    throw new ValidationError("Poster image must be a valid http/https URL.");
+  }
+
+  const resolvedPoster =
+    posterUrl ??
+    getYouTubeThumbnail(youtubeVideoId) ??
+    (videoUrl ? DEFAULT_PRODUCT_POSTER : undefined);
 
   const prisma = getPrisma();
 
@@ -159,6 +204,33 @@ export async function createSellerProduct(
       insert into "SellerProduct"("id","sellerProfileId","productId","createdAt")
       values(${randomUUID()},${sellerProfileId},${product.id},now())
     `;
+
+    const media = [
+      ...(resolvedPoster
+        ? [
+            {
+              productId: product.id,
+              url: resolvedPoster,
+              alt: `${name} poster`,
+              sortOrder: 0,
+            },
+          ]
+        : []),
+      ...(videoUrl
+        ? [
+            {
+              productId: product.id,
+              url: videoUrl,
+              alt: `${name} product video`,
+              sortOrder: 1,
+            },
+          ]
+        : []),
+    ];
+
+    if (media.length) {
+      await tx.productImage.createMany({ data: media });
+    }
 
     return {
       id: product.id,
@@ -200,6 +272,8 @@ export async function updateSellerProduct(
     name?: string;
     price?: number;
     status?: "Live" | "Draft" | "Paused";
+    videoUrl?: string;
+    posterUrl?: string;
   },
 ) {
   await requireOwnedProduct(userId, productId);
@@ -209,6 +283,21 @@ export async function updateSellerProduct(
     priceMinor?: number;
     status?: "ACTIVE" | "DRAFT" | "ARCHIVED";
   } = {};
+
+  const mediaUpdateRequested =
+    typeof input.videoUrl === "string" || typeof input.posterUrl === "string";
+  const nextVideoUrl =
+    typeof input.videoUrl === "string" ? input.videoUrl.trim() || null : undefined;
+  const nextPosterUrl =
+    typeof input.posterUrl === "string" ? input.posterUrl.trim() || null : undefined;
+
+  if (nextVideoUrl && !getYouTubeVideoId(nextVideoUrl) && !isDirectVideoUrl(nextVideoUrl)) {
+    throw new ValidationError("Use a YouTube link or a direct MP4/WebM/OGG product video URL.");
+  }
+
+  if (nextPosterUrl && !isHttpUrl(nextPosterUrl)) {
+    throw new ValidationError("Poster image must be a valid http/https URL.");
+  }
 
   if (typeof input.name === "string") {
     const name = input.name.trim();
@@ -239,21 +328,78 @@ export async function updateSellerProduct(
     }
   }
 
-  if (!Object.keys(data).length) {
+  if (!Object.keys(data).length && !mediaUpdateRequested) {
     throw new ValidationError("No product changes were provided.");
   }
 
-  const product = await getPrisma().product.update({
-    where: { id: productId },
-    data,
-  });
+  const prisma = getPrisma();
 
-  return {
-    id: product.id,
-    name: product.name,
-    price: product.priceMinor / 100,
-    status: mapStatus(product.status),
-  };
+  return prisma.$transaction(async (tx) => {
+    const product = Object.keys(data).length
+      ? await tx.product.update({ where: { id: productId }, data })
+      : await tx.product.findUniqueOrThrow({ where: { id: productId } });
+
+    if (mediaUpdateRequested) {
+      const existing = await tx.productImage.findMany({
+        where: { productId },
+        orderBy: { sortOrder: "asc" },
+      });
+
+      const videoRecord = existing.find(
+        (item) => isDirectVideoUrl(item.url) || Boolean(getYouTubeVideoId(item.url)),
+      );
+      const posterRecord = existing.find(
+        (item) => !isDirectVideoUrl(item.url) && !getYouTubeVideoId(item.url),
+      );
+
+      if (nextVideoUrl !== undefined) {
+        if (nextVideoUrl === null) {
+          if (videoRecord) await tx.productImage.delete({ where: { id: videoRecord.id } });
+        } else if (videoRecord) {
+          await tx.productImage.update({
+            where: { id: videoRecord.id },
+            data: { url: nextVideoUrl, alt: `${product.name} product video`, sortOrder: 1 },
+          });
+        } else {
+          await tx.productImage.create({
+            data: {
+              productId,
+              url: nextVideoUrl,
+              alt: `${product.name} product video`,
+              sortOrder: 1,
+            },
+          });
+        }
+      }
+
+      if (nextPosterUrl !== undefined) {
+        if (nextPosterUrl === null) {
+          if (posterRecord) await tx.productImage.delete({ where: { id: posterRecord.id } });
+        } else if (posterRecord) {
+          await tx.productImage.update({
+            where: { id: posterRecord.id },
+            data: { url: nextPosterUrl, alt: `${product.name} poster`, sortOrder: 0 },
+          });
+        } else {
+          await tx.productImage.create({
+            data: {
+              productId,
+              url: nextPosterUrl,
+              alt: `${product.name} poster`,
+              sortOrder: 0,
+            },
+          });
+        }
+      }
+    }
+
+    return {
+      id: product.id,
+      name: product.name,
+      price: product.priceMinor / 100,
+      status: mapStatus(product.status),
+    };
+  });
 }
 
 export async function adjustSellerProductStock(

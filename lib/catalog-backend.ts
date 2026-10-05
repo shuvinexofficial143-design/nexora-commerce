@@ -2,6 +2,7 @@ import { catalogProducts } from "@/lib/catalog-data";
 import { getProductBySlug, listProducts } from "@/lib/db/products";
 import type { BackendProduct } from "@/types/backend";
 import type { CatalogProduct } from "@/types/catalog";
+import { getYouTubeThumbnail, getYouTubeVideoId, isDirectVideoUrl } from "@/lib/product-media";
 
 const fallbackImage =
   "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80";
@@ -31,6 +32,14 @@ function tags(product: BackendProduct) {
 export function mapBackendProductToCatalog(product: BackendProduct): CatalogProduct {
   const fallback = catalogProducts.find((item) => item.slug === product.slug);
   const inventory = Math.max(0, product.availableStock);
+  const mediaUrls = product.images.map((item) => item.url).filter(Boolean);
+  const directVideo = mediaUrls.find((url) => isDirectVideoUrl(url));
+  const youtubeVideoId = mediaUrls.map((url) => getYouTubeVideoId(url)).find(Boolean);
+  const poster =
+    mediaUrls.find((url) => !isDirectVideoUrl(url) && !getYouTubeVideoId(url)) ??
+    getYouTubeThumbnail(youtubeVideoId) ??
+    fallback?.image ??
+    fallbackImage;
 
   return {
     id: product.id,
@@ -46,7 +55,9 @@ export function mapBackendProductToCatalog(product: BackendProduct): CatalogProd
     rating: product.rating,
     reviews: product.reviewCount,
     badge: fallback?.badge,
-    image: product.images[0]?.url ?? fallback?.image ?? fallbackImage,
+    image: poster,
+    videoUrl: directVideo,
+    youtubeVideoId,
     colors: fallback?.colors ?? [],
     stock: stockStatus(inventory),
     inventory,

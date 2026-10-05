@@ -54,6 +54,8 @@ export async function POST(request: Request) {
       sku: String(body.sku ?? ""),
       price: Number(body.price),
       description: String(body.description ?? ""),
+      videoUrl: String(body.videoUrl ?? ""),
+      posterUrl: String(body.posterUrl ?? ""),
     });
 
     return ok(product, { status: 201 });

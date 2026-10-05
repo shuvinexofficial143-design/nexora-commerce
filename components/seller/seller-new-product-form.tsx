@@ -28,6 +28,8 @@ export function SellerNewProductForm() {
         sku: String(data.get("sku") ?? ""),
         price: Number(data.get("price")),
         description: String(data.get("description") ?? ""),
+        videoUrl: String(data.get("videoUrl") ?? ""),
+        posterUrl: String(data.get("posterUrl") ?? ""),
       });
 
       form.reset();
@@ -102,6 +104,35 @@ export function SellerNewProductForm() {
                 min="1"
                 step="0.01"
                 required
+                className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none"
+              />
+            </label>
+
+            <label className="sm:col-span-2">
+              <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/45">
+                Product video URL
+              </span>
+              <input
+                name="videoUrl"
+                type="url"
+                inputMode="url"
+                placeholder="YouTube link or direct .mp4/.webm URL"
+                className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none"
+              />
+              <span className="mt-1.5 block text-[11px] font-bold leading-4 text-black/35">
+                Video-first cards autoplay silently. YouTube and direct MP4/WebM links are supported.
+              </span>
+            </label>
+
+            <label className="sm:col-span-2">
+              <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/45">
+                Poster image URL
+              </span>
+              <input
+                name="posterUrl"
+                type="url"
+                inputMode="url"
+                placeholder="Optional thumbnail / fallback image"
                 className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none"
               />
             </label>

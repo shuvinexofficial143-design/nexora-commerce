@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "./badge";
+import { ProductMediaPreview } from "./product-media-preview";
 import type { Product } from "@/types/commerce";
 
 type ProductCardProps = {
@@ -23,12 +23,13 @@ export function ProductCard({ product, compact = false }: ProductCardProps) {
     <article className={`group min-w-0 ${compact ? "rounded-[18px] bg-white p-1.5 shadow-[0_8px_24px_rgba(17,17,15,0.05)]" : ""}`}>
       <Link href={`/product/${product.slug}`} className="block">
         <div className={`relative overflow-hidden bg-[#ecece8] ${compact ? "aspect-square rounded-[15px]" : "aspect-[4/5] rounded-[22px] sm:rounded-[28px]"}`}>
-          <Image
-            src={product.image}
+          <ProductMediaPreview
+            image={product.image}
             alt={product.name}
-            fill
+            videoUrl={product.videoUrl}
+            youtubeVideoId={product.youtubeVideoId}
             sizes={compact ? "50vw" : "(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"}
-            className="object-cover transition duration-500 group-hover:scale-[1.04]"
+            className={compact ? "group-hover:scale-[1.03]" : ""}
           />
           <div className={`absolute flex flex-col items-start gap-1 ${compact ? "left-1.5 top-1.5" : "left-2 top-2 sm:left-3 sm:top-3"}`}>
             {product.badge ? <Badge tone="accent">{product.badge}</Badge> : null}
