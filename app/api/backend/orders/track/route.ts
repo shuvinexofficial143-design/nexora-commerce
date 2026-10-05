@@ -1,10 +1,21 @@
 import { getPrisma } from "@/lib/db/prisma";
 import { NextResponse } from "next/server";
+import { consumeRateLimit } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
+    const rate = consumeRateLimit(request, "order-track", 30, 10 * 60 * 1000);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { ok: false, error: "Too many tracking attempts. Try again shortly." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rate.retryAfterSeconds) },
+        },
+      );
+    }
     const url = new URL(request.url);
     const orderNumber = (url.searchParams.get("order") ?? "").trim();
     const email = (url.searchParams.get("email") ?? "").trim().toLowerCase();
