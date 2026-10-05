@@ -81,6 +81,7 @@ export function validateOrder(value: unknown): CreateOrderPayload {
     },
     paymentMethod: "cod",
     deliveryMethod: deliveryMethod as "standard" | "express" | "priority",
+    coupon: input.coupon ? String(input.coupon).trim().toUpperCase().slice(0, 40) : undefined,
     notes: input.notes ? String(input.notes).slice(0, 500) : undefined,
   };
 }
