@@ -14,6 +14,7 @@ const footerGroups = [
   {
     title: "Help",
     links: [
+      ["Track order", "/track-order"],
       ["Shipping policy", "/shipping"],
       ["Returns & refunds", "/returns-policy"],
       ["Contact support", "/contact"],
