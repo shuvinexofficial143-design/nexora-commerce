@@ -51,7 +51,13 @@ export default async function ProductPage({ params }: PageProps) {
       <ProductBreadcrumbs product={product} />
 
       <section className="mx-auto grid max-w-7xl gap-3 px-4 pb-8 sm:gap-8 sm:px-6 sm:pb-14 lg:grid-cols-[1.08fr_.92fr] lg:gap-14 lg:px-8">
-        <ProductGallery\n          images={product.images}\n          badge={product.badge}\n          videoUrl={product.videoUrl}\n          youtubeVideoId={product.youtubeVideoId}\n          videoPoster={product.image}\n        />
+        <ProductGallery
+          images={product.images}
+          badge={product.badge}
+          videoUrl={product.videoUrl}
+          youtubeVideoId={product.youtubeVideoId}
+          videoPoster={product.image}
+        />
         <ProductInfo product={product} />
       </section>
 
