@@ -6,6 +6,8 @@ type ReturnOperationRow = {
   orderNumber: string;
   restockedAt: Date | null;
   refundProcessedAt: Date | null;
+  customerName: string;
+  customerEmail: string;
 };
 
 export async function processReturn(input: {
@@ -19,9 +21,10 @@ export async function processReturn(input: {
 
   return p.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<ReturnOperationRow[]>`
-      select r.*,o."orderNumber"
+      select r.*,o."orderNumber",u."name" as "customerName",u."email" as "customerEmail"
       from "ReturnRequest" r
       join "Order" o on o."id"=r."orderId"
+      join "User" u on u."id"=r."userId"
       where r."id"=${input.returnId}
       limit 1
     `;
@@ -79,6 +82,12 @@ export async function processReturn(input: {
       where "id"=${row.id}
     `;
 
-    return { updated: true };
+    return {
+      updated: true,
+      orderId: row.orderId,
+      orderNumber: row.orderNumber,
+      customerName: row.customerName,
+      customerEmail: row.customerEmail,
+    };
   });
 }

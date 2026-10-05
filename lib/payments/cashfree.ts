@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
 import { getPublicAppUrl } from "@/lib/config/runtime";
+import { sendOrderConfirmationEmail, tryCustomerEmail } from "@/lib/notifications/customer-email";
 
 const API_VERSION = "2025-01-01";
 
@@ -243,6 +244,12 @@ export async function syncCashfreePayment(orderNumber: string) {
       paymentMethod: true,
       paymentStatus: true,
       status: true,
+      user: {
+        select: {
+          email: true,
+          name: true,
+        },
+      },
     },
   });
 
@@ -282,6 +289,18 @@ export async function syncCashfreePayment(orderNumber: string) {
           ...(order.status === "PENDING" ? { status: "CONFIRMED" as const } : {}),
         },
       });
+
+      await tryCustomerEmail(
+        () =>
+          sendOrderConfirmationEmail({
+            to: order.user.email,
+            customerName: order.user.name,
+            orderNumber: order.orderNumber,
+            totalMinor: order.totalMinor,
+            paymentMethod: order.paymentMethod,
+          }),
+        `cashfree-paid:${order.orderNumber}`,
+      );
     }
 
     return {
