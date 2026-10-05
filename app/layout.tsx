@@ -4,6 +4,7 @@ import { CartProvider } from "@/components/cart/cart-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { SiteChrome } from "@/components/layout/site-chrome";
 import { getPublicAppUrl } from "@/lib/config/runtime";
+import { publicCustomerAuthEnabled } from "@/lib/config/features";
 
 export const metadata: Metadata = {
   metadataBase: new URL(getPublicAppUrl()),
@@ -38,14 +39,20 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const content = (
+    <CartProvider>
+      <SiteChrome>{children}</SiteChrome>
+    </CartProvider>
+  );
+
   return (
     <html lang="en">
       <body>
-        <AuthProvider>
-          <CartProvider>
-            <SiteChrome>{children}</SiteChrome>
-          </CartProvider>
-        </AuthProvider>
+        {publicCustomerAuthEnabled() ? (
+          <AuthProvider>{content}</AuthProvider>
+        ) : (
+          content
+        )}
       </body>
     </html>
   );

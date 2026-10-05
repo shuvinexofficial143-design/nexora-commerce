@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { consumeRateLimit } from "@/lib/security/rate-limit";
 import {
   cashfreeConfigured,
   createCashfreePaymentSession,
@@ -8,6 +9,16 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    const rate = consumeRateLimit(request, "cashfree-create", 15, 10 * 60 * 1000);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { ok: false, error: "Too many payment attempts. Try again shortly." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rate.retryAfterSeconds) },
+        },
+      );
+    }
     if (!cashfreeConfigured()) {
       return NextResponse.json(
         { ok: false, error: "Cashfree online payments are not configured yet." },

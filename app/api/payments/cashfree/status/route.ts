@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server";
 import { cashfreeConfigured, syncCashfreePayment } from "@/lib/payments/cashfree";
+import { consumeRateLimit } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const rate = consumeRateLimit(request, "cashfree-status", 30, 10 * 60 * 1000);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { ok: false, error: "Too many payment checks. Try again shortly." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rate.retryAfterSeconds) },
+        },
+      );
+    }
     if (!cashfreeConfigured()) {
       return NextResponse.json(
         { ok: false, error: "Cashfree online payments are not configured yet." },
