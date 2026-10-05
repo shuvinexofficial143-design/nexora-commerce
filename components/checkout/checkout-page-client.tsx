@@ -29,7 +29,7 @@ export function CheckoutPageClient() {
   const [addresses, setAddresses] = useState<CheckoutAddress[]>([]);
   const [addressId, setAddressId] = useState("");
   const [deliveryId, setDeliveryId] = useState(deliveryOptions[0].id);
-  const [paymentId, setPaymentId] = useState<PaymentMethodId>("upi");
+  const [paymentId, setPaymentId] = useState<PaymentMethodId>("cod");
   const [placing, setPlacing] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
@@ -132,6 +132,7 @@ export function CheckoutPageClient() {
           country: address.country,
         },
         paymentMethod: paymentId,
+        deliveryMethod: delivery.id,
         coupon: coupon || undefined,
         notes: contactEmail ? `Checkout contact: ${contactEmail}` : undefined,
       });

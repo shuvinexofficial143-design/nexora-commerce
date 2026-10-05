@@ -55,6 +55,18 @@ export function validateOrder(value: unknown): CreateOrderPayload {
     if (!String(address[key] ?? "").trim()) throw new ValidationError(`Shipping ${key} is required.`);
   }
 
+  const paymentMethod = String(input.paymentMethod ?? "cod").toLowerCase();
+  if (paymentMethod !== "cod") {
+    throw new ValidationError(
+      "Online payments are not enabled yet. Choose Cash on Delivery to place this order.",
+    );
+  }
+
+  const deliveryMethod = String(input.deliveryMethod ?? "standard").toLowerCase();
+  if (!["standard", "express", "priority"].includes(deliveryMethod)) {
+    throw new ValidationError("Choose a valid delivery method.");
+  }
+
   return {
     items,
     shippingAddress: {
@@ -67,7 +79,9 @@ export function validateOrder(value: unknown): CreateOrderPayload {
       postalCode: String(address.postalCode).trim(),
       country: address.country ? String(address.country).trim() : "India",
     },
-    paymentMethod: input.paymentMethod ? String(input.paymentMethod) : undefined,
+    paymentMethod: "cod",
+    deliveryMethod: deliveryMethod as "standard" | "express" | "priority",
+    coupon: input.coupon ? String(input.coupon).trim().toUpperCase().slice(0, 40) : undefined,
     notes: input.notes ? String(input.notes).slice(0, 500) : undefined,
   };
 }

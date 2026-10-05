@@ -12,8 +12,8 @@ export const deliveryOptions: DeliveryOption[] = [
 ];
 
 export const paymentMethods: PaymentMethod[] = [
-  { id: "upi", label: "UPI", description: "Google Pay, PhonePe, Paytm & UPI apps", icon: "⚡" },
-  { id: "card", label: "Card", description: "Credit and debit cards", icon: "💳" },
-  { id: "cod", label: "Cash on delivery", description: "Eligibility checked before dispatch", icon: "📦" },
-  { id: "emi", label: "EMI / Pay later", description: "Bank and provider plans", icon: "◫" },
+  { id: "cod", label: "Cash on delivery", description: "Pay when your order arrives", icon: "📦", available: true, badge: "Available now" },
+  { id: "upi", label: "UPI", description: "Coming after payment gateway activation", icon: "⚡", available: false, badge: "Coming soon" },
+  { id: "card", label: "Card", description: "Coming after payment gateway activation", icon: "💳", available: false, badge: "Coming soon" },
+  { id: "emi", label: "EMI / Pay later", description: "Coming after payment gateway activation", icon: "◫", available: false, badge: "Coming soon" },
 ];
