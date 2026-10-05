@@ -1,9 +1,23 @@
 import { getPrisma } from "@/lib/db/prisma";
 import { NextResponse } from "next/server";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
+  const rate = checkRateLimit(request, {
+    scope: "guest-order-track",
+    limit: 20,
+    windowMs: 5 * 60 * 1000,
+  });
+
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Too many tracking requests. Try again later." },
+      { status: 429, headers: rateLimitHeaders(rate) },
+    );
+  }
+
   try {
     const url = new URL(request.url);
     const orderNumber = (url.searchParams.get("order") ?? "").trim();
