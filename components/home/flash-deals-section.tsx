@@ -15,7 +15,7 @@ export function FlashDealsSection() {
               title="Prices moving fast."
               description="A short window of sharper pricing on some of the most wanted picks."
               actionLabel="View all deals"
-              actionHref="/deals"
+              actionHref="/shop?sort=discount"
             />
             <FlashCountdown />
           </div>

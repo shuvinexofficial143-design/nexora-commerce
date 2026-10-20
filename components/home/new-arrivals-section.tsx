@@ -14,7 +14,7 @@ export function NewArrivalsSection() {
               <p className="text-[9px] font-black uppercase tracking-[0.16em] text-black/40">Just landed</p>
               <h2 className="mt-0.5 text-[18px] font-black tracking-[-0.035em]">New arrivals</h2>
             </div>
-            <Link href="/new-arrivals" className="text-[11px] font-black text-black/55">View all</Link>
+            <Link href="/shop?sort=newest" className="text-[11px] font-black text-black/55">View all</Link>
           </div>
 
           <div className="grid grid-cols-2 gap-x-2.5 gap-y-3">
@@ -30,7 +30,7 @@ export function NewArrivalsSection() {
             title="New arrivals with staying power"
             description="Fresh additions across tech, style, beauty and everyday carry."
             actionLabel="See what’s new"
-            actionHref="/new-arrivals"
+            actionHref="/shop?sort=newest"
           />
           <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4 lg:gap-5">
             {newArrivalProducts.map((product) => <ProductCard key={product.id} product={product} />)}

@@ -50,7 +50,7 @@ export function CartSummary() {
       <Link href="/checkout" className="mt-5 block w-full rounded-full border border-black/10 bg-[#D7FF47] px-4 py-3.5 text-center text-sm font-black text-black transition hover:bg-[#C7ED37] sm:px-5 sm:py-4">
         Secure checkout →
       </Link>
-      <p className="mt-3 text-center text-[10px] font-bold text-black/40 sm:text-[11px]">UPI · Cards · COD · EMI ready</p>
+      <p className="mt-3 text-center text-[10px] font-bold text-black/40 sm:text-[11px]">COD available · Online payment when enabled</p>
     </aside>
   );
 }

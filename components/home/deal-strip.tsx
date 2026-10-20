@@ -17,8 +17,8 @@ export function DealStrip() {
             </p>
           </div>
           <div className="relative mt-7 flex shrink-0 flex-wrap gap-3 lg:mt-0 lg:pl-10">
-            <Button href="/deals">View today&apos;s deals</Button>
-            <Button href="/premium" variant="outline">Premium picks</Button>
+            <Button href="/shop?sort=discount">View today&apos;s deals</Button>
+            <Button href="/shop?sort=rating" variant="outline">Premium picks</Button>
           </div>
         </div>
       </Container>

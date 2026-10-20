@@ -10,7 +10,7 @@ export function HeroSection() {
       <Container>
         <div className="sm:hidden">
           <Link
-            href="/new"
+            href="/shop?sort=newest"
             className="relative block h-[150px] overflow-hidden rounded-[22px] bg-[#ffd83d]"
           >
             <Image
@@ -51,7 +51,7 @@ export function HeroSection() {
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <Button href="/shop" variant="accent">Shop now →</Button>
-                <Button href="/new" variant="light">New arrivals</Button>
+                <Button href="/shop?sort=newest" variant="light">New arrivals</Button>
               </div>
               <div className="mt-10 grid max-w-xl grid-cols-3 gap-3 border-t border-white/10 pt-6">
                 <div><p className="text-2xl font-black">10k+</p><p className="mt-1 text-[9px] uppercase tracking-widest text-white/40">Curated picks</p></div>

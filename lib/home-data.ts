@@ -3,12 +3,12 @@ import type { Brand, Promo, SearchTrend, SocialProof } from "@/types/home";
 import { featuredProducts } from "@/lib/store-data";
 
 export const brands: Brand[] = [
-  { name: "Auralab", label: "Audio", href: "/brand/auralab" },
-  { name: "NORTHLINE", label: "Streetwear", href: "/brand/northline" },
-  { name: "forme", label: "Home", href: "/brand/forme" },
-  { name: "MORI", label: "Watches", href: "/brand/mori" },
-  { name: "SEREIN", label: "Beauty", href: "/brand/serein" },
-  { name: "KINETIC", label: "Fitness", href: "/brand/kinetic" },
+  { name: "Auralab", label: "Audio", href: "/shop" },
+  { name: "NORTHLINE", label: "Streetwear", href: "/shop" },
+  { name: "forme", label: "Home", href: "/shop" },
+  { name: "MORI", label: "Watches", href: "/shop" },
+  { name: "SEREIN", label: "Beauty", href: "/shop" },
+  { name: "KINETIC", label: "Fitness", href: "/shop" },
 ];
 
 export const promos: Promo[] = [
@@ -17,7 +17,7 @@ export const promos: Promo[] = [
     title: "Build a desk that makes focus easier.",
     description: "Clean tech, considered lighting and tools selected for a calmer workflow.",
     cta: "Shop the edit",
-    href: "/collections/creator-desk",
+    href: "/shop?category=electronics",
     image: "https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1400&q=85",
     tone: "dark",
   },
@@ -26,7 +26,7 @@ export const promos: Promo[] = [
     title: "Training essentials, minus the noise.",
     description: "Performance pieces for gym sessions, walks and everything between.",
     cta: "Explore fitness",
-    href: "/category/fitness",
+    href: "/shop?category=fitness",
     image: "https://images.unsplash.com/photo-1538805060514-97d9cc17730c?auto=format&fit=crop&w=1200&q=85",
     tone: "lime",
   },
@@ -35,7 +35,7 @@ export const promos: Promo[] = [
     title: "Small changes. Better spaces.",
     description: "Warm textures and functional objects that make a room feel finished.",
     cta: "Refresh your space",
-    href: "/category/home",
+    href: "/shop?category=home",
     image: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=1200&q=85",
     tone: "warm",
   },

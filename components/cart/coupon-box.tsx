@@ -8,6 +8,7 @@ export function CouponBox() {
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
   const [ok, setOk] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   if (coupon) {
     return (
@@ -33,10 +34,13 @@ export function CouponBox() {
         <button
           type="button"
           onClick={() => {
-            const result = applyCoupon(code);
-            setOk(result.ok);
-            setMessage(result.message);
+            setBusy(true);
+            void applyCoupon(code).then((result) => {
+              setOk(result.ok);
+              setMessage(result.message);
+            }).finally(() => setBusy(false));
           }}
+          disabled={busy}
           className="shrink-0 rounded-full border border-black/10 bg-[#FFD8C7] px-4 py-3 text-xs font-black text-black hover:bg-[#FFC8B4]"
         >
           Apply
@@ -46,7 +50,7 @@ export function CouponBox() {
       {message ? (
         <p className={`mt-2 text-xs font-bold ${ok ? "text-emerald-700" : "text-red-700"}`}>{message}</p>
       ) : (
-        <p className="mt-2 text-[11px] font-bold text-black/40">Try HELLO10 · SAVE500 on eligible carts</p>
+        <p className="mt-2 text-[11px] font-bold text-black/40">Enter a valid store coupon code</p>
       )}
     </div>
   );

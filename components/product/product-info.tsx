@@ -1,10 +1,9 @@
 import type { ProductDetail } from "@/types/product-detail";
 import { ProductRating } from "@/components/product/product-rating";
 import { PriceBlock } from "@/components/product/price-block";
-import { ProductVariantPicker } from "@/components/product/product-variant-picker";
+import { ProductBuyPanel } from "@/components/product/product-buy-panel";
 import { DeliveryChecker } from "@/components/product/delivery-checker";
 import { OfferList } from "@/components/product/offer-list";
-import { ProductActions } from "@/components/product/product-actions";
 import { StockStatus } from "@/components/product/stock-status";
 
 export function ProductInfo({ product }: { product: ProductDetail }) {
@@ -29,10 +28,20 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
         </div>
       </div>
       <div className="my-4 h-px bg-black/8 sm:my-6" />
-      <ProductVariantPicker colors={product.colorOptions} sizes={product.sizes} />
-      <div className="mt-4 sm:mt-6">
-        <ProductActions unavailable={product.stock === "out-of-stock"} productId={product.id} />
-      </div>
+      <ProductBuyPanel
+        product={{
+          id: product.id,
+          slug: product.slug,
+          name: product.name,
+          brand: product.brand,
+          image: product.image,
+          price: product.price,
+          compareAtPrice: product.compareAtPrice,
+          stock: product.stock,
+        }}
+        colors={product.colorOptions}
+        sizes={product.sizes}
+      />
       <p className="mt-2 text-center text-[10px] font-bold text-black/40 sm:text-[11px]">
         Free shipping on eligible orders · Protected checkout
       </p>
