@@ -12,7 +12,6 @@ import { ProductServiceStrip } from "@/components/product/product-service-strip"
 import { ProductReviewsPreview } from "@/components/product/product-reviews-preview";
 import { FrequentlyBoughtTogether } from "@/components/product/frequently-bought-together";
 import { RelatedProducts } from "@/components/product/related-products";
-import { ProductStickyBuybar } from "@/components/product/product-sticky-buybar";
 
 type PageProps = { params: Promise<{ slug: string }> };
 
@@ -70,11 +69,6 @@ export default async function ProductPage({ params }: PageProps) {
         <RelatedProducts products={related} />
       </div>
 
-      <ProductStickyBuybar
-        name={product.name}
-        price={product.price}
-        unavailable={product.stock === "out-of-stock"}
-      />
     </main>
   );
 }

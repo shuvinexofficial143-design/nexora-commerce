@@ -5,7 +5,6 @@ import { DealStrip } from "@/components/home/deal-strip";
 import { EditorialBanner } from "@/components/home/editorial-banner";
 import { FeaturedBrands } from "@/components/home/featured-brands";
 import { FlashDealsSection } from "@/components/home/flash-deals-section";
-import { FlashSaleSpotlight } from "@/components/home/flash-sale-spotlight";
 import { HeroSection } from "@/components/home/hero-section";
 import { MemberBanner } from "@/components/home/member-banner";
 import { NewArrivalsSection } from "@/components/home/new-arrivals-section";
@@ -24,7 +23,6 @@ export default function HomePage() {
       <CategoryStrip />
       <NewArrivalsSection />
       <TrendingSearches />
-      <FlashSaleSpotlight />
       <FlashDealsSection />
       <FeaturedBrands />
       <EditorialBanner />

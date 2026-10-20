@@ -12,8 +12,8 @@ export function MemberBanner() {
             <p className="mt-4 text-sm leading-6 text-black/55">Member pricing, priority support, early access drops and shipping perks—membership infrastructure arrives in a later batch.</p>
           </div>
           <div className="mt-7 flex flex-wrap gap-3 lg:mt-0 lg:pl-8">
-            <Link href="/membership" className="rounded-full bg-black px-6 py-3.5 text-sm font-black text-white">Explore membership</Link>
-            <Link href="/account/register" className="rounded-full border border-black/15 bg-white/70 px-6 py-3.5 text-sm font-black">Create account</Link>
+            <Link href="/shop" className="rounded-full bg-black px-6 py-3.5 text-sm font-black text-white">Explore membership</Link>
+            <Link href="/shop" className="rounded-full border border-black/15 bg-white/70 px-6 py-3.5 text-sm font-black">Create account</Link>
           </div>
         </div>
       </Container>
