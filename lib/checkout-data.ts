@@ -6,10 +6,10 @@ export const defaultAddresses: CheckoutAddress[] = [
 ];
 
 export const deliveryOptions: DeliveryOption[] = [
-  { id: "standard", label: "Standard delivery", eta: "Arrives in 3–5 business days", price: 0, badge: "Best value" },
-  { id: "express", label: "Express delivery", eta: "Arrives in 1–2 business days", price: 149, badge: "Faster" },
-  { id: "priority", label: "Priority same-day", eta: "Eligible metros · order before 2 PM", price: 299, badge: "Fastest" },
+  { id: "standard", label: "Standard delivery", eta: "Delivery availability and date confirmed by the store after order acceptance", price: 0 },
 ];
+// Do not offer unverified paid express/same-day shipping without a courier
+// integration and a serviceability check for the customer's PIN code.
 
 const cashfreeEnabled = process.env.NEXT_PUBLIC_CASHFREE_ENABLED === "true";
 

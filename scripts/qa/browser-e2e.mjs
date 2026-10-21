@@ -88,6 +88,24 @@ try {
         await page.getByRole("button", { name: "Increase quantity" }).first().click();
         await page.getByText(/2 items/i).first().waitFor();
       });
+      await verify(name + " verified checkout preview fails closed without production database", page, async () => {
+        const response = await page.goto(new URL("/checkout", base).href, { waitUntil: "domcontentloaded" });
+        assert.equal(response?.status(), 200);
+        await page.getByText("Live price & stock verification").waitFor();
+        await page.getByText("Checkout will remain blocked until verification succeeds.").waitFor({ timeout: 12000 });
+        assert.equal(await page.getByText("Priority same-day").count(), 0);
+        assert.equal(await page.getByText("Express delivery").count(), 0);
+        const forbidden = await page.evaluate(async () => {
+          const response = await fetch("/api/backend/checkout/preview", {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ items: [{ slug: "qa-test", quantity: 1 }], deliveryMethod: "priority" }),
+          });
+          return { status: response.status, body: await response.json() };
+        });
+        assert.equal(forbidden.status, 400);
+        assert.match(forbidden.body.error, /standard delivery/i);
+        assert.equal(new URL(page.url()).pathname, "/checkout");
+      });
       await verify(name + " invalid checkout stays local and creates no order", page, async () => {
         await page.goto(new URL("/checkout", base).href, { waitUntil: "domcontentloaded" });
         const button = page.getByRole("button", { name: /Place COD order/i });

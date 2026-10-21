@@ -103,6 +103,9 @@ export function validateOrder(value: unknown): CreateOrderPayload {
   if (!["standard", "express", "priority"].includes(deliveryMethod)) {
     throw new ValidationError("Choose a valid delivery method.");
   }
+  if (deliveryMethod !== "standard") {
+    throw new ValidationError("Only standard delivery is currently available.");
+  }
   const coupon = String(input.coupon ?? "").trim().toUpperCase();
   if (coupon.length > 40) throw new ValidationError("Coupon code is too long.");
   const notes = String(input.notes ?? "");

@@ -42,7 +42,7 @@ export function CartSummary() {
       <div className="flex min-w-0 items-end justify-between gap-4">
         <div className="min-w-0">
           <p className="text-xs font-bold text-black/45">Estimated total</p>
-          <p className="text-[11px] font-bold text-black/35">Tax included above</p>
+          <p className="text-[11px] font-bold text-black/35">Final price and stock verified during checkout</p>
         </div>
         <p className="shrink-0 text-xl font-black tracking-[-.04em] sm:text-2xl">{currency.format(totals.total)}</p>
       </div>

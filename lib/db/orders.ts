@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { ConflictError, ValidationError } from "@/lib/db/errors";
 import { getPrisma } from "@/lib/db/prisma";
 import { resolveCoupon, recordCouponRedemption } from "@/lib/commerce/coupon-engine";
+import { calculateAuthoritativeTotals } from "@/lib/commerce/order-pricing";
 import type { CreateOrderPayload } from "@/types/backend";
 
 const include = {
@@ -135,13 +136,10 @@ export async function createOrderWithOutcome(
     if (input.coupon && !promo.coupon) {
       throw new ValidationError("This coupon is no longer valid for your cart.");
     }
-    const discountMinor = promo.discountMinor;
-    const taxable = Math.max(0, subtotalMinor - discountMinor);
-    const shippingMinor = input.deliveryMethod === "priority" ? 29900
-      : input.deliveryMethod === "express" ? 14900
-        : subtotalMinor >= 99900 ? 0 : 9900;
-    const taxMinor = Math.round(taxable * 0.18);
-    const totalMinor = taxable + shippingMinor + taxMinor;
+    const { discountMinor, shippingMinor, taxMinor, totalMinor } = calculateAuthoritativeTotals({
+      subtotalMinor, discountMinor: promo.discountMinor,
+      deliveryMethod: input.deliveryMethod ?? "standard",
+    });
 
     const order = await tx.order.create({
       data: {
