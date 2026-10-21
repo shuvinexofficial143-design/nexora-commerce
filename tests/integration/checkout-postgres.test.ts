@@ -159,7 +159,7 @@ test("RISK-04: coupon redemption usage limit is respected across concurrent orde
     "orderId" text UNIQUE NOT NULL, "discountMinor" integer NOT NULL,
     "createdAt" timestamp NOT NULL DEFAULT now())`);
   const id = suffix();
-  const code = `QA${id}`;
+  const code = `QA${id.toUpperCase()}`;
   await db.$executeRaw`INSERT INTO "Coupon" ("id","code","kind","value","minSubtotalMinor","usageLimit") VALUES (${id},${code},'PERCENT',10,0,1)`;
   const [a, b] = await Promise.all([resolveCoupon(code, 10000), resolveCoupon(code, 10000)]);
   assert.equal(Boolean(a.coupon), true);

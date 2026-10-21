@@ -38,3 +38,12 @@ Run all automated tests with `npx --no-install tsx --test tests/*.test.ts`. Full
 Optional safe local HTTP smoke checks: build/start the app **locally** with `DATABASE_URL=""`, `DIRECT_URL=""`, `PUBLIC_CUSTOMER_AUTH_ENABLED=false`, `NEXT_PUBLIC_CASHFREE_ENABLED=false`, and run `node scripts/qa/http-smoke.mjs`. The script rejects remote URLs. Alternatively use workflow_dispatch and opt in to `http_smoke`. It makes only GET, OPTIONS, and deliberately rejected POST requests, and does not create orders.
 
 For uncovered production risks and suggested separate-app-branch fixes, see `docs/qa/KNOWN_RISKS.md`. A unit test success must not be interpreted as proof of payment, concurrency, browser, or live database integration safety.
+
+## Milestone 3 — Actual execution
+
+- Existing 72 deterministic unit tests are preserved.
+- `tests/integration/checkout-postgres.test.ts` runs only in a disposable Postgres 16 service, refuses non-local DBs, uses temporary fixtures and asserts critical invariants even when known application defects make CI FAIL.
+- `scripts/qa/http-smoke.mjs` executed 8/8 checks on GitHub Actions local Next.js server.
+- `scripts/qa/browser-e2e.mjs` uses real headless Chromium at desktop/mobile widths with an isolated temporary Playwright install outside the repository. Observed 10 PASS, 2 FAIL (category 404), with screenshots. Never submits real orders.
+- See `docs/qa/M3_EXECUTION.md` for guardrails and `docs/qa/KNOWN_RISKS.md` for verified bug evidence.
+- No prisma/migrations folder exists; QA uses `prisma db push` against disposable PostgreSQL only. This does not claim migration verification.

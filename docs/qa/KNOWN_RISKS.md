@@ -66,3 +66,56 @@ Reviewed against `feature/nexora-qa-automation`, parent `aeca01adb5d4f41c50301a6
 - `tests/*.test.ts`: deterministic unit/contract checks using isolated in-memory or fake Prisma transactions; tests of route handlers never create real orders or touch a live DB.
 - `scripts/qa/http-smoke.mjs`: optional HTTP checks against *localhost only*, requiring an explicitly started local web server. These are HTTP smoke tests, **not** browser E2E.
 - **Not verified:** real database concurrency, Cashfree charge/refund, external email, full authenticated checkout lifecycle, visual regression, real browser automation.
+
+---
+
+# Milestone 3 — Confirmed Isolated Test Findings (21 October 2026)
+
+**Reproducible GitHub Actions:** [first executed Chromium/Postgres run](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39617678156). These are *actual failures* against unchanged application functions in an ephemeral PostgreSQL 16 service and actual headless Chromium on localhost. Application source has not been modified in the QA branch. Snapshot below refers to that run; the coupon test initially had a QA fixture case mismatch and has been corrected for re-execution.
+
+## CONFIRMED — RISK-01: No order idempotency (High)
+
+Real Postgres integration test invoked `createOrder` twice with same customer/cart payload.
+- Observed: **2 distinct order numbers**, 2 persisted orders, 2 units reserved.
+- Expected replay safety: one logical order for the same checkout attempt, with a client/server idempotency key and database uniqueness.
+- Application fix (separate branch): explicit idempotency token, unique persistence, and deterministic replay response; ensure separate *intentional* purchases still work.
+- Evidence: `QA_RISK_01_OBSERVED` log in `nexora-qa-postgres-integration` artifact.
+
+## CONFIRMED — RISK-02: Concurrent overselling (Critical operational defect)
+
+2 simultaneous `createOrder` requests with only 1 unit `onHand`; an ephemeral DB trigger `pg_sleep(0.3)` on reservation updates ensured overlapping pre-transaction stock reads.
+- Observed: **2 orders successful, onHand=1, reserved=2**.
+- Expected: at most one accepted order and invariant `reserved <= onHand`.
+- Fix: transactional stock acquisition using conditional `UPDATE` and affected-row count (or row locks/serializable with retry); check aggregate demand and refuse races. Avoid product availability checks outside transaction.
+- Evidence: `QA_RISK_02_OBSERVED` in integration logs.
+
+## CONFIRMED — RISK-03: Duplicate lines and malformed checkout fields
+
+- Two lines for the *same product*, each quantity 1, with only 1 unit available: order accepted and `reserved=2`.
+- Invalid phone `not-a-phone` and PIN `invalid`: `validateOrder` accepted values; fails validation invariant.
+- 10,000-character customer name and address: `validateOrder` accepted the unbounded fields.
+- Fix: coalesce identical product+variant entries, check cumulative quantity; validate phone/PIN and sensible field size limits both client and server side.
+
+## CONFIRMED — BROWSER-NAV-01: Broken category links (High discoverability risk)
+
+Playwright Chromium executed on desktop (1366×900) and mobile (390×844), isolated local server, no production.
+- Home category CTA links to `/category/electronics`; actual HTTP response **404**, expected 200, at BOTH viewport sizes.
+- Source: `components/home/category-strip.tsx` generates `/category/${category.slug}`. `app/category/[slug]` route is absent in audited branch. Other category showcase uses `/shop?category=...`.
+- Fix in Storefront branch: route all visible category links to supported `/shop?category=...`, or implement category route intentionally. Re-run browser navigation tests after fix.
+- 12 real browser checks: 10 passed / 2 failed. Failure screenshots and JSON saved in `nexora-qa-chromium-evidence` artifact.
+
+## RISK-04 coupon schema caveat
+
+No `prisma/migrations` directory or `Coupon` model exists in `prisma/schema.prisma`. A minimal table is created **only inside the disposable QA database** for an implementation-contract concurrency probe. This does not confirm actual production coupon constraints. Initial QA test failed on lowercase fixture coupon vs `resolveCoupon` uppercase normalization; fixture corrected and must be re-executed before classifying a coupon usage-limit failure as a reproduced QA-contract defect.
+
+## Validated safeguards
+
+- Valid order writes exactly one reservation movement.
+- Insufficient stock rejects before opening transaction.
+- Injected SQL error during RESERVE correctly rolls back both order creation and reserved units.
+- Local HTTP smoke: all 8 checks PASS on isolated Next.js server, with expected statuses 200/401/403/404/400.
+- Existing 72 unit/contract tests retained and successful. Production dependency audit remains strict.
+
+## Unverified
+
+Production PostgreSQL schema differs from QA schema because no migrations exist and coupons are raw SQL. Database findings are confirmed against the repository's Prisma schema provisioned with `prisma db push` on PostgreSQL 16, not against live Supabase. Actual payment charge/refund, email, cross-instance load balancing and production database cannot be claimed tested.
