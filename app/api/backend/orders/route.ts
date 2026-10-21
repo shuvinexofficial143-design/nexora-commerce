@@ -1,5 +1,5 @@
 import { getCurrentSession } from "@/lib/auth/session";
-import { createOrder, listOrdersForUser } from "@/lib/db/orders";
+import { createOrderWithOutcome, listOrdersForUser, validateIdempotencyKey } from "@/lib/db/orders";
 import { getOrCreateGuestCustomer } from "@/lib/db/users";
 import { apiError, ok, validateOrder } from "@/lib/server/backend";
 import { NextResponse } from "next/server";
@@ -23,40 +23,31 @@ export async function POST(request: Request) {
   try {
     const rate = consumeRateLimit(request, "guest-order-create", 20, 10 * 60 * 1000);
     if (!rate.allowed) {
-      return NextResponse.json(
-        { ok: false, error: "Too many order attempts. Try again shortly." },
-        {
-          status: 429,
-          headers: { "Retry-After": String(rate.retryAfterSeconds) },
-        },
-      );
+      return NextResponse.json({ ok: false, error: "Too many order attempts. Try again shortly." }, {
+        status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) },
+      });
     }
+    // Reject missing keys BEFORE guest-user or other persistent changes.
+    const idempotencyKey = validateIdempotencyKey(request.headers.get("idempotency-key") ?? "");
     const payload = validateOrder(await request.json());
     const session = await getCurrentSession();
-
     const user = session?.user ?? await getOrCreateGuestCustomer({
       email: payload.contactEmail!,
       name: payload.shippingAddress.fullName,
       phone: payload.shippingAddress.phone,
     });
-
-    const order = await createOrder(user.id, payload);
-
-    await Promise.allSettled([
-      notify({
-        type: "NEW_ORDER",
-        title: "New order",
-        message: `${order.orderNumber} was placed for ${user.email}`,
-        entityType: "ORDER",
-        entityId: order.id,
-        severity: "INFO",
-      }),
-      ...(payload.paymentMethod === "cod"
-        ? [sendOrderEmailSafe(order.id, "ORDER_RECEIVED")]
-        : []),
-    ]);
-
-    return ok(order, { status: 201 });
+    const { order, created } = await createOrderWithOutcome(user.id, payload, idempotencyKey);
+    if (created) {
+      await Promise.allSettled([
+        notify({
+          type: "NEW_ORDER", title: "New order",
+          message: `${order.orderNumber} was placed for ${user.email}`,
+          entityType: "ORDER", entityId: order.id, severity: "INFO",
+        }),
+        ...(payload.paymentMethod === "cod" ? [sendOrderEmailSafe(order.id, "ORDER_RECEIVED")] : []),
+      ]);
+    }
+    return ok(order, { status: created ? 201 : 200 });
   } catch (error) {
     return apiError(error);
   }

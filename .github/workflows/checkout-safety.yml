@@ -1,0 +1,135 @@
+name: Checkout Safety — Isolated Verification
+
+on:
+  push:
+    branches: [feature/nexora-gift-store]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexora-checkout-safety-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-build:
+    name: Existing QA unit tests, security, lint, types, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Existing and new unit regressions
+        run: npx --no-install tsx --test tests/*.test.ts
+      - name: Strict production security
+        run: npm audit --omit=dev --audit-level=high
+      - name: TypeScript
+        run: npm run type-check
+      - name: ESLint
+        run: npm run lint
+      - name: Production build (no deploy)
+        env:
+          NODE_ENV: production
+        run: npm run build
+
+  isolated-postgres:
+    name: Real PostgreSQL checkout concurrency and replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: nexora_qa
+          POSTGRES_PASSWORD: qa-${{ github.run_id }}-${{ github.run_attempt }}
+          POSTGRES_DB: nexora_qa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nexora_qa -d nexora_qa"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://nexora_qa:qa-${{ github.run_id }}-${{ github.run_attempt }}@127.0.0.1:5432/nexora_qa
+      DIRECT_URL: postgresql://nexora_qa:qa-${{ github.run_id }}-${{ github.run_attempt }}@127.0.0.1:5432/nexora_qa
+      NEXORA_QA_ALLOW_DB_INTEGRATION: "true"
+      PUBLIC_CUSTOMER_AUTH_ENABLED: "false"
+      CASHFREE_CLIENT_ID: ""
+      CASHFREE_CLIENT_SECRET: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Prisma schema sync — disposable PostgreSQL ONLY
+        run: npx --no-install prisma db push
+      - name: Real transaction, idempotency, stock and coupon regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install tsx --test tests/integration/*.test.ts 2>&1 | tee "$RUNNER_TEMP/checkout-postgres.log"
+      - name: Preserve DB logs even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkout-safety-postgres-evidence
+          path: ${{ runner.temp }}/checkout-postgres.log
+          if-no-files-found: warn
+
+  local-browser:
+    name: Local HTTP and real Chromium desktop/mobile
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: ""
+      DIRECT_URL: ""
+      PUBLIC_CUSTOMER_AUTH_ENABLED: "false"
+      NEXT_PUBLIC_CASHFREE_ENABLED: "false"
+      NEXORA_QA_BASE_URL: http://127.0.0.1:3137/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Temporary Chromium test tool, outside repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "NEXORA_QA_PLAYWRIGHT_DIR=$RUNNER_TEMP/nexora-browser" >> "$GITHUB_ENV"
+          echo "NEXORA_QA_EVIDENCE_DIR=$RUNNER_TEMP/browser-evidence" >> "$GITHUB_ENV"
+          npm install --prefix "$RUNNER_TEMP/nexora-browser" --no-save --no-package-lock --no-audit playwright@1.56.1
+          "$RUNNER_TEMP/nexora-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Local isolated production build
+        env:
+          NODE_ENV: production
+        run: npm run build
+      - name: Start localhost then execute real HTTP and browser checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --port 3137 > "$RUNNER_TEMP/local-next.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          node scripts/qa/http-smoke.mjs 2>&1 | tee "$RUNNER_TEMP/http-smoke.log"
+          node scripts/qa/browser-e2e.mjs 2>&1 | tee "$RUNNER_TEMP/chromium.log"
+      - name: Preserve real HTTP codes, browser screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkout-safety-browser-evidence
+          path: |
+            ${{ runner.temp }}/http-smoke.log
+            ${{ runner.temp }}/chromium.log
+            ${{ runner.temp }}/local-next.log
+            ${{ runner.temp }}/browser-evidence/**
+          if-no-files-found: warn

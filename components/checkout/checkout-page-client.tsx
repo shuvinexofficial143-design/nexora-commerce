@@ -14,7 +14,7 @@ import { CheckoutSummary } from "@/components/checkout/checkout-summary";
 import { CheckoutEmpty } from "@/components/checkout/checkout-empty";
 import { deliveryOptions, paymentMethods } from "@/lib/checkout-data";
 import { resolveProductSlugs } from "@/lib/api/products-client";
-import { submitBackendOrder } from "@/lib/api/orders-client";
+import { clearCheckoutAttempt, submitBackendOrder } from "@/lib/api/orders-client";
 import { createCashfreeSession, openCashfreeCheckout } from "@/lib/api/payments-client";
 import type { CheckoutAddress, CheckoutStep, DeliveryOption, PaymentMethodId } from "@/types/checkout";
 
@@ -140,6 +140,7 @@ export function CheckoutPageClient() {
         return;
       }
 
+      clearCheckoutAttempt();
       clearCart();
       router.push(`/checkout/success?order=${encodeURIComponent(order.orderNumber)}`);
     } catch (caught) {
