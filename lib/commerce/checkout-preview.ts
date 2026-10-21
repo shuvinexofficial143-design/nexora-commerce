@@ -89,8 +89,9 @@ export async function createCheckoutPreview(input: CheckoutPreviewInput): Promis
     }
     const availableStock = product.inventory.reduce((n, stock) => n + Math.max(0, stock.onHand - stock.reserved), 0);
     const quantityAllowed = availableStock >= demands.get(row.slug)!;
-    if (!quantityAllowed && !issues.includes(`${product.name} has insufficient stock.`)) {
-      issues.push(`${product.name} has insufficient stock (available: ${availableStock}).`);
+    const stockIssue = `${product.name} has insufficient stock (available: ${availableStock}).`;
+    if (!quantityAllowed && !issues.includes(stockIssue)) {
+      issues.push(stockIssue);
     }
     const lineTotalMinor = product.priceMinor * row.quantity;
     subtotalMinor += lineTotalMinor;
