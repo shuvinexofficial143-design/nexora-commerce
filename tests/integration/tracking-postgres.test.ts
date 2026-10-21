@@ -68,7 +68,7 @@ test("real stored order requires delivered code; only verified bearer token reve
   const details = await findTrackedOrder(verified.accessToken);
   assert.equal(details?.orderNumber, f.order.orderNumber);
   assert.equal(details?.shippingAddress.line1, "Test address");
-  assert.equal(details?.shippingAddress.phone, undefined, "Never return checkout phone number");
+  assert.equal("phone" in (details?.shippingAddress ?? {}), false, "Never return checkout phone number");
   assert.equal(details?.items[0].quantity, 1);
   assert.equal(details?.paymentMethod, "cod");
   assert.equal(details?.timeline.length, 2);
