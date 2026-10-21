@@ -3,8 +3,16 @@ import { Container } from "@/components/ui/container";
 import { ProductCard } from "@/components/ui/product-card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { newArrivalProducts } from "@/lib/home-data";
+import { getCatalogProducts } from "@/lib/catalog-backend";
 
-export function NewArrivalsSection() {
+export async function NewArrivalsSection() {
+  const liveProducts = await getCatalogProducts();
+  const products = liveProducts
+    .filter((product) => product.stock !== "out-of-stock")
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 8);
+  const newArrivals = products.length ? products : newArrivalProducts;
+
   return (
     <section className="py-3 sm:py-20">
       <Container>
@@ -18,7 +26,7 @@ export function NewArrivalsSection() {
           </div>
 
           <div className="grid grid-cols-2 gap-x-2.5 gap-y-3">
-            {newArrivalProducts.slice(0, 4).map((product) => (
+            {newArrivals.slice(0, 4).map((product) => (
               <ProductCard key={product.id} product={product} compact />
             ))}
           </div>
@@ -33,7 +41,7 @@ export function NewArrivalsSection() {
             actionHref="/shop?sort=newest"
           />
           <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4 lg:gap-5">
-            {newArrivalProducts.map((product) => <ProductCard key={product.id} product={product} />)}
+            {newArrivals.map((product) => <ProductCard key={product.id} product={product} />)}
           </div>
         </div>
       </Container>

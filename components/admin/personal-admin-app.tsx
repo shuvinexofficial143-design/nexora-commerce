@@ -61,6 +61,9 @@ type ProductRow = {
   updatedAt: string;
 };
 
+type CatalogOption = { name: string; slug: string };
+type CatalogOptions = { categories: CatalogOption[]; brands: CatalogOption[] };
+
 type OrderRow = {
   id: string;
   orderNumber: string;
@@ -283,8 +286,9 @@ function Products() {
   const [rows, setRows] = useState<ProductRow[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [options, setOptions] = useState<CatalogOptions>({ categories: [], brands: [] });
   const [form, setForm] = useState({
-    name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "",
+    name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "", categorySlug: "", brandSlug: "",
   });
 
   const load = useCallback(() => {
@@ -292,6 +296,11 @@ function Products() {
   }, []);
 
   useEffect(() => load(), [load]);
+  useEffect(() => {
+    adminFetch<CatalogOptions>("/api/admin-app/catalog/options")
+      .then(setOptions)
+      .catch((e) => setError(e.message));
+  }, []);
 
   async function create(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -303,10 +312,12 @@ function Products() {
         body: JSON.stringify({
           ...form,
           price: Number(form.price),
+          categorySlug: form.categorySlug,
+          brandSlug: form.brandSlug,
           status: "DRAFT",
         }),
       });
-      setForm({ name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "" });
+      setForm({ name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "", categorySlug: "", brandSlug: "" });
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create product.");
@@ -337,7 +348,7 @@ function Products() {
 
       {error ? <ErrorBlock error={error} retry={load} /> : null}
 
-      <Panel title="Add product" description="Create a draft product with optional product video">
+      <Panel title="Add product" description="Create a category-ready draft product with optional media">
         <form onSubmit={create} className="grid gap-3 md:grid-cols-2">
           {[
             ["name", "Product name", "Gift product"],
@@ -355,6 +366,21 @@ function Products() {
               />
             </label>
           ))}
+
+          <label>
+            <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">Category</span>
+            <select value={form.categorySlug} onChange={(e) => setForm((current) => ({ ...current, categorySlug: e.target.value }))} className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none focus:border-black">
+              <option value="">Select category</option>
+              {options.categories.map((option) => <option key={option.slug} value={option.slug}>{option.name}</option>)}
+            </select>
+          </label>
+          <label>
+            <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">Brand</span>
+            <select value={form.brandSlug} onChange={(e) => setForm((current) => ({ ...current, brandSlug: e.target.value }))} className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none focus:border-black">
+              <option value="">Select brand</option>
+              {options.brands.map((option) => <option key={option.slug} value={option.slug}>{option.name}</option>)}
+            </select>
+          </label>
 
           <label className="md:col-span-2">
             <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">Product video</span>

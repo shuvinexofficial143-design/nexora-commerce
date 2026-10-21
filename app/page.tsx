@@ -15,7 +15,7 @@ import { SocialProofStrip } from "@/components/home/social-proof-strip";
 import { TrendingSearches } from "@/components/home/trending-searches";
 import { TrustStrip } from "@/components/home/trust-strip";
 
-export default function HomePage() {
+export default async function HomePage() {
   return (
     <>
       <HeroSection />

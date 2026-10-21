@@ -42,6 +42,12 @@ export async function createProduct(input: Record<string, unknown>) {
         description: String(input.description ?? `${name} on NEXORA`),
         priceMinor: Math.round(price * 100),
         status: input.status === "ACTIVE" ? "ACTIVE" : "DRAFT",
+        ...(typeof input.categorySlug === "string" && input.categorySlug.trim()
+          ? { category: { connect: { slug: input.categorySlug.trim().toLowerCase() } } }
+          : {}),
+        ...(typeof input.brandSlug === "string" && input.brandSlug.trim()
+          ? { brand: { connect: { slug: input.brandSlug.trim().toLowerCase() } } }
+          : {}),
       },
     });
 
