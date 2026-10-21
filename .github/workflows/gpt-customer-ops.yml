@@ -77,7 +77,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx --no-install tsx --test tests/integration/*.test.ts 2>&1 | tee "$RUNNER_TEMP/customer-ops-db.log"
+          npx --no-install tsx --test --test-concurrency=1 tests/integration/*.test.ts 2>&1 | tee "$RUNNER_TEMP/customer-ops-db.log"
       - name: Preserve DB tests and privacy evidence
         if: always()
         uses: actions/upload-artifact@v4
