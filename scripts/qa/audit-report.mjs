@@ -14,6 +14,16 @@ if (!fullPath || !prodPath) throw new Error("Expected npm audit JSON files for f
 const full = load(fullPath);
 const prod = load(prodPath);
 const prodPackages = new Set(Object.keys(prod.vulnerabilities));
+const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+function parentsAndVersions(packageName) {
+  const installed = Object.entries(lock.packages || {})
+    .filter(([path]) => path === `node_modules/${packageName}` || path.endsWith(`/node_modules/${packageName}`))
+    .map(([path, data]) => `${path}@${data.version || "unknown"}`);
+  const parents = Object.entries(lock.packages || {})
+    .filter(([, data]) => Boolean(data.dependencies?.[packageName] || data.devDependencies?.[packageName] || data.optionalDependencies?.[packageName]))
+    .map(([path, data]) => `${path || "project root"} -> ${packageName} (${data.dependencies?.[packageName] || data.devDependencies?.[packageName] || data.optionalDependencies?.[packageName]})`);
+  return { installed, parents };
+}
 const rows = Object.entries(full.vulnerabilities)
   .map(([name, v]) => {
     const advisories = (v.via || []).filter((i) => typeof i === "object");
@@ -49,6 +59,9 @@ for (const row of rows) {
   lines.push(`### ${row.name} — ${row.severity} (${row.production ? "production" : "development-only"}, ${row.direct ? "direct" : "transitive"})`);
   lines.push(`- Vulnerable range: ${row.vulnerableRange}`);
   lines.push(`- Installed paths: ${row.paths.join(", ") || "(not supplied by npm)"}`);
+  const dependencies = parentsAndVersions(row.name);
+  lines.push(`- Installed versions: ${dependencies.installed.join(", ") || "(not found in lock)"}`);
+  lines.push(`- Dependency edges from lockfile: ${dependencies.parents.join("; ") || "(not found in lock)"}`);
   lines.push(`- Caused by or linked to: ${row.via.join(", ") || "(unknown)"}`);
   lines.push(`- Advisory sources: ${row.advisoryIds.join(", ") || "(none)"}`);
   lines.push(`- Advisory URLs: ${row.advisoryUrls.join(", ") || "(none)"}`);
