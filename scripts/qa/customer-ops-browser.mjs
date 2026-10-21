@@ -40,6 +40,15 @@ try {
       assert.equal(unauthorized.status, 401);
       assert.equal(unauthorized.body.ok, false);
       assert.equal("data" in unauthorized.body, false);
+      // Real Chromium checks for working customer-side product search.
+      const searchPage = await page.goto(new URL("/search?q=airwave", base).href, { waitUntil: "domcontentloaded" });
+      assert.equal(searchPage?.status(), 200);
+      await page.getByRole("heading", { name: "Search Nexora" }).waitFor();
+      await page.getByRole("link", { name: /Airwave Max Wireless Headphones/i }).first().waitFor();
+      const emptyPage = await page.goto(new URL("/search?q=qa-no-such-product-887722", base).href, { waitUntil: "domcontentloaded" });
+      assert.equal(emptyPage?.status(), 200);
+      await page.getByText("No matching products found.").waitFor();
+
       const screenshot = join(evidence, name + "-secure-tracking.png");
       await page.screenshot({ path: screenshot, fullPage: true });
       results.push({ name, passed: true, pageStatus: 200, unauthorizedStatus: 401 });

@@ -97,6 +97,7 @@ jobs:
       ORDER_EMAIL_FROM: ""
       ORDER_TRACKING_SECRET: ""
       NEXORA_QA_BASE_URL: http://127.0.0.1:3137/
+      NEXORA_QA_DEMO_CATALOG: "true"
       PUBLIC_CUSTOMER_AUTH_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
