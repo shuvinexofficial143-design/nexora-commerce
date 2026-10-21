@@ -8,6 +8,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      http_smoke:
+        description: "Opt in to isolated local HTTP smoke checks"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -34,6 +40,47 @@ jobs:
       - name: Run isolated QA suite
         run: npx --no-install tsx --test tests/*.test.ts
 
+  security-audit:
+    name: Full advisory report and strict production audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Capture full and production npm audit JSON
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          npm audit --json > "$RUNNER_TEMP/nexora-audit-full.json"
+          full_status=$?
+          npm audit --omit=dev --json > "$RUNNER_TEMP/nexora-audit-production.json"
+          prod_status=$?
+          set -e
+          echo "Full audit exit: $full_status; production JSON audit exit: $prod_status"
+          if (( full_status > 1 || prod_status > 1 )); then
+            echo "::error::npm audit failed to retrieve advisory data"
+            exit 2
+          fi
+      - name: Summarize exact affected dependencies
+        run: node scripts/qa/audit-report.mjs "$RUNNER_TEMP/nexora-audit-full.json" "$RUNNER_TEMP/nexora-audit-production.json"
+      - name: Enforce production dependency security
+        run: npm audit --omit=dev --audit-level=high
+      - name: Save npm audit JSON reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-qa-security-audit
+          path: ${{ runner.temp }}/nexora-audit-*.json
+          if-no-files-found: warn
+
   application-validation:
     name: Lint, TypeScript and production build
     runs-on: ubuntu-latest
@@ -56,3 +103,45 @@ jobs:
         env:
           NODE_ENV: production
         run: npm run build
+
+  local-http-smoke:
+    name: Opt-in local HTTP smoke (no production access)
+    if: github.event_name == 'workflow_dispatch' && inputs.http_smoke == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build local isolated application
+        env:
+          NODE_ENV: production
+          DATABASE_URL: ""
+          DIRECT_URL: ""
+          PUBLIC_CUSTOMER_AUTH_ENABLED: "false"
+          NEXT_PUBLIC_CASHFREE_ENABLED: "false"
+        run: npm run build
+      - name: Start local web server and smoke test
+        shell: bash
+        env:
+          DATABASE_URL: ""
+          DIRECT_URL: ""
+          PUBLIC_CUSTOMER_AUTH_ENABLED: "false"
+          NEXT_PUBLIC_CASHFREE_ENABLED: "false"
+          NEXORA_QA_BASE_URL: http://127.0.0.1:3137
+        run: |
+          set -euo pipefail
+          npm run start -- --port 3137 > "$RUNNER_TEMP/nexora-local-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          node scripts/qa/http-smoke.mjs
+      - name: Save local server logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-qa-local-server-logs
+          path: ${{ runner.temp }}/nexora-local-server.log
+          if-no-files-found: warn

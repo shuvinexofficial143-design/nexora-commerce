@@ -27,3 +27,14 @@ GitHub Actions: `.github/workflows/qa.yml`. Its unit job runs on pushes to `feat
 ## Scope and limits
 
 These are focused unit/contract tests, not live payment, production checkout, browser E2E, or real database integration tests. They assert the behavior of the code at the branch revision; they cannot prove remote integrations work. Running the production build in CI validates compilation, but does not deploy. Review workflow results after each push. Storefront/Admin implementation files and package manifests are intentionally untouched.
+
+
+## Milestone 2 (continued)
+
+Added targeted regression suites for server checkout/order input validation, password hashing, owner credential guards, admin CORS, coupon redemption idempotency *contract*, HTTP handler rejection behavior, and cross-component pricing/filter/media edges.
+
+Run all automated tests with `npx --no-install tsx --test tests/*.test.ts`. Full npm audit + production-only npm audit run in a dedicated GitHub Actions job; high or critical production findings fail that job. Download JSON reports from its workflow artifact. No `npm audit fix --force` is executed.
+
+Optional safe local HTTP smoke checks: build/start the app **locally** with `DATABASE_URL=""`, `DIRECT_URL=""`, `PUBLIC_CUSTOMER_AUTH_ENABLED=false`, `NEXT_PUBLIC_CASHFREE_ENABLED=false`, and run `node scripts/qa/http-smoke.mjs`. The script rejects remote URLs. Alternatively use workflow_dispatch and opt in to `http_smoke`. It makes only GET, OPTIONS, and deliberately rejected POST requests, and does not create orders.
+
+For uncovered production risks and suggested separate-app-branch fixes, see `docs/qa/KNOWN_RISKS.md`. A unit test success must not be interpreted as proof of payment, concurrency, browser, or live database integration safety.
