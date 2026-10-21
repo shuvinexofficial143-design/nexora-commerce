@@ -8,7 +8,7 @@
 - Cline feature branch and main were not modified.
 
 ## Milestone 1 — Secure guest order tracking
-**State at initial implementation checkpoint:** Implemented; CI verification pending. Do not mark COMPLETE until real Postgres and browser tests pass.
+**State: COMPLETE in isolated CI (21 Oct 2026). Production release BLOCKED pending reviewed schema migration, secret and real email-provider configuration.**
 
 ### Existing feature audited
 - `/track-order` already had a UI and query-based lookup.
@@ -41,9 +41,16 @@
 - Existing customers should be informed that tracking now requires email OTP instead of mere email entry.
 
 ## Verification and rollout status
-- Source implementation checkpoint: pending GitHub Actions run and final SHA insertion.
+- Code checkpoint: `56ee2024dc566839bd34ddbb250fd43d302fc0a1`.
+- Verified GitHub Actions: [Run 39628791391](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39628791391) — **all 3 jobs SUCCESS**.
+- Unit/security-contract tests: **82 passed, 0 failed**.
+- Isolated PostgreSQL checkout + tracking integration: **16 passed, 0 failed**. Real stored-order lookup, wrong-email privacy, 5-attempt lockout, OTP replay prevention, access expiry and email-sender mocks all executed.
+- Local HTTP smoke: **8 passed, 0 failed**.
+- Chromium browser: **2 secure-tracking desktop/mobile checks + 12 existing storefront flows passed, 0 failed**.
+- TypeScript, ESLint, Next production build and strict production dependency audit: **PASS**.
+- Combined executed assertions/check cases: **120 PASS / 0 FAIL** (82 unit + 16 PostgreSQL + 8 HTTP + 14 browser). This is QA validation, not a live-production claim.
 - No live production DB, shipping, Resend, paid APIs, or checkout payments verified.
-- Next milestone after M1: **M2 Customer Returns and Refund Requests** — first audit existing ReturnRequest and admin/refund controls, then implement verified guest-safe return request flow on this isolated branch.
+- Next milestone for `next`: **M2 Customer Returns and Refund Requests** — first audit existing ReturnRequest and admin/refund controls, then implement verified guest-safe return request flow on this isolated branch.
 
 ## Risk / integration notes
 - Cline owns Homepage/Product Admin/CMS/Attributes; this branch has not modified those files.
