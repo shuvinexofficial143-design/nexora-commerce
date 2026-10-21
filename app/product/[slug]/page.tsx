@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { catalogProducts } from "@/lib/catalog-data";
+import { demoCatalogEnabled } from "@/lib/storefront/catalog-query";
 import { getCatalogProductBySlug, getCatalogProducts } from "@/lib/catalog-backend";
 import { buildProductDetail, getBundleProducts, getRelatedProducts } from "@/lib/product-detail-data";
 import { ProductBreadcrumbs } from "@/components/product/product-breadcrumbs";
@@ -16,7 +17,7 @@ import { RelatedProducts } from "@/components/product/related-products";
 type PageProps = { params: Promise<{ slug: string }> };
 
 export function generateStaticParams() {
-  return catalogProducts.map((product) => ({ slug: product.slug }));
+  return demoCatalogEnabled() ? catalogProducts.map((product) => ({ slug: product.slug })) : [];
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {

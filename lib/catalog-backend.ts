@@ -1,11 +1,9 @@
 import { catalogProducts } from "@/lib/catalog-data";
+import { demoCatalogEnabled } from "@/lib/storefront/catalog-query";
 import { getProductBySlug, listProducts } from "@/lib/db/products";
 import type { BackendProduct } from "@/types/backend";
 import type { CatalogProduct } from "@/types/catalog";
 import { getYouTubeThumbnail, getYouTubeVideoId, isDirectVideoUrl } from "@/lib/product-media";
-
-const fallbackImage =
-  "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80";
 
 function stockStatus(availableStock: number): CatalogProduct["stock"] {
   if (availableStock <= 0) return "out-of-stock";
@@ -30,7 +28,6 @@ function tags(product: BackendProduct) {
 }
 
 export function mapBackendProductToCatalog(product: BackendProduct): CatalogProduct {
-  const fallback = catalogProducts.find((item) => item.slug === product.slug);
   const inventory = Math.max(0, product.availableStock);
   const mediaUrls = product.images.map((item) => item.url).filter(Boolean);
   const directVideo = mediaUrls.find((url) => isDirectVideoUrl(url));
@@ -38,15 +35,14 @@ export function mapBackendProductToCatalog(product: BackendProduct): CatalogProd
   const poster =
     mediaUrls.find((url) => !isDirectVideoUrl(url) && !getYouTubeVideoId(url)) ??
     getYouTubeThumbnail(youtubeVideoId) ??
-    fallback?.image ??
-    fallbackImage;
+    "/product-placeholder.svg";
 
   return {
     id: product.id,
     slug: product.slug,
     name: product.name,
-    brand: product.brand?.name ?? fallback?.brand ?? "NEXORA",
-    category: product.category?.slug ?? fallback?.category ?? "uncategorized",
+    brand: product.brand?.name ?? "Unbranded",
+    category: product.category?.slug ?? "uncategorized",
     price: product.priceMinor / 100,
     compareAtPrice:
       product.compareAtMinor && product.compareAtMinor > product.priceMinor
@@ -54,14 +50,14 @@ export function mapBackendProductToCatalog(product: BackendProduct): CatalogProd
         : undefined,
     rating: product.rating,
     reviews: product.reviewCount,
-    badge: fallback?.badge,
+    badge: undefined,
     image: poster,
     videoUrl: directVideo,
     youtubeVideoId,
-    colors: fallback?.colors ?? [],
+    colors: [],
     stock: stockStatus(inventory),
     inventory,
-    delivery: inventory <= 0 ? "Restocking soon" : inventory <= 8 ? "2 days" : "Tomorrow",
+    delivery: inventory <= 0 ? "Currently unavailable" : "Delivery timing at checkout",
     popularity: Math.min(100, Math.round(product.rating * 18 + Math.min(product.reviewCount, 1000) / 100)),
     createdAt: product.createdAt,
     tags: tags(product),
@@ -75,10 +71,11 @@ export async function getCatalogProducts(): Promise<CatalogProduct[]> {
       return result.items.map(mapBackendProductToCatalog);
     }
   } catch (error) {
-    console.warn("NEXORA catalog database unavailable; using fallback catalog.", error);
+    if (!demoCatalogEnabled()) throw error;
+    console.warn("NEXORA demo mode: database unavailable; using preview products.", error);
   }
 
-  return catalogProducts;
+  return demoCatalogEnabled() ? catalogProducts : [];
 }
 
 export async function getCatalogProductBySlug(slug: string): Promise<CatalogProduct | undefined> {
@@ -86,8 +83,9 @@ export async function getCatalogProductBySlug(slug: string): Promise<CatalogProd
     const product = await getProductBySlug(slug);
     if (product) return mapBackendProductToCatalog(product);
   } catch (error) {
-    console.warn(`NEXORA product database unavailable for ${slug}; using fallback catalog.`, error);
+    if (!demoCatalogEnabled()) throw error;
+    console.warn(`NEXORA demo mode: product database unavailable for ${slug}.`, error);
   }
 
-  return catalogProducts.find((item) => item.slug === slug);
+  return demoCatalogEnabled() ? catalogProducts.find((item) => item.slug === slug) : undefined;
 }

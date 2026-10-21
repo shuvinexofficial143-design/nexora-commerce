@@ -1,5 +1,6 @@
 import { getPrisma } from "@/lib/db/prisma";
 import type { BackendProduct } from "@/types/backend";
+import type { Prisma } from "@/generated/prisma/client";
 
 function serializeProduct(product: {
   id: string;
@@ -34,31 +35,81 @@ const include = {
   inventory: { select: { onHand: true, reserved: true } },
 };
 
-export async function listProducts(input: {
+export type ProductListQuery = {
   query?: string;
   category?: string;
   brand?: string;
+  categories?: string[];
+  brands?: string[];
+  minPriceMinor?: number;
+  maxPriceMinor?: number;
+  minRating?: number;
+  sort?: "featured" | "newest" | "price-low" | "price-high" | "rating";
   limit?: number;
   offset?: number;
-}) {
+};
+
+export async function listProducts(input: ProductListQuery) {
   const prisma = getPrisma();
-  const limit = Math.min(Math.max(input.limit ?? 24, 1), 100);
-  const offset = Math.max(input.offset ?? 0, 0);
-  const where = {
-    status: "ACTIVE" as const,
-    ...(input.query
-      ? { OR: [{ name: { contains: input.query, mode: "insensitive" as const } }, { sku: { contains: input.query, mode: "insensitive" as const } }] }
-      : {}),
-    ...(input.category ? { category: { slug: input.category } } : {}),
-    ...(input.brand ? { brand: { slug: input.brand } } : {}),
-  };
+  const limit = Number.isFinite(input.limit) ? Math.min(Math.max(Math.floor(input.limit!), 1), 100) : 24;
+  const offset = Number.isFinite(input.offset) ? Math.min(Math.max(Math.floor(input.offset!), 0), 1_000_000) : 0;
+  const query = input.query?.trim().slice(0, 100);
+  const categories = input.categories?.length ? input.categories : input.category ? [input.category] : [];
+  const brands = input.brands?.length ? input.brands : input.brand ? [input.brand] : [];
+  const and: Prisma.ProductWhereInput[] = [];
+  if (query) {
+    and.push({
+      OR: [
+        { name: { contains: query, mode: "insensitive" } },
+        { sku: { contains: query, mode: "insensitive" } },
+        { description: { contains: query, mode: "insensitive" } },
+        { shortDescription: { contains: query, mode: "insensitive" } },
+        { brand: { name: { contains: query, mode: "insensitive" } } },
+        { category: { name: { contains: query, mode: "insensitive" } } },
+      ],
+    });
+  }
+  if (categories.length) and.push({ category: { slug: { in: categories } } });
+  if (brands.length) and.push({ brand: { slug: { in: brands } } });
+  if (input.minPriceMinor !== undefined) and.push({ priceMinor: { gte: input.minPriceMinor } });
+  if (input.maxPriceMinor !== undefined) and.push({ priceMinor: { lte: input.maxPriceMinor } });
+  if (input.minRating !== undefined) and.push({ rating: { gte: input.minRating } });
+
+  const where: Prisma.ProductWhereInput = { status: "ACTIVE", ...(and.length ? { AND: and } : {}) };
+  const orderBy: Prisma.ProductOrderByWithRelationInput[] =
+    input.sort === "price-low" ? [{ priceMinor: "asc" }, { id: "asc" }] :
+    input.sort === "price-high" ? [{ priceMinor: "desc" }, { id: "asc" }] :
+    input.sort === "rating" ? [{ rating: "desc" }, { reviewCount: "desc" }, { id: "asc" }] :
+    input.sort === "newest" ? [{ createdAt: "desc" }, { id: "asc" }] :
+    [{ featured: "desc" }, { createdAt: "desc" }, { id: "asc" }];
 
   const [rows, total] = await Promise.all([
-    prisma.product.findMany({ where, include, orderBy: [{ featured: "desc" }, { createdAt: "desc" }], take: limit, skip: offset }),
+    prisma.product.findMany({ where, include, orderBy, take: limit, skip: offset }),
     prisma.product.count({ where }),
   ]);
-
   return { items: rows.map(serializeProduct), total, limit, offset };
+}
+
+export async function listPublicCatalogFacets() {
+  const prisma = getPrisma();
+  const [categories, brands] = await Promise.all([
+    prisma.category.findMany({
+      where: { products: { some: { status: "ACTIVE" } } },
+      select: { slug: true, name: true },
+      orderBy: { name: "asc" },
+      take: 100,
+    }),
+    prisma.brand.findMany({
+      where: { products: { some: { status: "ACTIVE" } } },
+      select: { slug: true, name: true },
+      orderBy: { name: "asc" },
+      take: 100,
+    }),
+  ]);
+  return { categories, brands };
+}
+
+: rows.map(serializeProduct), total, limit, offset };
 }
 
 export async function getProductBySlug(slug: string) {
