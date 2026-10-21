@@ -109,9 +109,6 @@ export async function listPublicCatalogFacets() {
   return { categories, brands };
 }
 
-: rows.map(serializeProduct), total, limit, offset };
-}
-
 export async function getProductBySlug(slug: string) {
   const product = await getPrisma().product.findFirst({ where: { slug, status: "ACTIVE" }, include });
   return product ? serializeProduct(product) : null;
