@@ -105,8 +105,8 @@ jobs:
         run: npm run build
 
   local-http-smoke:
-    name: Opt-in local HTTP smoke (no production access)
-    if: github.event_name == 'workflow_dispatch' && inputs.http_smoke == true
+    name: Local HTTP smoke (QA branch push or opt-in)
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.http_smoke == true)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -138,8 +138,8 @@ jobs:
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           node scripts/qa/http-smoke.mjs
-      - name: Save local server logs on failure
-        if: failure()
+      - name: Save local HTTP server logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nexora-qa-local-server-logs
