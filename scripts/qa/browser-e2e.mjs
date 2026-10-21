@@ -60,7 +60,7 @@ try {
       });
       await verify(name + " category navigation", page, async () => {
         await page.goto(new URL("/", base).href, { waitUntil: "domcontentloaded" });
-        const link = page.locator('a[href="/category/electronics"]:visible').first();
+        const link = page.locator('a[href="/shop?category=electronics"]:visible').first();
         await link.waitFor();
         const href = await link.getAttribute("href");
         assert.ok(href);
