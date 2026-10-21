@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
+import { CmsHeroEditor } from "@/components/admin/cms-hero-editor";
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -50,10 +51,15 @@ type ProductRow = {
   slug: string;
   sku: string;
   name: string;
+  description: string;
   priceMinor: number;
+  compareAtMinor: number | null;
   status: string;
+  featured: boolean;
   brand: string | null;
   category: string | null;
+  categorySlug: string | null;
+  brandSlug: string | null;
   onHand: number;
   reserved: number;
   videoUrl: string | null;
@@ -287,8 +293,10 @@ function Products() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [options, setOptions] = useState<CatalogOptions>({ categories: [], brands: [] });
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [form, setForm] = useState({
-    name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "", categorySlug: "", brandSlug: "",
+    name: "", sku: "", price: "", compareAtPrice: "", description: "", videoUrl: "", posterUrl: "", categorySlug: "", brandSlug: "",
   });
 
   const load = useCallback(() => {
@@ -312,12 +320,13 @@ function Products() {
         body: JSON.stringify({
           ...form,
           price: Number(form.price),
+          compareAtPrice: form.compareAtPrice ? Number(form.compareAtPrice) : null,
           categorySlug: form.categorySlug,
           brandSlug: form.brandSlug,
           status: "DRAFT",
         }),
       });
-      setForm({ name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "", categorySlug: "", brandSlug: "" });
+      setForm({ name: "", sku: "", price: "", compareAtPrice: "", description: "", videoUrl: "", posterUrl: "", categorySlug: "", brandSlug: "" });
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create product.");
@@ -354,6 +363,7 @@ function Products() {
             ["name", "Product name", "Gift product"],
             ["sku", "SKU", "NX-GIFT-001"],
             ["price", "Price (₹)", "999"],
+              ["compareAtPrice", "Compare-at price (optional)", "1299"],
           ].map(([key, label, placeholder]) => (
             <label key={key}>
               <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">{label}</span>
@@ -429,8 +439,12 @@ function Products() {
       </Panel>
 
       <Panel title="All products" description={`${rows.length} products in database`}>
+        <div className="mb-4 flex flex-wrap gap-2">
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, SKU, brand…" className="min-w-[240px] flex-1 rounded-full border border-black/10 bg-[#fafaf7] px-4 py-2.5 text-sm font-bold outline-none" />
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-full border border-black/10 bg-[#fafaf7] px-4 py-2.5 text-sm font-bold"><option>ALL</option><option>DRAFT</option><option>ACTIVE</option><option>ARCHIVED</option></select>
+        </div>
         <div className="space-y-3">
-          {rows.map((product) => (
+          {rows.filter((product) => (statusFilter === "ALL" || product.status === statusFilter) && [product.name, product.sku, product.brand || "", product.category || ""].join(" ").toLowerCase().includes(query.toLowerCase())).map((product) => (
             <details key={product.id} className="rounded-[22px] border border-black/10 bg-[#fafaf7] p-4">
               <summary className="cursor-pointer list-none">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -439,6 +453,7 @@ function Products() {
                     <p className="mt-1 text-xs font-bold text-black/40">{product.sku} · {product.category || "Uncategorized"}</p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {product.featured ? <span className="rounded-full bg-[#d7ff47] px-2.5 py-1 text-[10px] font-black">FEATURED</span> : null}
                     {product.videoUrl ? <span className="rounded-full bg-[#d7ff47] px-2.5 py-1 text-[10px] font-black">VIDEO</span> : null}
                     <span className="rounded-full bg-black/5 px-2.5 py-1 text-[10px] font-black">{product.status}</span>
                     <span className="font-black">{money(product.priceMinor)}</span>
@@ -455,9 +470,16 @@ function Products() {
   );
 }
 
+function Homepage() {
+  return <div className="space-y-6"><div><p className="text-xs font-black uppercase tracking-[.18em] text-black/35">Storefront CMS</p><h1 className="mt-1 text-3xl font-black tracking-[-.05em]">Homepage banners</h1><p className="mt-2 max-w-2xl text-sm font-medium text-black/50">Create and publish category-aware banners. Changes persist only when the reviewed HomepageBanner migration has been applied.</p></div><CmsHeroEditor /></div>;
+}
+
 function ProductEditForm({ product, onSave }: { product: ProductRow; onSave: (patch: Record<string, unknown>) => Promise<void> }) {
   const [name, setName] = useState(product.name);
   const [price, setPrice] = useState(String(product.priceMinor / 100));
+  const [compareAtPrice, setCompareAtPrice] = useState(product.compareAtMinor == null ? "" : String(product.compareAtMinor / 100));
+  const [description, setDescription] = useState(product.description);
+  const [featured, setFeatured] = useState(product.featured);
   const [videoUrl, setVideoUrl] = useState(product.videoUrl || "");
   const [posterUrl, setPosterUrl] = useState(product.posterUrl || "");
   const [busy, setBusy] = useState(false);
@@ -466,7 +488,7 @@ function ProductEditForm({ product, onSave }: { product: ProductRow; onSave: (pa
     event.preventDefault();
     setBusy(true);
     try {
-      await onSave({ name, price: Number(price), videoUrl, posterUrl });
+      await onSave({ name, price: Number(price), compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null, description, featured, videoUrl, posterUrl });
     } finally {
       setBusy(false);
     }
@@ -476,6 +498,9 @@ function ProductEditForm({ product, onSave }: { product: ProductRow; onSave: (pa
     <form onSubmit={save} className="mt-4 grid gap-3 border-t border-black/8 pt-4 md:grid-cols-2">
       <input value={name} onChange={(e) => setName(e.target.value)} className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
       <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
+      <input value={compareAtPrice} onChange={(e) => setCompareAtPrice(e.target.value)} type="number" min={price} placeholder="Compare-at price (optional)" className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
+      <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold"><input checked={featured} onChange={(e) => setFeatured(e.target.checked)} type="checkbox" /> Featured product</label>
+      <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Product description" className="md:col-span-2 rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
       <label className="md:col-span-2">
         <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-black/35">Product video</span>
         <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="YouTube or HTTPS MP4/WebM URL" className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
@@ -1157,6 +1182,7 @@ export function PersonalAdminApp() {
 
   const section = useMemo(() => {
     if (pathname.startsWith("/admin/products")) return <Products />;
+    if (pathname.startsWith("/admin/homepage")) return <Homepage />;
     if (pathname.startsWith("/admin/orders")) return <Orders />;
     if (pathname.startsWith("/admin/inventory")) return <Inventory />;
     if (pathname.startsWith("/admin/coupons")) return <Coupons />;

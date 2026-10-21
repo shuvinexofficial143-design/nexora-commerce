@@ -3,18 +3,27 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
+import { getPublishedHomepageBanners } from "@/lib/home-banners";
 
-export function HeroSection() {
+export async function HeroSection() {
+  const banners = await getPublishedHomepageBanners();
+  const banner = banners[0];
+  const image = banner?.imageUrl ?? "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1400&q=85";
+  const mobileImage = banner?.mobileImageUrl ?? image;
+  const title = banner?.title ?? "SHOP BEYOND ORDINARY.";
+  const description = banner?.description ?? "Premium picks, clear pricing and smarter discovery — made for fast everyday shopping.";
+  const href = banner?.ctaHref ?? "/shop";
+  const cta = banner?.ctaText ?? "Shop now →";
   return (
     <section className="overflow-hidden py-2 sm:py-5">
       <Container>
         <div className="sm:hidden">
           <Link
-            href="/shop?sort=newest"
+              href={href}
             className="relative block h-[150px] overflow-hidden rounded-[22px] bg-[#ffd83d]"
           >
             <Image
-              src="https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1000&q=85"
+              src={mobileImage}
               alt="New season collection"
               fill
               priority
@@ -27,8 +36,7 @@ export function HeroSection() {
                 New drop
               </span>
               <h1 className="mt-2 text-[24px] font-black leading-[0.92] tracking-[-0.05em]">
-                Shop the
-                <span className="block text-[#d7ff47]">new edit.</span>
+                {title}
               </h1>
               <p className="mt-2 text-[11px] font-semibold text-white/85">Fresh picks. Better prices.</p>
             </div>
@@ -40,17 +48,15 @@ export function HeroSection() {
           <div className="absolute -left-24 top-20 h-64 w-64 rounded-full bg-[#d7ff47]/20 blur-3xl" />
           <div className="grid min-h-[610px] lg:min-h-[590px] lg:grid-cols-[1.05fr_.95fr]">
             <div className="relative z-10 flex flex-col justify-center px-10 py-12 lg:px-14 lg:py-16">
-              <Badge tone="accent">New season edit</Badge>
+              <Badge tone="accent">{banner?.categorySlug ? `${banner.categorySlug} collection` : "NEXORA marketplace"}</Badge>
               <h1 className="text-balance mt-4 max-w-3xl text-[clamp(3.2rem,8vw,7.5rem)] font-black leading-[0.86] tracking-[-0.07em]">
-                SHOP
-                <span className="block text-[#d7ff47]">BEYOND</span>
-                ORDINARY.
+                {title}
               </h1>
               <p className="mt-6 max-w-xl text-base leading-6 text-white/65">
-                Premium picks, clear pricing and smarter discovery — made for fast everyday shopping.
+                {description}
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
-                <Button href="/shop" variant="accent">Shop now →</Button>
+                <Button href={href} variant="accent">{cta}</Button>
                 <Button href="/shop?sort=newest" variant="light">New arrivals</Button>
               </div>
               <div className="mt-10 grid max-w-xl grid-cols-3 gap-3 border-t border-white/10 pt-6">
@@ -63,8 +69,8 @@ export function HeroSection() {
             <div className="relative min-h-[380px] overflow-hidden lg:min-h-full">
               <div className="absolute inset-x-10 bottom-0 top-8 overflow-hidden rounded-t-[34px] bg-[#d7ff47] lg:left-0 lg:right-8">
                 <Image
-                  src="https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1400&q=85"
-                  alt="Curated premium fashion collection"
+                  src={image}
+                  alt={title}
                   fill
                   priority
                   sizes="(max-width: 1024px) 100vw, 50vw"

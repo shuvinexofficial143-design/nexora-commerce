@@ -404,11 +404,13 @@ export const ModelName = {
   Brand: 'Brand',
   Product: 'Product',
   ProductImage: 'ProductImage',
+  HomepageBanner: 'HomepageBanner',
   Warehouse: 'Warehouse',
   InventoryItem: 'InventoryItem',
   InventoryMovement: 'InventoryMovement',
   Order: 'Order',
-  OrderItem: 'OrderItem'
+  OrderItem: 'OrderItem',
+  CheckoutAttempt: 'CheckoutAttempt'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -424,7 +426,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "session" | "address" | "category" | "brand" | "product" | "productImage" | "warehouse" | "inventoryItem" | "inventoryMovement" | "order" | "orderItem"
+    modelProps: "user" | "session" | "address" | "category" | "brand" | "product" | "productImage" | "homepageBanner" | "warehouse" | "inventoryItem" | "inventoryMovement" | "order" | "orderItem" | "checkoutAttempt"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -946,6 +948,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    HomepageBanner: {
+      payload: Prisma.$HomepageBannerPayload<ExtArgs>
+      fields: Prisma.HomepageBannerFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.HomepageBannerFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HomepageBannerPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.HomepageBannerFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HomepageBannerPayload>
+        }
+        findFirst: {
+          args: Prisma.HomepageBannerFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HomepageBannerPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.HomepageBannerFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HomepageBannerPayload>
+        }
+        findMany: {
+          args: Prisma.HomepageBannerFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HomepageBannerPayload>[]
+        }
+        create: {
+          args: Prisma.HomepageBannerCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HomepageBannerPayload>
+        }
+        createMany: {
+          args: Prisma.HomepageBannerCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.HomepageBannerCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HomepageBannerPayload>[]
+        }
+        delete: {
+          args: Prisma.HomepageBannerDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HomepageBannerPayload>
+        }
+        update: {
+          args: Prisma.HomepageBannerUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HomepageBannerPayload>
+        }
+        deleteMany: {
+          args: Prisma.HomepageBannerDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.HomepageBannerUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.HomepageBannerUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HomepageBannerPayload>[]
+        }
+        upsert: {
+          args: Prisma.HomepageBannerUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$HomepageBannerPayload>
+        }
+        aggregate: {
+          args: Prisma.HomepageBannerAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateHomepageBanner>
+        }
+        groupBy: {
+          args: Prisma.HomepageBannerGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.HomepageBannerGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.HomepageBannerCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.HomepageBannerCountAggregateOutputType> | number
+        }
+      }
+    }
     Warehouse: {
       payload: Prisma.$WarehousePayload<ExtArgs>
       fields: Prisma.WarehouseFieldRefs
@@ -1316,6 +1392,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    CheckoutAttempt: {
+      payload: Prisma.$CheckoutAttemptPayload<ExtArgs>
+      fields: Prisma.CheckoutAttemptFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CheckoutAttemptFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CheckoutAttemptPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CheckoutAttemptFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CheckoutAttemptPayload>
+        }
+        findFirst: {
+          args: Prisma.CheckoutAttemptFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CheckoutAttemptPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CheckoutAttemptFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CheckoutAttemptPayload>
+        }
+        findMany: {
+          args: Prisma.CheckoutAttemptFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CheckoutAttemptPayload>[]
+        }
+        create: {
+          args: Prisma.CheckoutAttemptCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CheckoutAttemptPayload>
+        }
+        createMany: {
+          args: Prisma.CheckoutAttemptCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CheckoutAttemptCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CheckoutAttemptPayload>[]
+        }
+        delete: {
+          args: Prisma.CheckoutAttemptDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CheckoutAttemptPayload>
+        }
+        update: {
+          args: Prisma.CheckoutAttemptUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CheckoutAttemptPayload>
+        }
+        deleteMany: {
+          args: Prisma.CheckoutAttemptDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CheckoutAttemptUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CheckoutAttemptUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CheckoutAttemptPayload>[]
+        }
+        upsert: {
+          args: Prisma.CheckoutAttemptUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CheckoutAttemptPayload>
+        }
+        aggregate: {
+          args: Prisma.CheckoutAttemptAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCheckoutAttempt>
+        }
+        groupBy: {
+          args: Prisma.CheckoutAttemptGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CheckoutAttemptGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CheckoutAttemptCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CheckoutAttemptCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1457,6 +1607,25 @@ export const ProductImageScalarFieldEnum = {
 export type ProductImageScalarFieldEnum = (typeof ProductImageScalarFieldEnum)[keyof typeof ProductImageScalarFieldEnum]
 
 
+export const HomepageBannerScalarFieldEnum = {
+  id: 'id',
+  title: 'title',
+  description: 'description',
+  imageUrl: 'imageUrl',
+  mobileImageUrl: 'mobileImageUrl',
+  ctaText: 'ctaText',
+  ctaHref: 'ctaHref',
+  categorySlug: 'categorySlug',
+  sortOrder: 'sortOrder',
+  published: 'published',
+  archived: 'archived',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type HomepageBannerScalarFieldEnum = (typeof HomepageBannerScalarFieldEnum)[keyof typeof HomepageBannerScalarFieldEnum]
+
+
 export const WarehouseScalarFieldEnum = {
   id: 'id',
   code: 'code',
@@ -1533,6 +1702,18 @@ export const OrderItemScalarFieldEnum = {
 } as const
 
 export type OrderItemScalarFieldEnum = (typeof OrderItemScalarFieldEnum)[keyof typeof OrderItemScalarFieldEnum]
+
+
+export const CheckoutAttemptScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  key: 'key',
+  requestHash: 'requestHash',
+  orderId: 'orderId',
+  createdAt: 'createdAt'
+} as const
+
+export type CheckoutAttemptScalarFieldEnum = (typeof CheckoutAttemptScalarFieldEnum)[keyof typeof CheckoutAttemptScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1907,11 +2088,13 @@ export type GlobalOmitConfig = {
   brand?: Prisma.BrandOmit
   product?: Prisma.ProductOmit
   productImage?: Prisma.ProductImageOmit
+  homepageBanner?: Prisma.HomepageBannerOmit
   warehouse?: Prisma.WarehouseOmit
   inventoryItem?: Prisma.InventoryItemOmit
   inventoryMovement?: Prisma.InventoryMovementOmit
   order?: Prisma.OrderOmit
   orderItem?: Prisma.OrderItemOmit
+  checkoutAttempt?: Prisma.CheckoutAttemptOmit
 }
 
 /* Types for Logging */

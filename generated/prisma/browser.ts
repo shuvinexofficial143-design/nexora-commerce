@@ -53,6 +53,11 @@ export type Product = Prisma.ProductModel
  */
 export type ProductImage = Prisma.ProductImageModel
 /**
+ * Model HomepageBanner
+ * 
+ */
+export type HomepageBanner = Prisma.HomepageBannerModel
+/**
  * Model Warehouse
  * 
  */
@@ -77,3 +82,9 @@ export type Order = Prisma.OrderModel
  * 
  */
 export type OrderItem = Prisma.OrderItemModel
+/**
+ * Model CheckoutAttempt
+ * / A checkout attempt is acquired within the order/reservation transaction.
+ * / The compound unique index serializes concurrent retries for each customer.
+ */
+export type CheckoutAttempt = Prisma.CheckoutAttemptModel

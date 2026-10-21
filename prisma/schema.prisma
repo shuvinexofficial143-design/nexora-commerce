@@ -168,6 +168,24 @@ model ProductImage {
   @@index([productId, sortOrder])
 }
 
+model HomepageBanner {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  imageUrl    String
+  mobileImageUrl String?
+  ctaText     String
+  ctaHref     String
+  categorySlug String?
+  sortOrder   Int      @default(0)
+  published   Boolean  @default(false)
+  archived    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([published, archived, sortOrder])
+}
+
 model Warehouse {
   id        String              @id @default(cuid())
   code      String              @unique

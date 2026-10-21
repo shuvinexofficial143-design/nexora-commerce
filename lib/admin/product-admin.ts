@@ -20,8 +20,9 @@ export async function createProduct(input: Record<string, unknown>) {
   const name = String(input.name ?? "").trim();
   const sku = String(input.sku ?? "").trim().toUpperCase();
   const price = Number(input.price);
+  const compareAt = input.compareAtPrice === "" || input.compareAtPrice == null ? null : Number(input.compareAtPrice);
 
-  if (name.length < 2 || sku.length < 3 || !Number.isFinite(price) || price < 0) {
+  if (name.length < 2 || sku.length < 3 || !Number.isFinite(price) || price < 0 || (compareAt !== null && (!Number.isFinite(compareAt) || compareAt < price))) {
     throw new Error("Invalid product details.");
   }
 
@@ -41,6 +42,7 @@ export async function createProduct(input: Record<string, unknown>) {
         name,
         description: String(input.description ?? `${name} on NEXORA`),
         priceMinor: Math.round(price * 100),
+        compareAtMinor: compareAt === null ? null : Math.round(compareAt * 100),
         status: input.status === "ACTIVE" ? "ACTIVE" : "DRAFT",
         ...(typeof input.categorySlug === "string" && input.categorySlug.trim()
           ? { category: { connect: { slug: input.categorySlug.trim().toLowerCase() } } }
@@ -84,6 +86,10 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
     priceMinor?: number;
     status?: "DRAFT" | "ACTIVE" | "ARCHIVED";
     featured?: boolean;
+    description?: string;
+    compareAtMinor?: number | null;
+    categoryId?: string | null;
+    brandId?: string | null;
   } = {};
 
   if (typeof input.name === "string") {
@@ -99,6 +105,21 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
     data.priceMinor = Math.round(input.price * 100);
   }
 
+  if (typeof input.description === "string") {
+    const description = input.description.trim();
+    if (description.length < 2) throw new Error("Product description is required.");
+    data.description = description;
+  }
+
+  if (input.compareAtPrice === "" || input.compareAtPrice === null) {
+    data.compareAtMinor = null;
+  } else if (typeof input.compareAtPrice === "number") {
+    if (!Number.isFinite(input.compareAtPrice) || input.compareAtPrice < 0) throw new Error("Enter a valid compare-at price.");
+    const price = typeof input.price === "number" ? input.price : undefined;
+    if (price !== undefined && input.compareAtPrice < price) throw new Error("Compare-at price must be at least the selling price.");
+    data.compareAtMinor = Math.round(input.compareAtPrice * 100);
+  }
+
   if (
     input.status === "DRAFT" ||
     input.status === "ACTIVE" ||
@@ -108,6 +129,15 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
   }
 
   if (typeof input.featured === "boolean") data.featured = input.featured;
+
+  if (typeof input.categorySlug === "string") {
+    const category = input.categorySlug.trim().toLowerCase();
+    data.categoryId = category ? (await getPrisma().category.findUniqueOrThrow({ where: { slug: category }, select: { id: true } })).id : null;
+  }
+  if (typeof input.brandSlug === "string") {
+    const brand = input.brandSlug.trim().toLowerCase();
+    data.brandId = brand ? (await getPrisma().brand.findUniqueOrThrow({ where: { slug: brand }, select: { id: true } })).id : null;
+  }
 
   const mediaUpdateRequested =
     typeof input.videoUrl === "string" || typeof input.posterUrl === "string";
