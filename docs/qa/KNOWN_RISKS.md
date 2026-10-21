@@ -71,7 +71,7 @@ Reviewed against `feature/nexora-qa-automation`, parent `aeca01adb5d4f41c50301a6
 
 # Milestone 3 — Confirmed Isolated Test Findings (21 October 2026)
 
-**Reproducible GitHub Actions:** [first executed Chromium/Postgres run](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39617678156). These are *actual failures* against unchanged application functions in an ephemeral PostgreSQL 16 service and actual headless Chromium on localhost. Application source has not been modified in the QA branch. Snapshot below refers to that run; the coupon test initially had a QA fixture case mismatch and has been corrected for re-execution.
+**Reproducible GitHub Actions:** [first executed Chromium/Postgres run](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39617678156). These are *actual failures* against unchanged application functions in an ephemeral PostgreSQL 16 service and actual headless Chromium on localhost. Application source has not been modified in the QA branch. The coupon test initially had a QA fixture case mismatch; this was corrected, and the independent re-run confirmed the contract failure. See final run 39618420557.
 
 ## CONFIRMED — RISK-01: No order idempotency (High)
 
@@ -106,7 +106,7 @@ Playwright Chromium executed on desktop (1366×900) and mobile (390×844), isola
 
 ## RISK-04 coupon schema caveat
 
-No `prisma/migrations` directory or `Coupon` model exists in `prisma/schema.prisma`. A minimal table is created **only inside the disposable QA database** for an implementation-contract concurrency probe. This does not confirm actual production coupon constraints. Initial QA test failed on lowercase fixture coupon vs `resolveCoupon` uppercase normalization; fixture corrected and must be re-executed before classifying a coupon usage-limit failure as a reproduced QA-contract defect.
+No `prisma/migrations` directory or `Coupon` model exists in `prisma/schema.prisma`. A minimal table is created **only inside the disposable QA database** for an implementation-contract concurrency probe. This does not confirm actual production coupon constraints. **Confirmed in corrected QA-only contract schema** in [workflow run 39618420557](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39618420557): two independent coupon redemptions with `usageLimit=1` produced `usageCount=2` and `redemptionCount=2`. The invariant test failed. This is an application logic defect under the test contract, but the missing production coupon migration/constraints mean actual deployed database behavior still requires separate verification.
 
 ## Validated safeguards
 
@@ -119,3 +119,15 @@ No `prisma/migrations` directory or `Coupon` model exists in `prisma/schema.pris
 ## Unverified
 
 Production PostgreSQL schema differs from QA schema because no migrations exist and coupons are raw SQL. Database findings are confirmed against the repository's Prisma schema provisioned with `prisma db push` on PostgreSQL 16, not against live Supabase. Actual payment charge/refund, email, cross-instance load balancing and production database cannot be claimed tested.
+
+## Final Milestone 3 execution snapshot
+
+- Final executed code run: [39618420557](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39618420557).
+- Existing unit/contract tests: **72 PASS / 0 FAIL**.
+- Safe local HTTP smoke: **8 PASS / 0 FAIL**.
+- Real Chromium (desktop 1366x900, mobile 390x844): **10 PASS / 2 FAIL**; both category navigation destinations returned **404**.
+- Isolated temporary PostgreSQL: **3 PASS / 6 FAIL**; failures confirmed replay, overselling, duplicate cart lines, invalid phone/PIN, oversize customer fields, and coupon usage limit (QA contract schema).
+- Combined executed checks: **101** = 72 unit + 8 HTTP + 12 browser + 9 DB; **93 PASS, 8 FAIL**. Different categories of checks are not interchangeable.
+- Lint, TypeScript, Next.js production build, and strict production dependency audit: **PASS**.
+- Overall GitHub Actions: **FAIL** due to confirmed application regressions. This result has deliberately **not** been suppressed.
+- Artifacts: [PostgreSQL evidence](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39618420557/artifacts/12354295854), [Chromium screenshots](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39618420557/artifacts/12354126670), [Local server logs](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39618420557/artifacts/12353852312).
