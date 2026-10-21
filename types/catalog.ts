@@ -5,6 +5,11 @@ export type CatalogView = "grid" | "list";
 export type SortOption = "featured" | "price-low" | "price-high" | "rating" | "newest" | "discount";
 
 export type CatalogProduct = Product & {
+  source?: "database" | "demo";
+  liveDescription?: string;
+  liveShortDescription?: string | null;
+  liveSku?: string;
+  liveImages?: Array<{ src: string; alt: string }>;
   stock: StockStatus;
   inventory: number;
   delivery: string;

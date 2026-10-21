@@ -42,6 +42,46 @@ function alternateImage(url: string, index: number) {
 }
 
 export function buildProductDetail(product: CatalogProduct): ProductDetail {
+  if (product.source === "database") {
+    // Active store products may not have specifications, reviews, variants,
+    // warranty or offers on record. Never mix them with presentation demo
+    // fixtures or generate claims from category assumptions.
+    const stockLabel = product.stock === "out-of-stock"
+      ? "Currently unavailable"
+      : product.stock === "low-stock" ? "Limited stock" : "In stock";
+    return {
+      ...product,
+      subtitle: product.liveShortDescription?.trim()
+        || product.liveDescription?.trim().slice(0, 160)
+        || "Product information from the store.",
+      description: product.liveDescription?.trim() || "The store has not provided a detailed description yet.",
+      images: product.liveImages?.length
+        ? product.liveImages
+        : [{ src: product.image, alt: product.name }],
+      sizes: [],
+      colorOptions: [],
+      highlights: [
+        `Availability: ${stockLabel}`,
+        "Confirm exact delivery options during checkout.",
+      ],
+      offers: [],
+      specifications: [{
+        title: "Store product details",
+        items: [
+          { label: "Product", value: product.name },
+          { label: "Brand", value: product.brand },
+          { label: "Category", value: product.category.replace(/(^.|-.)/g, (part) => part.toUpperCase()) },
+          { label: "SKU", value: product.liveSku || product.id },
+          { label: "Availability", value: stockLabel },
+        ],
+      }],
+      reviewsList: [],
+      warranty: "Contact the store for applicable warranty details.",
+      returnPolicy: "Returns are subject to the published store policy and product eligibility.",
+      seller: "NEXORA",
+      sku: product.liveSku || product.id,
+    };
+  }
   const colorOptions = product.colors.map((color) => ({ label: color, value: color.toLowerCase().replace(/\s+/g, "-") }));
   const hasSizes = ["fashion", "fitness"].includes(product.category);
   const sizes = hasSizes ? ["XS", "S", "M", "L", "XL"].map((size, index) => ({ label: size, value: size, available: index !== 0 })) : [];

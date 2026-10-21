@@ -37,7 +37,15 @@ export function mapBackendProductToCatalog(product: BackendProduct): CatalogProd
     getYouTubeThumbnail(youtubeVideoId) ??
     "/product-placeholder.svg";
 
+  const realImages = product.images
+    .filter((item) => item.url && !isDirectVideoUrl(item.url) && !getYouTubeVideoId(item.url))
+    .map((item) => ({ src: item.url, alt: item.alt || product.name }));
   return {
+    source: "database",
+    liveDescription: product.description,
+    liveShortDescription: product.shortDescription,
+    liveSku: product.sku,
+    liveImages: realImages,
     id: product.id,
     slug: product.slug,
     name: product.name,
