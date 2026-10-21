@@ -1,0 +1,141 @@
+name: Nexora GPT Customer Operations QA
+
+on:
+  push:
+    branches: [feature/nexora-gpt-customer-ops]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexora-customer-ops-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-build:
+    name: Unit, TypeScript, ESLint, Production build, security
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Unit and contract tests
+        run: npx --no-install tsx --test tests/*.test.ts
+      - name: Dependency security gate
+        run: npm audit --omit=dev --audit-level=high
+      - name: TypeScript
+        run: npm run type-check
+      - name: ESLint
+        run: npm run lint
+      - name: Production build (never deploy)
+        env:
+          NODE_ENV: production
+        run: npm run build
+
+  isolated-db:
+    name: Isolated PostgreSQL order-tracking + checkout regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: nexora_qa
+          POSTGRES_PASSWORD: qa-${{ github.run_id }}-${{ github.run_attempt }}
+          POSTGRES_DB: nexora_qa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nexora_qa -d nexora_qa"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://nexora_qa:qa-${{ github.run_id }}-${{ github.run_attempt }}@127.0.0.1:5432/nexora_qa
+      DIRECT_URL: postgresql://nexora_qa:qa-${{ github.run_id }}-${{ github.run_attempt }}@127.0.0.1:5432/nexora_qa
+      NEXORA_QA_ALLOW_DB_INTEGRATION: "true"
+      ORDER_TRACKING_SECRET: "temporary-isolated-tracking-secret-qa-only-64-chars-long"
+      RESEND_API_KEY: "qa-only-not-used-for-external-network"
+      ORDER_EMAIL_FROM: "qa@example.invalid"
+      CASHFREE_CLIENT_ID: ""
+      CASHFREE_CLIENT_SECRET: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Sync Prisma schema to disposable PostgreSQL only
+        run: npx --no-install prisma db push
+      - name: Real isolated database tests, mock email senders only
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install tsx --test tests/integration/*.test.ts 2>&1 | tee "$RUNNER_TEMP/customer-ops-db.log"
+      - name: Preserve DB tests and privacy evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: customer-ops-database-evidence
+          path: ${{ runner.temp }}/customer-ops-db.log
+          if-no-files-found: warn
+
+  local-browser:
+    name: Customer tracking Chromium + existing storefront regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: ""
+      DIRECT_URL: ""
+      RESEND_API_KEY: ""
+      ORDER_EMAIL_FROM: ""
+      ORDER_TRACKING_SECRET: ""
+      NEXORA_QA_BASE_URL: http://127.0.0.1:3137/
+      PUBLIC_CUSTOMER_AUTH_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install temporary Chromium tool outside repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "NEXORA_QA_PLAYWRIGHT_DIR=$RUNNER_TEMP/nexora-browser" >> "$GITHUB_ENV"
+          echo "NEXORA_QA_EVIDENCE_DIR=$RUNNER_TEMP/customer-ops-evidence" >> "$GITHUB_ENV"
+          npm install --prefix "$RUNNER_TEMP/nexora-browser" --no-save --no-package-lock --no-audit playwright@1.56.1
+          "$RUNNER_TEMP/nexora-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Local-only production build
+        env:
+          NODE_ENV: production
+        run: npm run build
+      - name: Run localhost browser and HTTP privacy checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --port 3137 > "$RUNNER_TEMP/next-local.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          node scripts/qa/http-smoke.mjs 2>&1 | tee "$RUNNER_TEMP/http-smoke.log"
+          node scripts/qa/customer-ops-browser.mjs 2>&1 | tee "$RUNNER_TEMP/secure-tracking-browser.log"
+          node scripts/qa/browser-e2e.mjs 2>&1 | tee "$RUNNER_TEMP/storefront-browser.log"
+      - name: Preserve browser screenshots and HTTP results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: customer-ops-browser-evidence
+          path: |
+            ${{ runner.temp }}/customer-ops-evidence/**
+            ${{ runner.temp }}/next-local.log
+            ${{ runner.temp }}/http-smoke.log
+            ${{ runner.temp }}/secure-tracking-browser.log
+            ${{ runner.temp }}/storefront-browser.log
+          if-no-files-found: warn

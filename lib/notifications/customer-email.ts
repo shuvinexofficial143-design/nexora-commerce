@@ -146,7 +146,7 @@ async function orderSnapshot(orderId: string) {
   });
 }
 
-async function sendViaResend(input: {
+export async function sendViaResend(input: {
   to: string;
   subject: string;
   html: string;

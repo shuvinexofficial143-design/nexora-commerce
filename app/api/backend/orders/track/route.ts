@@ -1,73 +1,25 @@
-import { getPrisma } from "@/lib/db/prisma";
 import { NextResponse } from "next/server";
 import { consumeRateLimit } from "@/lib/security/rate-limit";
+import { findTrackedOrder, normalizeTrackingToken } from "@/lib/orders/secure-tracking";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
+  const headers = { "Cache-Control": "private, no-store", "Vary": "Authorization" };
+  const rate = consumeRateLimit(request, "order-track", 30, 10 * 60_000);
+  if (!rate.allowed) return NextResponse.json(
+    { ok: false, error: "Too many tracking requests. Try again later." },
+    { status: 429, headers: { ...headers, "Retry-After": String(rate.retryAfterSeconds) } },
+  );
+  // Deliberately DO NOT accept the legacy ?order=&email= unauthenticated lookup.
+  const token = normalizeTrackingToken(request.headers.get("authorization"));
+  if (!token) return NextResponse.json({ ok: false, error: "Verify your checkout email to access this order." }, { status: 401, headers });
   try {
-    const rate = consumeRateLimit(request, "order-track", 30, 10 * 60 * 1000);
-    if (!rate.allowed) {
-      return NextResponse.json(
-        { ok: false, error: "Too many tracking attempts. Try again shortly." },
-        {
-          status: 429,
-          headers: { "Retry-After": String(rate.retryAfterSeconds) },
-        },
-      );
-    }
-    const url = new URL(request.url);
-    const orderNumber = (url.searchParams.get("order") ?? "").trim();
-    const email = (url.searchParams.get("email") ?? "").trim().toLowerCase();
-
-    if (!orderNumber || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return NextResponse.json(
-        { ok: false, error: "Order number and checkout email are required." },
-        { status: 400 },
-      );
-    }
-
-    const order = await getPrisma().order.findFirst({
-      where: {
-        orderNumber,
-        user: { email },
-      },
-      include: {
-        items: {
-          select: {
-            productName: true,
-            quantity: true,
-            totalMinor: true,
-          },
-        },
-      },
-    });
-
-    if (!order) {
-      return NextResponse.json(
-        { ok: false, error: "No matching order was found." },
-        { status: 404 },
-      );
-    }
-
-    return NextResponse.json({
-      ok: true,
-      data: {
-        orderNumber: order.orderNumber,
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        paymentMethod: order.paymentMethod,
-        totalMinor: order.totalMinor,
-        createdAt: order.createdAt.toISOString(),
-        updatedAt: order.updatedAt.toISOString(),
-        items: order.items,
-      },
-    });
+    const order = await findTrackedOrder(token);
+    if (!order) return NextResponse.json({ ok: false, error: "Order access expired or unavailable. Verify again." }, { status: 401, headers });
+    return NextResponse.json({ ok: true, data: order }, { headers });
   } catch (error) {
-    console.error("NEXORA order tracking error", error);
-    return NextResponse.json(
-      { ok: false, error: "Could not check this order right now." },
-      { status: 500 },
-    );
+    console.error("NEXORA secure order tracking retrieval failed", error);
+    return NextResponse.json({ ok: false, error: "Could not check your order right now." }, { status: 500, headers });
   }
 }
