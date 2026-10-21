@@ -88,8 +88,21 @@ test("live category/brand facets come from actual active product relations", asy
 });
 test("live mapping does not invent delivery guarantees, fake badges or product photos", async () => {
   const result = await listProducts({ query: keyword, limit: 1 });
-  const mapped = mapBackendProductToCatalog(result.items[0]);
+  // Products without inventory are correctly shown unavailable, never as
+  // arriving "tomorrow" despite having no real stock.
+  const unavailable = mapBackendProductToCatalog(result.items[0]);
+  assert.equal(unavailable.delivery, "Currently unavailable");
+  assert.equal(unavailable.stock, "out-of-stock");
+  const warehouse = await db.warehouse.create({
+    data: { code: "SHOP-" + unique, name: "QA Shop", city: "Indore", state: "MP" },
+  });
+  await db.inventoryItem.create({
+    data: { productId: result.items[0].id, warehouseId: warehouse.id, onHand: 12, reserved: 0 },
+  });
+  const restocked = await listProducts({ query: keyword, limit: 1 });
+  const mapped = mapBackendProductToCatalog(restocked.items[0]);
   assert.equal(mapped.delivery, "Delivery timing at checkout");
+  assert.equal(mapped.stock, "in-stock");
   assert.equal(mapped.badge, undefined);
   assert.equal(mapped.image, "/product-placeholder.svg");
   assert.deepEqual(mapped.colors, []);
