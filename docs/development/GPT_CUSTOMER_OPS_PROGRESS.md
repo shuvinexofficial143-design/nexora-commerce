@@ -86,3 +86,37 @@
 - Next requested real website priority: improve truthfulness/reliability of product availability and delivery messaging, review fake demo/catalog fallback behavior for actual production, and verify real navigation/UI on Cline's latest baseline.
 - Existing `lib/catalog-backend.ts` still has its older demo fallback and unverified delivery labels; **NOT fixed by this search milestone**. Do not describe all product discovery as production-ready until these are resolved.
 - No live PostgreSQL, Resend, paid API, production payment or deployed storefront test was performed.
+
+
+## Live Shopping Website — Product Catalog and Truthful Product Details (21 October 2026)
+
+**Implementation: COMPLETE in isolated CI.** Owner explicitly deferred Returns and Refunds; the work continued the storefront, without starting new returns development.
+
+### New functional behavior
+- `lib/db/products.ts`: supports multiple categories and brands, database-level name/SKU/description/category/brand search, price bounds, rating filters and deterministic Featured/Price/Rating/Newest sorting. Product count and 24-item pages are calculated from PostgreSQL, not the first 100 items. Published/ACTIVE products only.
+- `lib/storefront/catalog-query.ts`: validated multi-select query parameters, price/rating/page bounds, safe page links and explicit QA preview opt-in.
+- `lib/storefront/catalog-data.ts`: paged live DB queries, active category/brand facets and stale-page clamping.
+- `components/catalog/live-catalog-view.tsx` plus `app/shop/page.tsx`: responsive shop with mobile/desktop category, brand, price, rating and sorting controls, pagination and useful empty/error states.
+- `app/api/backend/products/route.ts`: keeps existing API shape while supporting bounded multi-filter DB query and pagination.
+- `lib/catalog-backend.ts`: no implicit demo-product fallback in live mode (including DB downtime or zero published products); no fallback demo badges, imaginary delivery dates or demo product photos. Neutral local placeholder when no real image exists.
+- `app/product/[slug]/page.tsx`: demo static product routes only when deliberately enabled in isolated preview.
+- `types/catalog.ts` and `lib/product-detail-data.ts`: real products display the stored SKU, short/long description, actual image list and only true availability; no fictional reviews, unsupported warranty, offers, variants, category-based specifications or manufactured alternate image views.
+- `components/product/delivery-checker.tsx`: validates Indian PIN format but explicitly does NOT claim courier serviceability or invent a delivery promise.
+- `components/product/product-reviews-preview.tsx`, `components/product/frequently-bought-together.tsx`, `components/product/offer-list.tsx`, `components/product/product-service-strip.tsx`: live products omit fabricated review examples, unearned bundle-saving CTA, nonexistent offers and unproven easy-return/warranty claims; previews remain opt-in only.
+- `public/product-placeholder.svg`: neutral locally served placeholder, not another product's photo.
+- Real isolated Postgres regression covers 35 temporary catalog fixtures (34 ACTIVE, one DRAFT), multi-category/brand, sorting, filtering/search, page count and stock/no-stock accuracy. New deterministic unit tests verify data mapping/claims and input bounds.
+
+### Verified delivery
+- Functional commits `6bed117087af1f9060cfc3a4be9c8d2f1c48aace`, `d0f983af912c4cb015b3168d41b6ea0dc48e83e0`, `91061219c011e09fc421a160912c86ca1d2c87f8`, `009f15aabe0ee7208d584837d00d8bc5b98fb614`.
+- CI [run 39633739840](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39633739840) **all three jobs SUCCESS**.
+- 97/97 unit tests, 26/26 isolated PostgreSQL integration, 8/8 localhost HTTP checks, 14/14 desktop/mobile Chromium checks (12 storefront + 2 order-privacy UI). Total **145/145** tests PASS.
+- TypeScript, ESLint, Next.js production build and strict production dependency audit PASS.
+- No production deployment, migrations, refund, payment or customer email sent. No change to Cline feature branch, main or QA branch.
+
+### Known release boundaries
+- Search Suggestions milestone from earlier `9ec406a` is preserved. This milestone does NOT overwrite `app/search/page.tsx`.
+- `NEXORA_QA_DEMO_CATALOG=true` with **no database URL** enables preview data only in isolated browser CI. Production should run real DB mode; do not enable demo flag.
+- Live storefront needs actual published product records and a configured production/staging PostgreSQL database. No external production DB was inspected or mutated.
+- Cline independently owns Admin Product Management, Homepage CMS, banners, categories and attributes. An owner-reviewed integration is required for these independent changes to appear together. Current GPT branch has no automatic merge into main.
+- Unverified: deployed live website, real courier availability, actual admin-populated catalog and authenticated payment/checkout E2E.
+- **Next owner-approved website milestone:** real Product Detail/Cart/Checkout consistency with Admin-set variants, truthful shipping charges, and final reviewed branch integration — NOT Returns/Refunds.

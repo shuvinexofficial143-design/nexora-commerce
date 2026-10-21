@@ -34,3 +34,8 @@ On 21 Oct 2026 user explicitly said "return refund bad ka he abhi real websit pr
 - No production deployment or Cline branch merge.
 - Current integration risk: `components/search/search-bar.tsx` and `app/search/page.tsx` modified on GPT branch only. Check whether Cline modifies these before integrating.
 - The next website milestone should audit demo fallback and fake delivery promises in `lib/catalog-backend.ts` and `components/product/delivery-checker.tsx`, then implement independently verifiable real improvements without overriding Cline's current Admin/CMS changes.
+
+## Latest real website checkpoint — 21 October 2026
+Owner's Return/Refund deferral remains in force. Branch implementation `009f15aabe0ee7208d584837d00d8bc5b98fb614` was verified in [GitHub Actions 39633739840](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39633739840): 97/97 unit, 26/26 real temporary PostgreSQL, 8/8 localhost HTTP and 14/14 Chromium checks PASS; TypeScript/lint/build/security PASS.
+The live Shop now has actual PostgreSQL pagination and multiple facets, and the live Product Detail no longer invents examples, guarantees, offers, reviews, demo images or delivery dates. Do not overwrite recent live search `app/search/page.tsx` / `lib/storefront/product-discovery.ts` commits. `NEXORA_QA_DEMO_CATALOG=true` with blank DATABASE_URL is only for isolated browser QA.
+Next: real-product Cart/Checkout alignment, Admin variants and shipping truthfulness; coordinate Cline Admin/Homepage CMS integration. No production deployment or merge authorized.
