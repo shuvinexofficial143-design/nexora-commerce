@@ -6,7 +6,7 @@
 1. Query the latest remote HEAD, feature-only workflow and `docs/development/GPT_CUSTOMER_OPS_PROGRESS.md`.
 2. M1 implementation is COMPLETE in isolated CI — code SHA `56ee2024dc566839bd34ddbb250fd43d302fc0a1`, [successful 3-job CI run 39628791391](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39628791391): 82 unit + 16 real Postgres + 8 HTTP + 14 desktop/mobile browser checks all PASS. Re-check any new failures rather than relying only on this text.
 3. Keep production rollout blocked until reviewed migration, OTP secret and real Resend delivery validation.
-4. For new `next`, begin M2 customer return requests using authenticated tracking access, reusing existing ReturnRequest/Admin approval/refund safety guards.
+4. **OWNER REPRIORITIZED:** Return/Refund M2 is PAUSED until specifically requested again. On next `next`, continue substantive REAL SHOPPING WEBSITE work instead. Prioritize catalog truthfulness, product detail/delivery availability, and shopping/search experience, while avoiding Cline-owned Admin/Homepage CMS.
 5. Do not repeat old architecture or modify Cline-owned product management, homepage, category, or universal attribute files.
 6. No production deployments, schema migrations, emails, refunds or paid courier APIs.
 
@@ -24,3 +24,13 @@
 
 ## Current known blockers
 Additive tracking challenge SQL needs production schema review and controlled application. Real configured Resend delivery and shared rate limiting need staging/production validation. No production migration or real email in QA.
+
+## Latest owner-directed Website work — important
+On 21 Oct 2026 user explicitly said "return refund bad ka he abhi real websit pr toh kam karo": DO NOT automatically resume Return/Refund milestone.
+
+- New live product search milestone code: `9ec406a050473878d08ff2238ad5f053ff2cea1f`.
+- Verified CI: [39631607170](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39631607170), all 3 jobs SUCCESS, 130/130 tests PASS.
+- Query independent of first 100 products, server-side ACTIVE-only brand/category/SKU matching, real counts and 18-per-page pagination, responsive debounced suggestion dropdown.
+- No production deployment or Cline branch merge.
+- Current integration risk: `components/search/search-bar.tsx` and `app/search/page.tsx` modified on GPT branch only. Check whether Cline modifies these before integrating.
+- The next website milestone should audit demo fallback and fake delivery promises in `lib/catalog-backend.ts` and `components/product/delivery-checker.tsx`, then implement independently verifiable real improvements without overriding Cline's current Admin/CMS changes.

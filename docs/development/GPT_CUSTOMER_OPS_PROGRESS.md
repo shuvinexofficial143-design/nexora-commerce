@@ -50,7 +50,7 @@
 - TypeScript, ESLint, Next production build and strict production dependency audit: **PASS**.
 - Combined executed assertions/check cases: **120 PASS / 0 FAIL** (82 unit + 16 PostgreSQL + 8 HTTP + 14 browser). This is QA validation, not a live-production claim.
 - No live production DB, shipping, Resend, paid APIs, or checkout payments verified.
-- Next milestone for `next`: **M2 Customer Returns and Refund Requests** — first audit existing ReturnRequest and admin/refund controls, then implement verified guest-safe return request flow on this isolated branch.
+- Customer Returns/Refunds M2: **PAUSED BY OWNER** — owner explicitly redirected development to real shopping website, 21 Oct 2026. Existing return/refund code was inspected read-only and not edited in this turn.
 
 ## Risk / integration notes
 - Cline owns Homepage/Product Admin/CMS/Attributes; this branch has not modified those files.
@@ -58,3 +58,31 @@
 - `lib/notifications/customer-email.ts` receives a one-line export only.
 - Original `app/api/backend/orders/track/route.ts` and `components/orders/track-order-client.tsx` are narrowly replaced because old verification was insufficient.
 - Do not auto-merge this branch into Cline or main.
+
+## Storefront real-website milestone — Live Product Discovery (21 October 2026)
+
+**State: COMPLETE in isolated CI.** Owner requested real website progress instead of Return/Refund.
+
+### Actual code delivered
+- `lib/storefront/product-discovery.ts`: PostgreSQL-backed server search of ACTIVE products, AND-across-tokens matching name/SKU/short description/category/brand, stable sort, 18-result pages, max 100 navigable pages, real result count and safe field selection. No restriction to first 100 catalog products.
+- `app/api/storefront/search/suggestions/route.ts`: public live suggestions, up to seven product results, maximum query input, rate-limit handling, no private customer fields.
+- `components/search/search-bar.tsx`: both mobile/desktop site-header search bars support debounced live suggestions, accessible keyboard navigation, result prices, category and brand, and direct product links.
+- `app/search/page.tsx`: database-backed search results, valid pagination links, explicit unavailable state and clear no-results state.
+- Demo search data is used only when `NEXORA_QA_DEMO_CATALOG=true` **and** the database URL is empty — set only in isolated browser CI, never in real catalog operation.
+- Existing homepage CMS, Admin Product Management, Cline files, payment, checkout, inventory, Returns/Refund and the QA branch were not changed.
+- Added six new deterministic unit checks, four isolated PostgreSQL checks including 121-product search coverage, desktop/mobile browser regressions, and CI-only demo environment.
+
+### Verified execution
+- Code checkpoint `9ec406a050473878d08ff2238ad5f053ff2cea1f`.
+- GitHub Actions [Run 39631607170](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39631607170): **3 jobs SUCCESS**.
+- 88/88 unit tests PASS, 20/20 disposable PostgreSQL integration PASS, 8/8 local HTTP smoke PASS, 14/14 actual Chromium desktop/mobile checks PASS.
+- TypeScript, ESLint, Next production build, strict production dependency audit: PASS.
+- Total **130/130 executed checks PASS**; live production web deployment NOT performed.
+- No production schema change was needed for storefront search.
+
+### Follow-up / integration scope
+- User-facing Search improvement exists on `feature/nexora-gpt-customer-ops`, **not** on Cline's actively developed `feature/nexora-gift-store` and not on `main`. Owner approval and reviewed merge are required before it appears on live website.
+- Cline owns Admin, Homepage CMS and universal product attributes; avoid parallel edits/automated merges.
+- Next requested real website priority: improve truthfulness/reliability of product availability and delivery messaging, review fake demo/catalog fallback behavior for actual production, and verify real navigation/UI on Cline's latest baseline.
+- Existing `lib/catalog-backend.ts` still has its older demo fallback and unverified delivery labels; **NOT fixed by this search milestone**. Do not describe all product discovery as production-ready until these are resolved.
+- No live PostgreSQL, Resend, paid API, production payment or deployed storefront test was performed.
