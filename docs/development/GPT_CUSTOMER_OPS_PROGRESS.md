@@ -120,3 +120,45 @@
 - Cline independently owns Admin Product Management, Homepage CMS, banners, categories and attributes. An owner-reviewed integration is required for these independent changes to appear together. Current GPT branch has no automatic merge into main.
 - Unverified: deployed live website, real courier availability, actual admin-populated catalog and authenticated payment/checkout E2E.
 - **Next owner-approved website milestone:** real Product Detail/Cart/Checkout consistency with Admin-set variants, truthful shipping charges, and final reviewed branch integration — NOT Returns/Refunds.
+
+
+## Milestone — Real Cart → Verified Checkout (21 October 2026)
+
+**Status: CODE COMPLETE, CI VERIFIED (isolated), NOT DEPLOYED.** Return/Refund development remains PAUSED by owner request.
+
+### Root-cause audit
+- Cart persists a local snapshot of price, name and stock, which can become stale when the Admin changes products or another customer reserves inventory.
+- The existing order transaction always reads and charges current PostgreSQL price and reserves stock atomically, so old UI prices could disagree with actual order totals.
+- Checkout UI advertised express/priority/same-day delivery and hardcoded arrival guarantees without any live courier integration or PIN serviceability proof.
+- Admin schema currently has product-level inventory, price, SKU, images and category/brand but **no verified product-option/variant-price/variant-stock model**. Do not invent configurable variants before coordinating with Cline's Admin schema.
+
+### Shipped code, feature branch only
+- `lib/commerce/order-pricing.ts`: shared minor-unit price calculations for actual checkout and the preview, with existing 18% tax and standard ₹99 shipping below ₹999. Existing tax rule is preserved pending owner tax-policy review, not a claim all products legally require 18% GST.
+- `lib/commerce/checkout-preview.ts`: bounded cart/quantity/price validation, read-only real ACTIVE product lookup, duplicate-line stock aggregation, current price comparison, stock and coupon checks, exact tax/shipping estimate, explicit invalid/unavailable reason codes; **no inventory reservation, order creation, email or payment**.
+- `POST /api/backend/checkout/preview`: rate-limited public endpoint, no-store/no private order data. Only temporary QA DB was queried during testing.
+- `lib/api/checkout-preview-client.ts` plus `components/checkout/checkout-page-client.tsx`: refreshes server-verified quotes when cart/coupon changes, shows current price/stock status and issues; customers explicitly accept updated prices to reprice their bag; quote is refreshed immediately before order submission; final transactional checkout safety still applies.
+- `components/cart/cart-provider.tsx`: customer-approved price reconciliation of existing cart lines, preserving quantities/line IDs without silently changing the bag.
+- `components/checkout/checkout-summary.tsx`: displays server-verified INR total, shipping, discount and tax rather than old local estimate as the payable amount.
+- `lib/db/orders.ts` calls the shared pricing function for authoritative totals and retains original idempotent/atomic stock reservation.
+- `lib/checkout-data.ts`, `lib/server/backend.ts`: standard shipping only while no verified courier coverage exists; reject unverified express/priority choices even when posted manually.
+- `components/cart/cart-line-item.tsx` and `components/cart/cart-summary.tsx`: avoid stale "in stock" promise; label cart total as estimate pending database verification.
+- No schema changes and no new external API/provider billing.
+- Existing Auth, Checkout Safety, M1 OTP Tracking, Search, Live Product Page and QA tests retained.
+
+### Executed proof
+- Implementation commit `5cf10c1ecc9ec89332b69dec83b114b34aa7b670`.
+- Targeted stock-issue deduplication fix commit `410f13ecf413dec06180e553175e91e66ceb55e3`.
+- Final successful GitHub Actions [run 39636936442](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/39636936442), **3/3 jobs SUCCESS**.
+- **102/102 unit tests**, **32/32 real disposable PostgreSQL tests**, **8/8 local HTTP smoke**, **16/16 actual Chromium desktop/mobile checks**, all PASS. **158/158 checks PASS / 0 FAIL**.
+- TypeScript, ESLint, Next.js production build and strict production dependency audit PASS.
+- DB tests demonstrate read-only quote, live price changes, duplicate-line stock aggregation, missing/DRAFT/ARCHIVED product rejection, same totals as actual order, and stock race recheck. Browser QA verifies checkout **fails closed** without a configured live DB and does not advertise unsupported delivery speeds.
+
+### Still required for actual production
+- An owner-reviewed merge with Cline's Admin/CMS branch; this branch has **not** merged to `feature/nexora-gift-store` or `main`.
+- Real staging/production checkout with seeded published products, real (nonproduction) payment sandbox verification, courier/PIN availability, shipping rules and owner-reviewed GST/tax policy.
+- Product-specific configurable options, SKU/variant-specific inventory, personalization validation/price and Admin controls need their real schema and controlled migrations. Do not trust fabricated client variants or claim these are complete.
+- A paid express shipping option must not be reintroduced until serviceability and charge support actually exist.
+- No production migration, order, payment, email or deploy was performed.
+
+### Next `next` owner scope
+Focus on actual catalog-to-checkout compatibility with Admin-owned custom attributes once model exists, real cart price recalculation and storefront integration verification. Avoid Returns/Refunds and unrelated features.
