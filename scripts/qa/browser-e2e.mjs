@@ -1,0 +1,109 @@
+#!/usr/bin/env node
+// Actual Chromium E2E against isolated localhost Next.js only. Never submits orders or payments.
+import assert from "node:assert/strict";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const base = new URL(process.env.NEXORA_QA_BASE_URL || "http://127.0.0.1:3137/");
+const root = process.env.NEXORA_QA_PLAYWRIGHT_DIR;
+const evidence = process.env.NEXORA_QA_EVIDENCE_DIR || "/tmp/nexora-qa-browser-evidence";
+if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(base.hostname) || !root || base.pathname !== "/" || base.username || base.password) {
+  throw new Error("Chromium QA requires explicitly isolated localhost and ephemeral Playwright install");
+}
+mkdirSync(evidence, { recursive: true });
+const { chromium } = await import(pathToFileURL(join(root, "node_modules/playwright/index.mjs")).href);
+const browser = await chromium.launch({ headless: true });
+const results = [];
+
+async function verify(name, page, callback) {
+  const started = Date.now();
+  try {
+    await callback();
+    results.push({ name, status: "PASS", elapsedMs: Date.now() - started });
+    console.log("PASS BROWSER", name);
+  } catch (error) {
+    const filename = name.toLowerCase().replace(/[^a-z0-9]+/g, "-") + ".png";
+    try { await page.screenshot({ path: join(evidence, filename), fullPage: true, timeout: 5000 }); } catch {}
+    results.push({ name, status: "FAIL", elapsedMs: Date.now() - started, message: error instanceof Error ? error.message : String(error), screenshot: filename });
+    console.error("FAIL BROWSER", name, error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function waitForLocalServer() {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    try {
+      const response = await fetch(base, { redirect: "manual", signal: AbortSignal.timeout(3000) });
+      if (response.status === 200) return;
+    } catch {}
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  throw new Error("Local browser server did not become healthy within bounded polling time");
+}
+
+await waitForLocalServer();
+try {
+  for (const [name, viewport] of [
+    ["desktop", { width: 1366, height: 900 }],
+    ["mobile", { width: 390, height: 844 }],
+  ]) {
+    const context = await browser.newContext({ viewport, serviceWorkers: "block" });
+    const page = await context.newPage();
+    page.setDefaultTimeout(10_000);
+    page.setDefaultNavigationTimeout(20_000);
+    try {
+      await verify(name + " homepage render", page, async () => {
+        const response = await page.goto(new URL("/", base).href, { waitUntil: "domcontentloaded" });
+        assert.equal(response?.status(), 200);
+        await page.locator("body").waitFor({ state: "visible" });
+        assert.match(await page.title(), /nexora/i);
+      });
+      await verify(name + " category navigation", page, async () => {
+        await page.goto(new URL("/", base).href, { waitUntil: "domcontentloaded" });
+        const link = page.locator('a[href="/shop?category=electronics"]:visible').first();
+        await link.waitFor();
+        const href = await link.getAttribute("href");
+        assert.ok(href);
+        const response = await page.goto(new URL(href, base).href, { waitUntil: "domcontentloaded" });
+        assert.equal(response?.status(), 200, "Visible home category link must have a valid destination");
+      });
+      await verify(name + " search and zero-result state", page, async () => {
+        const response = await page.goto(new URL("/search?q=qa-no-such-product-887722", base).href, { waitUntil: "domcontentloaded" });
+        assert.equal(response?.status(), 200);
+        await page.getByText("No matching products found.").waitFor();
+      });
+      await verify(name + " shop catalog and product detail", page, async () => {
+        const response = await page.goto(new URL("/shop", base).href, { waitUntil: "domcontentloaded" });
+        assert.equal(response?.status(), 200);
+        await page.locator('a[href^="/product/"]').first().waitFor();
+        const product = await page.goto(new URL("/product/airwave-max-headphones", base).href, { waitUntil: "domcontentloaded" });
+        assert.equal(product?.status(), 200);
+        await page.getByRole("button", { name: /^Add to cart$/i }).first().waitFor();
+      });
+      await verify(name + " add to cart and quantity changes", page, async () => {
+        await page.goto(new URL("/product/airwave-max-headphones", base).href, { waitUntil: "domcontentloaded" });
+        await page.getByRole("button", { name: /^Add to cart$/i }).first().click();
+        await page.goto(new URL("/cart", base).href, { waitUntil: "domcontentloaded" });
+        await page.getByRole("heading", { name: "Your cart" }).waitFor();
+        await page.getByRole("button", { name: "Increase quantity" }).first().click();
+        await page.getByText(/2 items/i).first().waitFor();
+      });
+      await verify(name + " invalid checkout stays local and creates no order", page, async () => {
+        await page.goto(new URL("/checkout", base).href, { waitUntil: "domcontentloaded" });
+        const button = page.getByRole("button", { name: /Place COD order/i });
+        await button.waitFor();
+        await button.click();
+        await page.getByText("Enter a valid email address for order updates.").waitFor();
+        assert.equal(new URL(page.url()).pathname, "/checkout");
+      });
+    } finally {
+      await context.close();
+    }
+  }
+} finally {
+  await browser.close();
+}
+writeFileSync(join(evidence, "results.json"), JSON.stringify({ browser: "Chromium", base: base.origin, results }, null, 2) + "\n");
+const passed = results.filter(x => x.status === "PASS").length, failed = results.length - passed;
+console.log(`BROWSER RESULTS: ${passed} PASS / ${failed} FAIL / ${results.length} total (desktop + mobile)`);
+if (failed) process.exitCode = 1;

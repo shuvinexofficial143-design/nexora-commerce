@@ -18,7 +18,7 @@ export function CategoryStrip() {
             {categories.map((category) => (
               <Link
                 key={category.slug}
-                href={`/category/${category.slug}`}
+                href={`/shop?category=${encodeURIComponent(category.slug)}`}
                 className="w-[64px] shrink-0 text-center"
               >
                 <div className="relative mx-auto h-[54px] w-[54px] overflow-hidden rounded-full border border-black/8 bg-white shadow-sm">
@@ -46,7 +46,7 @@ export function CategoryStrip() {
             {categories.map((category) => (
               <Link
                 key={category.slug}
-                href={`/category/${category.slug}`}
+                href={`/shop?category=${encodeURIComponent(category.slug)}`}
                 className="group relative aspect-[4/5] min-w-[155px] overflow-hidden rounded-[24px] bg-black sm:min-w-0"
               >
                 <Image

@@ -253,3 +253,17 @@ model OrderItem {
   @@index([orderId])
   @@index([productId])
 }
+
+//// A checkout attempt is acquired within the order/reservation transaction.
+//// The compound unique index serializes concurrent retries for each customer.
+model CheckoutAttempt {
+  id          String   @id @default(cuid())
+  userId      String
+  key         String
+  requestHash String
+  orderId     String?  @unique
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, key])
+  @@index([createdAt])
+}

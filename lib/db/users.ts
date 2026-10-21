@@ -91,14 +91,25 @@ export async function getOrCreateGuestCustomer(input: {
     return existing;
   }
 
-  return prisma.user.create({
-    data: {
-      email,
-      name: input.name.trim() || "Guest customer",
-      phone: input.phone?.trim() || null,
-      passwordHash: await hashPassword(randomBytes(32).toString("base64url")),
-      role: "CUSTOMER",
-      status: "ACTIVE",
-    },
-  });
+  try {
+    return await prisma.user.create({
+      data: {
+        email,
+        name: input.name.trim() || "Guest customer",
+        phone: input.phone?.trim() || null,
+        passwordHash: await hashPassword(randomBytes(32).toString("base64url")),
+        role: "CUSTOMER",
+        status: "ACTIVE",
+      },
+    });
+  } catch (error) {
+    // Concurrent guest checkouts for the same email may race during the
+    // initial findUnique/create. The UNIQUE email constraint chooses one.
+    if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+      const winner = await prisma.user.findUnique({ where: { email } });
+      if (winner?.role === "CUSTOMER" && winner.status === "ACTIVE") return winner;
+      throw new ValidationError("Use a different checkout email address.");
+    }
+    throw error;
+  }
 }
