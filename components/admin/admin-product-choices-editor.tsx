@@ -16,7 +16,6 @@ export function AdminProductChoicesEditor({ products }: { products: Product[] })
   useEffect(() => {
     if (!id) return;
     let alive = true;
-    setStatus("Loading saved options…");
     fetch(`/api/admin-app/products/${encodeURIComponent(id)}/choices`, { cache: "no-store" })
       .then(async r => {
         const body = await r.json() as { ok: boolean; data?: FormGroup[]; error?: string };
@@ -60,7 +59,7 @@ export function AdminProductChoicesEditor({ products }: { products: Product[] })
     <h2 className="text-xl font-black">Product options · Admin controlled</h2>
     <p className="mt-1 text-sm text-black/55">Create selectable Colour, Size, Material, Pack, or other product options. These selections do not change individual inventory or selling price.</p>
     <label className="mt-5 block text-xs font-black uppercase tracking-wide text-black/50">Choose product
-      <select value={id} onChange={e => { setId(e.target.value); setGroups([]); setStatus(""); }}
+      <select value={id} onChange={e => { setId(e.target.value); setGroups([]); setStatus(e.target.value ? "Loading saved options…" : ""); }}
         className="mt-2 w-full rounded-xl border border-black/20 bg-white p-3 text-sm">
         <option value="">Select a product</option>
         {products.map(p => <option key={p.id} value={p.id}>{p.name} · {p.sku}</option>)}
