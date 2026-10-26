@@ -162,3 +162,35 @@
 
 ### Next `next` owner scope
 Focus on actual catalog-to-checkout compatibility with Admin-owned custom attributes once model exists, real cart price recalculation and storefront integration verification. Avoid Returns/Refunds and unrelated features.
+
+## 26 October 2026 — Universal admin-controlled product choices
+
+**Owner-authorized `next` milestone — implemented on GPT feature branch; independent full CI on patched dependency commit pending.**
+
+### Completed functional source changes
+- Additive `ProductChoiceGroup` Prisma model for up to eight named selectable choice groups per product, each with up to 20 values, required/optional selection and enable/disable flags. Product-specific extra price/stock **not** supported or claimed.
+- Reviewed-only migration: `prisma/reviewed-migrations/20261026_product_choice_groups.sql`. **NEVER applied to production**.
+- Authenticated Admin GET/PUT endpoint: `/api/admin-app/products/[productId]/choices`, bounded input, replacement inside one transaction, existing admin session protection.
+- Admin Products screen now includes a nontechnical group/value editor with enable/disable, create/delete, required flag and Save. Does not modify Cline's feature branch.
+- Published product detail reads real Admin choices from PostgreSQL, renders choice picker and blocks Add to Cart until required options are chosen.
+- Cart carries canonical selected option keys/values, generates distinct line IDs per combination and retains legacy line IDs for noncustomized items.
+- Checkout preview rejects missing, disabled, fabricated or removed selections, reflects saved options in quote signatures, and rechecks the selection immediately before order submission.
+- Order transaction validates selected options again against persisted ProductChoiceGroup records; only accepted selections are saved in OrderItem.variant. Existing idempotency, inventory reservation and price computation remain unchanged.
+- New unit and real isolated PostgreSQL test cases cover group limits, disabled values, missing required choices, line-identity differentiation, catalog option persistence, preview selection, order rejection and stock untouched on invalid selection.
+- No independent SKU, per-option price or option-specific inventory is implied; requires separate approved schema.
+- No `main`, Cline feature branch, QA feature branch, live payment, database migration or production deployment changed.
+
+### Security maintenance, dated 26 October
+- Security audit revealed critical vulnerabilities in old Next.js 16.3.8 and moderate fast-uri 3.1.8. Remediated with **Next.js 16.4.3**, **eslint-config-next 16.4.3** and **fast-uri 3.1.9**.
+- A temporary branch-scoped GitHub Action regenerated the actual `package-lock.json` via npm and confirmed `npm audit --omit=dev --audit-level=high` found zero vulnerabilities; TypeScript/ESLint/Build succeeded after Admin editor lint fix.
+- Audited security-lock commit: `d75caa37effc2fff61b21357a88f282eece7259d`. One-time write workflow removed in next docs checkpoint; retain read-only QA workflow.
+- Exact-head full CI for final docs/security-workflow-removal checkpoint must be checked separately before marking this milestone fully green.
+
+### Deployment and integration blockers
+- The option group table exists only in source and disposable QA PostgreSQL until a reviewed migration is applied to a target environment.
+- Admin-managed attribute selections intentionally use the product's base price and base inventory. Per-variant SKU/stock/price and text personalization are not implemented.
+- Cline's owner-managed Admin/CMS branch remains separate. Final integration must preserve both `HomepageBanner` and `OrderTrackingChallenge`/ProductChoiceGroup models, along with any latest Cline schema.
+- Real end-to-end purchases and real customer data untested; no live operation claimed.
+
+### Next `next`
+Continue the real website with controlled Product Variant SKUs/Inventory/Price or integration QA only after audit of the latest independent Admin/CMS branch. Returns/Refunds remain deferred as requested.
