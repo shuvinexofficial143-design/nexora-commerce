@@ -3,7 +3,7 @@
 import { useCart } from "@/components/cart/cart-provider";
 import type { CartProductSnapshot } from "@/types/cart";
 
-export function AddToCartButton({ product, label = "Add to bag", className = "", options }: { product: CartProductSnapshot; label?: string; className?: string; options?: { color?: string; size?: string; quantity?: number } }) {
+export function AddToCartButton({ product, label = "Add to bag", className = "", options }: { product: CartProductSnapshot; label?: string; className?: string; options?: { color?: string; size?: string; quantity?: number; choices?: Record<string, string> } }) {
   const { addItem } = useCart();
   const unavailable = product.stock === "out-of-stock";
   return (

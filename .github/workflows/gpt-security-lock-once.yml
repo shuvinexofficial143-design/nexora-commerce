@@ -1,0 +1,59 @@
+name: One-time Safe Dependency Lock Refresh
+on:
+  push:
+    branches: [feature/nexora-gpt-customer-ops]
+
+permissions:
+  contents: read
+
+jobs:
+  refresh-security-lock:
+    if: contains(github.event.head_commit.message, '[security-lock-refresh]')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Scope and exact-parent guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/feature/nexora-gpt-customer-ops"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+      - name: Patch vulnerable dependency ranges and regenerate real npm lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm pkg set 'dependencies.next=16.4.3' 'devDependencies.eslint-config-next=16.4.3' 'overrides.fast-uri=3.1.9'
+          npm install --package-lock-only --ignore-scripts --no-audit
+          npm ci
+      - name: Enforce high severity production dependency gate
+        run: npm audit --omit=dev --audit-level=high
+      - name: Functional compatibility before commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run type-check
+          npm run lint
+          npm run build
+      - name: Commit only updated package metadata on GPT branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- package.json package-lock.json
+          git diff --cached --quiet && { echo "Nothing changed."; exit 0; }
+          test -z "$(git diff --name-only --cached | grep -v -E '^(package.json|package-lock.json)$')" || exit 1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(security): update patched Next.js and fast-uri using real npm lock"
+          git fetch origin feature/nexora-gpt-customer-ops
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA" || { echo "Concurrent branch update detected; not pushing"; exit 1; }
+          git push origin HEAD:refs/heads/feature/nexora-gpt-customer-ops
