@@ -14,6 +14,7 @@ export type CartLine = CartProductSnapshot & {
   quantity: number;
   color?: string;
   size?: string;
+  choices?: Record<string, string>;
 };
 
 export type SavedLine = CartLine & { savedAt: string };

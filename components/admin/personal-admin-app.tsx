@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
+import { AdminProductChoicesEditor } from "@/components/admin/admin-product-choices-editor";
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -401,6 +402,8 @@ function Products() {
           </button>
         </form>
       </Panel>
+
+      <AdminProductChoicesEditor products={rows.map(row => ({ id: row.id, name: row.name, sku: row.sku }))} />
 
       <Panel title="All products" description={`${rows.length} products in database`}>
         <div className="space-y-3">

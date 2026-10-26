@@ -10,6 +10,7 @@ export type CatalogProduct = Product & {
   liveShortDescription?: string | null;
   liveSku?: string;
   liveImages?: Array<{ src: string; alt: string }>;
+  liveChoiceGroups?: import("@/lib/commerce/product-choices").ProductChoiceGroup[];
   stock: StockStatus;
   inventory: number;
   delivery: string;

@@ -14,7 +14,10 @@ export type BackendSession = {
   user: BackendUser;
 };
 
+import type { ProductChoiceGroup } from "@/lib/commerce/product-choices";
+
 export type BackendProduct = {
+  choiceGroups?: ProductChoiceGroup[];
   id: string;
   slug: string;
   sku: string;

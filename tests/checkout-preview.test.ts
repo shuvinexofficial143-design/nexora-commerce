@@ -48,7 +48,7 @@ test("server pricing is consistent for standard shipping threshold and GST", () 
 test("checkout preview is not a payment or order; signature ignores verification time but detects price/stock", () => {
   const original: CheckoutPreview = {
     valid: true, changedPrice: false, lines: [{
-      slug: "keyboard-pro", productId: "test-id", name: "Keyboard", quantity: 1, availableStock: 5,
+      slug: "keyboard-pro", productId: "test-id", name: "Keyboard", quantity: 1, options: {}, availableStock: 5,
       unitPriceMinor: 10000, lineTotalMinor: 10000, changedPrice: false, state: "available",
     }],
     subtotalMinor: 10000, discountMinor: 0, shippingMinor: 9900, taxMinor: 1800, totalMinor: 21700,

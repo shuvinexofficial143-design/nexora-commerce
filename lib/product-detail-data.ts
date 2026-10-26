@@ -51,6 +51,7 @@ export function buildProductDetail(product: CatalogProduct): ProductDetail {
       : product.stock === "low-stock" ? "Limited stock" : "In stock";
     return {
       ...product,
+      choiceGroups: product.liveChoiceGroups ?? [],
       subtitle: product.liveShortDescription?.trim()
         || product.liveDescription?.trim().slice(0, 160)
         || "Product information from the store.",

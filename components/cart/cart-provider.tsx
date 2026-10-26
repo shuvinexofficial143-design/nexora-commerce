@@ -6,7 +6,7 @@ import type { CartLine, CartProductSnapshot, SavedLine, WishlistItem } from "@/t
 import type { CheckoutPreviewLine } from "@/lib/commerce/checkout-preview";
 import { MiniCart } from "@/components/cart/mini-cart";
 
-type AddOptions = { color?: string; size?: string; quantity?: number };
+type AddOptions = { color?: string; size?: string; quantity?: number; choices?: Record<string,string> };
 type CartContextValue = {
   lines: CartLine[]; saved: SavedLine[]; wishlist: WishlistItem[]; coupon: string; hydrated: boolean; totals: ReturnType<typeof calculateCartTotals>;
   applyVerifiedPrices: (products: CheckoutPreviewLine[]) => void; addItem: (product: CartProductSnapshot, options?: AddOptions) => void; removeItem: (lineId: string) => void; setQuantity: (lineId: string, quantity: number) => void; saveForLater: (lineId: string) => void; moveSavedToCart: (lineId: string) => void; removeSaved: (lineId: string) => void; toggleWishlist: (product: CartProductSnapshot) => void; removeWishlist: (id: string) => void; moveWishlistToCart: (id: string) => void; isWishlisted: (id: string) => boolean; applyCoupon: (code: string) => Promise<{ ok: boolean; message: string }>; clearCoupon: () => void; clearCart: () => void;
@@ -24,7 +24,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) {
           const parsed = JSON.parse(raw) as { lines?: CartLine[]; saved?: SavedLine[]; wishlist?: WishlistItem[]; coupon?: string };
-          setLines(Array.isArray(parsed.lines) ? parsed.lines : []);
+          setLines(Array.isArray(parsed.lines) ? parsed.lines.map(line => ({
+            ...line, lineId: makeLineId(line.id, line.color, line.size, line.choices),
+          })) : []);
           setSaved(Array.isArray(parsed.saved) ? parsed.saved : []);
           setWishlist(Array.isArray(parsed.wishlist) ? parsed.wishlist : []);
           setCoupon(typeof parsed.coupon === "string" ? parsed.coupon : "");
@@ -54,7 +56,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }).catch(() => { if (active) setCouponDiscount(0); });
     return () => { active = false; };
   }, [hydrated, coupon, lines]);
-  const addItem = useCallback((product: CartProductSnapshot, options: AddOptions = {}) => { if (product.stock === "out-of-stock") return; const lineId = makeLineId(product.id, options.color, options.size); setLines((current) => { const found = current.find((line) => line.lineId === lineId); if (found) return current.map((line) => line.lineId === lineId ? { ...line, quantity: clampQuantity(line.quantity + (options.quantity || 1)) } : line); return [...current, { ...product, lineId, quantity: clampQuantity(options.quantity || 1), color: options.color, size: options.size }]; }); setMiniOpen(true); }, []);
+  const addItem = useCallback((product: CartProductSnapshot, options: AddOptions = {}) => { if (product.stock === "out-of-stock") return; const lineId = makeLineId(product.id, options.color, options.size, options.choices); setLines((current) => { const found = current.find((line) => line.lineId === lineId); if (found) return current.map((line) => line.lineId === lineId ? { ...line, quantity: clampQuantity(line.quantity + (options.quantity || 1)) } : line); return [...current, { ...product, lineId, quantity: clampQuantity(options.quantity || 1), color: options.color, size: options.size, choices: options.choices }]; }); setMiniOpen(true); }, []);
   // Prices are updated only when the customer approves the current DB quote.
   const applyVerifiedPrices = useCallback((products: CheckoutPreviewLine[]) => {
     const bySlug = new Map(products.filter(row => row.unitPriceMinor !== null).map(row => [row.slug, row]));
@@ -69,7 +71,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const removeItem = useCallback((lineId: string) => setLines((current) => current.filter((line) => line.lineId !== lineId)), []); const setQuantity = useCallback((lineId: string, quantity: number) => setLines((current) => current.map((line) => line.lineId === lineId ? { ...line, quantity: clampQuantity(quantity) } : line)), []);
   const saveForLater = useCallback((lineId: string) => { const line = lines.find((item) => item.lineId === lineId); if (!line) return; setSaved((items) => [{ ...line, savedAt: new Date().toISOString() }, ...items.filter((item) => item.lineId !== lineId)]); setLines((current) => current.filter((item) => item.lineId !== lineId)); }, [lines]);
-  const moveSavedToCart = useCallback((lineId: string) => { const line = saved.find((item) => item.lineId === lineId); if (!line) return; addItem(line, { color: line.color, size: line.size, quantity: line.quantity }); setSaved((current) => current.filter((item) => item.lineId !== lineId)); }, [saved, addItem]);
+  const moveSavedToCart = useCallback((lineId: string) => { const line = saved.find((item) => item.lineId === lineId); if (!line) return; addItem(line, { color: line.color, size: line.size, choices: line.choices, quantity: line.quantity }); setSaved((current) => current.filter((item) => item.lineId !== lineId)); }, [saved, addItem]);
   const removeSaved = useCallback((lineId: string) => setSaved((current) => current.filter((item) => item.lineId !== lineId)), []); const toggleWishlist = useCallback((product: CartProductSnapshot) => { setWishlist((current) => current.some((item) => item.id === product.id) ? current.filter((item) => item.id !== product.id) : [{ ...product, addedAt: new Date().toISOString() }, ...current]); }, []); const removeWishlist = useCallback((id: string) => setWishlist((current) => current.filter((item) => item.id !== id)), []);
   const moveWishlistToCart = useCallback((id: string) => { const item = wishlist.find((entry) => entry.id === id); if (item) addItem(item); }, [wishlist, addItem]); const isWishlisted = useCallback((id: string) => wishlist.some((item) => item.id === id), [wishlist]);
   const applyCoupon = useCallback(async (code: string) => {

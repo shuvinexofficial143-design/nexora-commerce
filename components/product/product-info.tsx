@@ -39,6 +39,7 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
           compareAtPrice: product.compareAtPrice,
           stock: product.stock,
         }}
+        groups={product.choiceGroups ?? []}
         colors={product.colorOptions}
         sizes={product.sizes}
       />

@@ -1,15 +1,16 @@
 import { ValidationError } from "@/lib/db/errors";
+import { deserializeProductChoiceGroups, normalizeChosenOptions, validateChosenOptions } from "@/lib/commerce/product-choices";
 import { getPrisma } from "@/lib/db/prisma";
 import { resolveCoupon } from "@/lib/commerce/coupon-engine";
 import { calculateAuthoritativeTotals, type StoreDeliveryMethod } from "@/lib/commerce/order-pricing";
 
 export type CheckoutPreviewInput = {
-  items: Array<{ slug: string; quantity: number; clientPriceMinor?: number }>;
+  items: Array<{ slug: string; quantity: number; clientPriceMinor?: number; options?: Record<string, string> }>;
   coupon?: string;
   deliveryMethod?: StoreDeliveryMethod;
 };
 export type CheckoutPreviewLine = {
-  slug: string; productId: string | null; name: string;
+  slug: string; productId: string | null; name: string; options: Record<string, string>;
   quantity: number; availableStock: number; unitPriceMinor: number | null;
   lineTotalMinor: number | null; changedPrice: boolean;
   state: "available" | "unavailable" | "insufficient_stock";
@@ -50,7 +51,7 @@ export function validateCheckoutPreview(value: unknown): CheckoutPreviewInput {
         || clientPriceMinor < 0 || clientPriceMinor > 2_000_000_000)) {
       throw new ValidationError("Invalid cart price snapshot.");
     }
-    return { slug, quantity, ...(clientPriceMinor === undefined ? {} : { clientPriceMinor: clientPriceMinor as number }) };
+    return { slug, quantity, options: normalizeChosenOptions(row.options), ...(clientPriceMinor === undefined ? {} : { clientPriceMinor: clientPriceMinor as number }) };
   });
   const method = body.deliveryMethod ?? "standard";
   if (!["standard", "express", "priority"].includes(String(method))) {
@@ -71,6 +72,7 @@ export async function createCheckoutPreview(input: CheckoutPreviewInput): Promis
     select: {
       id: true, slug: true, name: true, priceMinor: true, currency: true,
       inventory: { select: { onHand: true, reserved: true } },
+      choiceGroups: { select: { key: true, label: true, required: true, sortOrder: true, values: true } },
     },
   });
   const bySlug = new Map(products.map(p => [p.slug, p]));
@@ -83,10 +85,14 @@ export async function createCheckoutPreview(input: CheckoutPreviewInput): Promis
     const product = bySlug.get(row.slug);
     if (!product || product.currency !== "INR" || !Number.isSafeInteger(product.priceMinor) || product.priceMinor < 0) {
       issues.push(`${row.slug} is no longer available for checkout.`);
-      return { slug: row.slug, productId: null, name: row.slug, quantity: row.quantity,
+      return { slug: row.slug, productId: null, name: row.slug, quantity: row.quantity, options: row.options ?? {},
         availableStock: 0, unitPriceMinor: null, lineTotalMinor: null,
         changedPrice: false, state: "unavailable" };
     }
+    let choiceIssue: string | null = null;
+    try { validateChosenOptions(deserializeProductChoiceGroups(product.choiceGroups), row.options); }
+    catch (err) { choiceIssue = err instanceof Error ? err.message : "Invalid product option."; }
+    if (choiceIssue && !issues.includes(choiceIssue)) issues.push(choiceIssue);
     const availableStock = product.inventory.reduce((n, stock) => n + Math.max(0, stock.onHand - stock.reserved), 0);
     const quantityAllowed = availableStock >= demands.get(row.slug)!;
     const stockIssue = `${product.name} has insufficient stock (available: ${availableStock}).`;
@@ -98,7 +104,7 @@ export async function createCheckoutPreview(input: CheckoutPreviewInput): Promis
     const priceDifference = row.clientPriceMinor !== undefined && product.priceMinor !== row.clientPriceMinor;
     changedPrice ||= priceDifference;
     return {
-      slug: row.slug, productId: product.id, name: product.name, quantity: row.quantity,
+      slug: row.slug, productId: product.id, name: product.name, quantity: row.quantity, options: row.options ?? {},
       availableStock, unitPriceMinor: product.priceMinor, lineTotalMinor,
       changedPrice: priceDifference,
       state: quantityAllowed ? "available" : "insufficient_stock",

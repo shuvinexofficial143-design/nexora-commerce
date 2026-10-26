@@ -147,6 +147,7 @@ model Product {
   updatedAt      DateTime        @updatedAt
   category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   brand          Brand?          @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  choiceGroups   ProductChoiceGroup[]
   images         ProductImage[]
   inventory      InventoryItem[]
   orderItems     OrderItem[]
@@ -286,4 +287,22 @@ model OrderTrackingChallenge {
   @@index([orderId, createdAt])
   @@index([expiresAt])
   @@index([accessExpiresAt])
+}
+
+//// Admin-defined non-priced/non-stocked selections. Option-specific SKU,
+//// inventory and price are NOT implied by this model.
+model ProductChoiceGroup {
+  id        String   @id @default(cuid())
+  productId String
+  key       String
+  label     String
+  required  Boolean  @default(true)
+  values    Json
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, key])
+  @@index([productId, sortOrder])
 }

@@ -35,7 +35,7 @@ export function adminCorsHeaders(request: Request) {
   return {
     ...(origin ? { "Access-Control-Allow-Origin": origin } : {}),
     "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept",
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, OPTIONS",
     "Access-Control-Expose-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400",
     "Cache-Control": "no-store",

@@ -35,6 +35,11 @@ export function CartLineItem({ line }: { line: CartLine }) {
           </p>
         )}
 
+        {line.choices && Object.keys(line.choices).length > 0 && (
+          <p className="mt-2 text-xs text-black/60">
+            {Object.entries(line.choices).filter(([,v]) => v).map(([key, value]) => `${key}: ${value}`).join(" · ")}
+          </p>
+        )}
         <p className="mt-1.5 text-[11px] font-bold text-emerald-700 sm:mt-2 sm:text-xs">Availability and current price verified at checkout</p>
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:mt-4 sm:gap-2">

@@ -30,4 +30,5 @@ export type ProductDetail = CatalogProduct & {
   returnPolicy: string;
   seller: string;
   sku: string;
+  choiceGroups?: import("@/lib/commerce/product-choices").ProductChoiceGroup[];
 };

@@ -128,3 +128,76 @@ test("stock can change after preview and subsequent preflight blocks oversell", 
   assert.equal(changed.valid, false);
   assert.equal(changed.lines[0].availableStock, 0);
 });
+
+test("stored admin choices appear in checkout preview and reject fabricated combinations", async () => {
+  const f = await fixture(8);
+  await db.productChoiceGroup.create({
+    data: { productId: f.product.id, key: "colour", label: "Colour", required: true,
+      values: [{ value: "black", label: "Black", available: true },
+        { value: "red", label: "Red", available: false }], sortOrder: 0 },
+  });
+  const without = await createCheckoutPreview(validateCheckoutPreview({
+    items: [{ slug: f.product.slug, quantity: 1, clientPriceMinor: 80000 }],
+  }));
+  assert.equal(without.valid, false);
+  assert.match(without.issues[0], /Choose Colour/);
+
+  const selected = await createCheckoutPreview(validateCheckoutPreview({
+    items: [{ slug: f.product.slug, quantity: 2, options: { colour: "black" }, clientPriceMinor: 80000 }],
+  }));
+  assert.equal(selected.valid, true);
+  assert.deepEqual(selected.lines[0].options, { colour: "black" });
+
+  const disabled = await createCheckoutPreview(validateCheckoutPreview({
+    items: [{ slug: f.product.slug, quantity: 1, options: { colour: "red" } }],
+  }));
+  assert.equal(disabled.valid, false);
+  const invented = await createCheckoutPreview(validateCheckoutPreview({
+    items: [{ slug: f.product.slug, quantity: 1, options: { colour: "gold" } }],
+  }));
+  assert.equal(invented.valid, false);
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({ where: { id: f.inventory.id } })).reserved, 0);
+});
+
+test("persisted order stores only actually configured options with unchanged product pricing", async () => {
+  const f = await fixture(5);
+  await db.productChoiceGroup.create({ data: {
+    productId: f.product.id, key: "material", label: "Material", required: true,
+    values: [{ value: "steel", label: "Steel", available: true }], sortOrder: 0,
+  } });
+  const base = {
+    items: [{ productId: f.product.id, quantity: 1, variant: { material: "steel" } }],
+    shippingAddress: { fullName: "QA Buyer", phone: "9876543210",
+      line1: "Temporary QA Street", city: "Indore", state: "MP", postalCode: "452001" },
+    contactEmail: f.user.email, paymentMethod: "cod", deliveryMethod: "standard",
+  };
+  for (const variant of [{ material: "gold" }, { material: "steel", size: "XL" }, {}]) {
+    await assert.rejects(
+      createOrder(f.user.id, validateOrder({ ...base, items: [{ productId: f.product.id, quantity: 1, variant }] })),
+      /Choose Material|not available|no longer offered|Invalid product option/,
+    );
+  }
+  assert.equal(await db.order.count({ where: { userId: f.user.id } }), 0);
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({ where: { id: f.inventory.id } })).reserved, 0);
+  const order = await createOrder(f.user.id, validateOrder(base));
+  assert.equal(order.totalMinor, 104300);
+  assert.deepEqual(order.items[0].variant, { material: "steel" });
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({ where: { id: f.inventory.id } })).reserved, 1);
+});
+
+test("disabled former option blocks replay of old customer cart without charging", async () => {
+  const f = await fixture(3);
+  const group = await db.productChoiceGroup.create({ data: {
+    productId: f.product.id, key: "finish", label: "Finish", required: false,
+    values: [{ value: "matte", label: "Matte", available: true }], sortOrder: 0,
+  } });
+  const selected = validateCheckoutPreview({ items: [{
+    slug: f.product.slug, quantity: 1, options: { finish: "matte" },
+  }] });
+  assert.equal((await createCheckoutPreview(selected)).valid, true);
+  await db.productChoiceGroup.update({ where: { id: group.id },
+    data: { values: [{ value: "matte", label: "Matte", available: false }] } });
+  const checked = await createCheckoutPreview(selected);
+  assert.equal(checked.valid, false);
+  assert.equal(await db.order.count({ where: { userId: f.user.id } }), 0);
+});

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ConflictError, DatabaseNotConfiguredError, NotFoundError, ValidationError } from "@/lib/db/errors";
 import type { CreateOrderPayload } from "@/types/backend";
 import { cashfreeConfigured } from "@/lib/payments/cashfree";
+import { normalizeChosenOptions } from "@/lib/commerce/product-choices";
 
 export function ok<T>(data: T, init?: ResponseInit) {
   return NextResponse.json({ ok: true, data }, init);
@@ -62,7 +63,7 @@ export function validateOrder(value: unknown): CreateOrderPayload {
        JSON.stringify(raw.variant).length > 2048)) {
       throw new ValidationError("Invalid product variant.");
     }
-    return { productId, quantity, variant: raw.variant };
+    return { productId, quantity, variant: normalizeChosenOptions(raw.variant) };
   });
   if (!input.shippingAddress || typeof input.shippingAddress !== "object" || Array.isArray(input.shippingAddress)) {
     throw new ValidationError("Shipping address is required.");

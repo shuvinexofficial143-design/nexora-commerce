@@ -6,6 +6,7 @@ export function checkoutPreviewRequest(lines: CartLine[], coupon: string, delive
     items: lines.map(line => ({
       slug: line.slug,
       quantity: line.quantity,
+      ...(line.choices && Object.keys(line.choices).length ? { options: line.choices } : {}),
       clientPriceMinor: Math.round(line.price * 100),
     })),
     deliveryMethod,
@@ -30,7 +31,7 @@ export function checkoutPreviewSignature(quote: CheckoutPreview): string {
   // Ignore verification timestamp, which changes on every read.
   return JSON.stringify({
     lines: quote.lines.map(row => [row.slug, row.productId, row.quantity,
-      row.unitPriceMinor, row.availableStock, row.state]),
+      row.unitPriceMinor, row.availableStock, row.state, row.options]),
     totalMinor: quote.totalMinor,
     subtotalMinor: quote.subtotalMinor,
     discountMinor: quote.discountMinor,

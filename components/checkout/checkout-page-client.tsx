@@ -35,7 +35,7 @@ export function CheckoutPageClient() {
   const [lastPreview, setLastPreview] = useState<{ key: string; quote: CheckoutPreview } | null>(null);
   const [previewError, setPreviewError] = useState<{ key: string; error: string } | null>(null);
   const previewKey = useMemo(() => JSON.stringify({
-    items: lines.map(line => [line.slug, line.quantity, line.price, line.lineId]),
+    items: lines.map(line => [line.slug, line.quantity, line.price, line.lineId, line.choices]),
     coupon, deliveryId,
   }), [lines, coupon, deliveryId]);
   const preview = lastPreview?.key === previewKey ? lastPreview.quote : null;
@@ -135,11 +135,7 @@ export function CheckoutPageClient() {
         items: lines.map((line) => ({
           productId: bySlug.get(line.slug)!.id,
           quantity: line.quantity,
-          variant: {
-            ...(line.color ? { color: line.color } : {}),
-            ...(line.size ? { size: line.size } : {}),
-            delivery: delivery.id,
-          },
+          variant: line.choices ?? {},
         })),
         shippingAddress: {
           fullName: address.fullName,

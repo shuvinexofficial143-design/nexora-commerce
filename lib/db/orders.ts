@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ConflictError, ValidationError } from "@/lib/db/errors";
 import { getPrisma } from "@/lib/db/prisma";
+import { deserializeProductChoiceGroups, validateChosenOptions } from "@/lib/commerce/product-choices";
 import { resolveCoupon, recordCouponRedemption } from "@/lib/commerce/coupon-engine";
 import { calculateAuthoritativeTotals } from "@/lib/commerce/order-pricing";
 import type { CreateOrderPayload } from "@/types/backend";
@@ -103,7 +104,7 @@ export async function createOrderWithOutcome(
     const ids = [...quantities.keys()];
     const products = await tx.product.findMany({
       where: { id: { in: ids }, status: "ACTIVE" },
-      include: { inventory: true },
+      include: { inventory: true, choiceGroups: true },
     });
     if (products.length !== ids.length) {
       throw new ValidationError("One or more products are unavailable.");
@@ -115,6 +116,7 @@ export async function createOrderWithOutcome(
       if (!Number.isSafeInteger(product.priceMinor) || product.priceMinor < 0) {
         throw new ValidationError("Product pricing is currently unavailable.");
       }
+      const selected = validateChosenOptions(deserializeProductChoiceGroups(product.choiceGroups), item.variant);
       const totalMinor = product.priceMinor * item.quantity;
       subtotalMinor += totalMinor;
       return {
@@ -124,7 +126,7 @@ export async function createOrderWithOutcome(
         quantity: item.quantity,
         unitPriceMinor: product.priceMinor,
         totalMinor,
-        variant: item.variant ?? undefined,
+        variant: selected,
       };
     });
     if (!Number.isSafeInteger(subtotalMinor) || subtotalMinor > 2_000_000_000) {

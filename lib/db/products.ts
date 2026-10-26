@@ -1,5 +1,6 @@
 import { getPrisma } from "@/lib/db/prisma";
 import type { BackendProduct } from "@/types/backend";
+import { deserializeProductChoiceGroups } from "@/lib/commerce/product-choices";
 import type { Prisma } from "@/generated/prisma/client";
 
 function serializeProduct(product: {
@@ -18,11 +19,13 @@ function serializeProduct(product: {
   category: { name: string; slug: string } | null;
   images: Array<{ url: string; alt: string }>;
   inventory: Array<{ onHand: number; reserved: number }>;
+  choiceGroups: Array<{ key: string; label: string; required: boolean; sortOrder: number; values: unknown }>;
   createdAt: Date;
 }): BackendProduct {
   return {
     ...product,
     images: product.images,
+    choiceGroups: deserializeProductChoiceGroups(product.choiceGroups),
     availableStock: product.inventory.reduce((sum, item) => sum + Math.max(0, item.onHand - item.reserved), 0),
     createdAt: product.createdAt.toISOString(),
   };
@@ -33,6 +36,7 @@ const include = {
   category: { select: { name: true, slug: true } },
   images: { orderBy: { sortOrder: "asc" as const }, select: { url: true, alt: true } },
   inventory: { select: { onHand: true, reserved: true } },
+  choiceGroups: { orderBy: { sortOrder: "asc" as const }, select: { key: true, label: true, required: true, sortOrder: true, values: true } },
 };
 
 export type ProductListQuery = {

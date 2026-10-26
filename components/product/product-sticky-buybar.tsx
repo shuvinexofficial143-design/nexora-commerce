@@ -14,18 +14,22 @@ export function ProductStickyBuybar({
   product,
   color,
   size,
+  choices,
+  ready = true,
 }: {
   product: CartProductSnapshot;
   color?: string;
   size?: string;
+  choices?: Record<string,string>;
+  ready?: boolean;
 }) {
   const { addItem } = useCart();
   const [added, setAdded] = useState(false);
-  const unavailable = product.stock === "out-of-stock";
+  const unavailable = product.stock === "out-of-stock" || !ready;
 
   function add() {
     if (unavailable) return;
-    addItem(product, { color, size });
+    addItem(product, { color, size, choices });
     setAdded(true);
   }
 
@@ -42,7 +46,7 @@ export function ProductStickyBuybar({
           onClick={add}
           className="rounded-full bg-[#D7FF47] px-5 py-3 text-xs font-black text-black disabled:bg-black/20"
         >
-          {unavailable ? "Out of stock" : added ? "Added ✓" : "Add to cart"}
+          {product.stock === "out-of-stock" ? "Out of stock" : !ready ? "Select options" : added ? "Added ✓" : "Add to cart"}
         </button>
       </div>
     </div>
