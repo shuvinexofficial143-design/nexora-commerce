@@ -173,7 +173,7 @@ test("persisted order stores only actually configured options with unchanged pro
   };
   for (const variant of [{ material: "gold" }, { material: "steel", size: "XL" }, {}]) {
     await assert.rejects(
-      createOrder(f.user.id, validateOrder({ ...base, items: [{ productId: f.product.id, quantity: 1, variant }] })),
+      async () => createOrder(f.user.id, validateOrder({ ...base, items: [{ productId: f.product.id, quantity: 1, variant }] })),
       /Choose Material|not available|no longer offered|Invalid product option/,
     );
   }

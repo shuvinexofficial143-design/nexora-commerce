@@ -9,7 +9,7 @@ import type { CartLine } from "../types/cart";
 
 const line = { slug: "keyboard-pro", quantity: 1, clientPriceMinor: 129900 };
 test("preview only accepts bounded active-cart product references", () => {
-  assert.deepEqual(validateCheckoutPreview({ items: [line] }), { items: [line], deliveryMethod: "standard" });
+  assert.deepEqual(validateCheckoutPreview({ items: [line] }), { items: [{ ...line, options: {} }], deliveryMethod: "standard" });
   for (const input of [
     null, {}, { items: [] }, { items: [{ ...line, slug: "../admin" }] },
     { items: [{ ...line, quantity: 0 }] },
