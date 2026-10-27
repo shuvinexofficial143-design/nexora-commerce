@@ -225,3 +225,33 @@ Continue the real website with controlled Product Variant SKUs/Inventory/Price o
 - Homepage/catalog price-range filters and price sorting still reference base Product price at SQL query level even when product cards show lowest active variant price; needs an honest variant-aware SQL filter/sort milestone.
 - Unit and isolated Postgres tests validate actual variant pricing/reservations. Browser CI is preview/demo-only, **not** a real staging/production database end-to-end purchase.
 - Await reviewed integration with latest Cline `feature/nexora-gift-store` and schema migrations; do not modify `main`, deploy production or run migrations without explicit owner request. Returns/Refunds remain deferred.
+
+## 27 October 2026 — Variant-Aware Live Catalog Price Filtering / Sorting
+
+**Status: COMPLETE on isolated GPT feature branch; verified with real disposable PostgreSQL, not deployed.** No Return/Refund development.
+
+### Correctness defect and solution
+- Prior Shop/Search `min/max` filtering and Price Low/High sorting used `Product.priceMinor` even for items showing `MIN(active ProductVariant.priceMinor)` on their customer-facing card.
+- New `lib/db/catalog-price-query.ts` executes fully parameterized PostgreSQL queries to select the actual eligible product IDs, total match count and deterministic LIMIT/OFFSET based on `COALESCE(MIN(active variant price), base price)`. No raw user input is concatenated into SQL.
+- `lib/db/products.ts` routes price-sorted and/or price-filtered searches to the DB price path, then hydrates the bounded page by product IDs in the SAME order. Other default, rating and date queries retain existing Prisma behavior.
+- Query filtering preserves published ACTIVE status; case-insensitive name, description, category, brand, base-SKU and new variant-SKU search; OR across selected categories/brands and AND across different facets; rating minimum; deterministic tie-breakers.
+- Product mapping `lib/catalog-backend.ts` suppresses base `compareAtMinor` on independently priced SKU products (no fabricated percentage/bargain claims).
+- With no active variants, existing Card fallback stays the base price and the SQL predicate/sort agrees. An active SKU with 0 remaining stock still has a real price and appears unavailable; this milestone does not invent stock.
+- New disposable PostgreSQL fixture asserts 2-page ordering in both directions, effective-price min/max, filtered total/pagination, inactive SKU exclusion from minimum, unpublished DRAFT exclusion, variant SKU search and Brand/Category facets.
+- No data migration, production database operation, real payment, customer email, deployment, merge, Refund/Return development or Cline branch write.
+
+### Verified CI and checkpoint
+- Functional commit `9fbd38e59c95d0cc29c70fd18ab8a2648db612e3`.
+- Corrected test fixture `8fa632dc88a79d8d95c980e2d5efba7293d69d18` (DRAFT product had accidentally defaulted to ACTIVE; no test removed).
+- GitHub Actions [run 40456324343](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40456324343): all 3 jobs SUCCESS; 111/111 unit, 45/45 disposable PostgreSQL, 8/8 local HTTP, 14/14 Chromium mobile/desktop = **178/178 PASS**.
+- TypeScript, ESLint, Next.js production build and production dependency security audit PASS; **zero audited vulnerabilities**.
+
+### Integration and scope boundaries
+- Current independently verified `feature/nexora-gpt-customer-ops` carries `ProductChoiceGroup`, `ProductVariant`, `ProductVariantMovement`, checkout stock transactions and this price query.
+- Independently verified Cline branch HEAD at beginning of milestone: `feature/nexora-gift-store` = `4df818003fd4b53db83c03d10989609757efb4d6`. The branch has NOT been merged or edited in this milestone. `main` was `3c20daa120793ae7185f63d014295c81d86fe7d8` and was not touched.
+- Before any eventual integration, perform a fresh two-way diff / ownership review and reconcile Prisma models, Admin Products UI, Homepage/CMS, separate QA, Cline's local staged changes, and applied migration history; do NOT blindly overwrite either branch.
+- The reviewed `20261026_product_choice_groups.sql` and `20261027_priced_sku_variants.sql` migrations remain unapplied on production. Isolated Prisma schema push was confined to ephemeral QA PostgreSQL.
+- Browser regression tests use a demo-mode server without live DB; real staging deployment, production SKU migration, genuine customer checkout, courier shipping policies, and final merged-branch tests are NOT verified.
+
+### Next owner `next`
+Continue actual customer-visible website capability and QA; preserve Cline's independent work, avoid Returns/Refunds. Candidate: improve variant search result relevance and Admin SKU availability experience, or build a safe merge readiness report; never merge, migrate or deploy production without explicit approval.
