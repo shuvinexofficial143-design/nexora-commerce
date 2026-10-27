@@ -16,20 +16,32 @@ export function ProductStickyBuybar({
   size,
   choices,
   ready = true,
+  verifyLive = false,
 }: {
   product: CartProductSnapshot;
   color?: string;
   size?: string;
   choices?: Record<string,string>;
   ready?: boolean;
+  verifyLive?: boolean;
 }) {
-  const { addItem } = useCart();
+  const { addItem, addVerifiedItem } = useCart();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const [added, setAdded] = useState(false);
   const unavailable = product.stock === "out-of-stock" || !ready;
 
-  function add() {
-    if (unavailable) return;
-    addItem(product, { color, size, choices });
+  async function add() {
+    if (unavailable || busy) return;
+    setError("");
+    if (verifyLive) {
+      setBusy(true);
+      try { await addVerifiedItem(product, { color, size, choices }); }
+      catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Could not verify this SKU.");
+        return;
+      } finally { setBusy(false); }
+    } else addItem(product, { color, size, choices });
     setAdded(true);
   }
 
@@ -42,13 +54,14 @@ export function ProductStickyBuybar({
         </div>
         <button
           type="button"
-          disabled={unavailable}
-          onClick={add}
+          disabled={unavailable || busy}
+          onClick={() => void add()}
           className="rounded-full bg-[#D7FF47] px-5 py-3 text-xs font-black text-black disabled:bg-black/20"
         >
-          {!ready ? "Choose available options" : product.stock === "out-of-stock" ? "Out of stock" : added ? "Added ✓" : "Add to cart"}
+          {!ready ? "Choose available options" : product.stock === "out-of-stock" ? "Out of stock" : busy ? "Verifying SKU…" : added ? "Added ✓" : "Add to cart"}
         </button>
       </div>
+      {error ? <p role="alert" className="mx-auto mt-1 max-w-7xl text-xs font-semibold text-red-700">{error}</p> : null}
     </div>
   );
 }

@@ -12,12 +12,14 @@ export function ProductActions({
   size,
   choices,
   ready = true,
+  verifyLive = false,
 }: {
   product: CartProductSnapshot;
   color?: string;
   size?: string;
   choices?: Record<string,string>;
   ready?: boolean;
+  verifyLive?: boolean;
 }) {
   if (!ready) {
     return <div className="grid gap-2">
@@ -42,6 +44,7 @@ export function ProductActions({
       <div className="grid grid-cols-[1fr_auto] gap-2">
         {ready ? <AddToCartButton
           product={product}
+          verifyLive={verifyLive}
           options={{ color, size, choices }}
           label="Add to cart"
           className="rounded-full bg-[#D7FF47] px-5 py-3.5 text-sm font-black text-black transition hover:bg-[#C7ED37] disabled:bg-black/20 sm:py-4"

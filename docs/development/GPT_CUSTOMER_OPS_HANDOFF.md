@@ -66,3 +66,6 @@ GPT-owned Search pages and suggestions now use real active variant prices and av
 
 ## Nexora 3 — Stock Availability Filters across Shop and Search
 Adds persisted GET stock facets (available, low-stock, out-of-stock) in Shop, available-only keyword Search, shared variant-aware SQL filtering before pagination, and isolated PostgreSQL/unit regression. Exact-HEAD CI must be verified before PASS. Cline/main/QA separate; never merge/deploy/migrate, and Returns/Refunds remain deferred. Next: Product Detail to Checkout stock availability coherence and safe Cline integration review.
+
+## Nexora 3 — Product Detail → Cart Live Admission
+Feature branch now includes buildCartAdmissionRequest/assertCartAdmission, shared addVerifiedItem in CartProvider, desktop/mobile Product Detail stock+price checks before adding, and a cart page live quote with explicit price acceptance and fail-closed checkout link. New isolated PostgreSQL/units test reserved SKU and price race. Verify exact-HEAD CI, do not falsely claim live staging. Next owner next: address reviewed staging integrations/remaining cart and checkout order race edge cases without merging Cline/QA/main. Returns/Refunds deferred.

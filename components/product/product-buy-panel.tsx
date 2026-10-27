@@ -18,6 +18,7 @@ export function ProductBuyPanel({
   groups = [],
   variants = [],
   requiresVariant = false,
+  verifyLive = false,
 }: {
   product: CartProductSnapshot;
   colors: ProductOption[];
@@ -25,6 +26,7 @@ export function ProductBuyPanel({
   groups?: ProductChoiceGroup[];
   variants?: NonNullable<BackendProduct["variants"]>;
   requiresVariant?: boolean;
+  verifyLive?: boolean;
 }) {
   const [choices, setChoices] = useState<Record<string,string>>({});
   const matched = requiresVariant ? variants.find(v => v.signature === variantSignature(choices) && v.active) : undefined;
@@ -53,9 +55,9 @@ export function ProductBuyPanel({
         onSizeChange={setSize}
       />
       <div className="mt-4 sm:mt-6">
-        <ProductActions product={chosenProduct} color={color || undefined} size={size || undefined} choices={choices} ready={ready} />
+        <ProductActions product={chosenProduct} color={color || undefined} size={size || undefined} choices={choices} ready={ready} verifyLive={verifyLive} />
       </div>
-      <ProductStickyBuybar product={chosenProduct} color={color || undefined} size={size || undefined} choices={choices} ready={ready} />
+      <ProductStickyBuybar product={chosenProduct} color={color || undefined} size={size || undefined} choices={choices} ready={ready} verifyLive={verifyLive} />
     </>
   );
 }

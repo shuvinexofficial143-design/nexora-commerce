@@ -1,22 +1,27 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { calculateCartTotals, clampQuantity, makeLineId } from "@/lib/cart-utils";
 import type { CartLine, CartProductSnapshot, SavedLine, WishlistItem } from "@/types/cart";
 import type { CheckoutPreviewLine } from "@/lib/commerce/checkout-preview";
 import { variantSignature } from "@/lib/commerce/product-variants";
 import { MiniCart } from "@/components/cart/mini-cart";
+import { buildCartAdmissionRequest, assertCartAdmission } from "@/lib/commerce/cart-admission";
+import { fetchCheckoutPreview } from "@/lib/api/checkout-preview-client";
 
 type AddOptions = { color?: string; size?: string; quantity?: number; choices?: Record<string,string> };
 type CartContextValue = {
   lines: CartLine[]; saved: SavedLine[]; wishlist: WishlistItem[]; coupon: string; hydrated: boolean; totals: ReturnType<typeof calculateCartTotals>;
-  applyVerifiedPrices: (products: CheckoutPreviewLine[]) => void; addItem: (product: CartProductSnapshot, options?: AddOptions) => void; removeItem: (lineId: string) => void; setQuantity: (lineId: string, quantity: number) => void; saveForLater: (lineId: string) => void; moveSavedToCart: (lineId: string) => void; removeSaved: (lineId: string) => void; toggleWishlist: (product: CartProductSnapshot) => void; removeWishlist: (id: string) => void; moveWishlistToCart: (id: string) => void; isWishlisted: (id: string) => boolean; applyCoupon: (code: string) => Promise<{ ok: boolean; message: string }>; clearCoupon: () => void; clearCart: () => void;
+  applyVerifiedPrices: (products: CheckoutPreviewLine[]) => void; addVerifiedItem: (product: CartProductSnapshot, options?: AddOptions) => Promise<void>; addItem: (product: CartProductSnapshot, options?: AddOptions) => void; removeItem: (lineId: string) => void; setQuantity: (lineId: string, quantity: number) => void; saveForLater: (lineId: string) => void; moveSavedToCart: (lineId: string) => void; removeSaved: (lineId: string) => void; toggleWishlist: (product: CartProductSnapshot) => void; removeWishlist: (id: string) => void; moveWishlistToCart: (id: string) => void; isWishlisted: (id: string) => boolean; applyCoupon: (code: string) => Promise<{ ok: boolean; message: string }>; clearCoupon: () => void; clearCart: () => void;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
 const STORAGE_KEY = "nexora-commerce-state-v1";
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [lines, setLines] = useState<CartLine[]>([]); const [saved, setSaved] = useState<SavedLine[]>([]); const [wishlist, setWishlist] = useState<WishlistItem[]>([]); const [coupon, setCoupon] = useState(""); const [couponDiscount, setCouponDiscount] = useState(0); const [hydrated, setHydrated] = useState(false); const [miniOpen, setMiniOpen] = useState(false);
+  const [lines, setLines] = useState<CartLine[]>([]);
+  const linesRef = useRef(lines);
+  const verifyingRef = useRef(false);
+  useEffect(() => { linesRef.current = lines; }, [lines]); const [saved, setSaved] = useState<SavedLine[]>([]); const [wishlist, setWishlist] = useState<WishlistItem[]>([]); const [coupon, setCoupon] = useState(""); const [couponDiscount, setCouponDiscount] = useState(0); const [hydrated, setHydrated] = useState(false); const [miniOpen, setMiniOpen] = useState(false);
   useEffect(() => {
     let active = true;
     queueMicrotask(() => {
@@ -58,6 +63,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return () => { active = false; };
   }, [hydrated, coupon, lines]);
   const addItem = useCallback((product: CartProductSnapshot, options: AddOptions = {}) => { if (product.stock === "out-of-stock") return; const lineId = makeLineId(product.id, options.color, options.size, options.choices); setLines((current) => { const found = current.find((line) => line.lineId === lineId); if (found) return current.map((line) => line.lineId === lineId ? { ...line, quantity: clampQuantity(line.quantity + (options.quantity || 1)) } : line); return [...current, { ...product, lineId, quantity: clampQuantity(options.quantity || 1), color: options.color, size: options.size, choices: options.choices }]; }); setMiniOpen(true); }, []);
+  // Desktop and mobile buy controls share one live SKU preflight.
+  const addVerifiedItem = useCallback(async (product: CartProductSnapshot, options: AddOptions = {}) => {
+    if (verifyingRef.current) throw new Error("Another SKU is being checked. Please retry.");
+    verifyingRef.current = true;
+    const snapshot = JSON.stringify(linesRef.current);
+    try {
+      const request = buildCartAdmissionRequest(product, options.choices, linesRef.current, options.quantity ?? 1);
+      const quote = await fetchCheckoutPreview(request);
+      assertCartAdmission(quote, request);
+      if (JSON.stringify(linesRef.current) !== snapshot)
+        throw new Error("Your bag changed during verification. Please retry.");
+      addItem(product, options);
+    } finally {
+      verifyingRef.current = false;
+    }
+  }, [addItem]);
   // Prices are updated only when the customer approves the current DB quote.
   const applyVerifiedPrices = useCallback((products: CheckoutPreviewLine[]) => {
     const key = (slug: string, choices: Record<string,string> | undefined) =>
@@ -102,7 +123,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [lines]);
   const clearCoupon = useCallback(() => { setCoupon(""); setCouponDiscount(0); }, []); const clearCart = useCallback(() => { setLines([]); setCoupon(""); setCouponDiscount(0); setMiniOpen(false); }, []); const totals = useMemo(() => calculateCartTotals(lines, coupon, couponDiscount), [lines, coupon, couponDiscount]);
-  const value = useMemo<CartContextValue>(() => ({ lines, saved, wishlist, coupon, hydrated, totals, applyVerifiedPrices, addItem, removeItem, setQuantity, saveForLater, moveSavedToCart, removeSaved, toggleWishlist, removeWishlist, moveWishlistToCart, isWishlisted, applyCoupon, clearCoupon, clearCart }), [lines, saved, wishlist, coupon, hydrated, totals, applyVerifiedPrices, addItem, removeItem, setQuantity, saveForLater, moveSavedToCart, removeSaved, toggleWishlist, removeWishlist, moveWishlistToCart, isWishlisted, applyCoupon, clearCoupon, clearCart]);
+  const value = useMemo<CartContextValue>(() => ({ lines, saved, wishlist, coupon, hydrated, totals, applyVerifiedPrices, addVerifiedItem, addItem, removeItem, setQuantity, saveForLater, moveSavedToCart, removeSaved, toggleWishlist, removeWishlist, moveWishlistToCart, isWishlisted, applyCoupon, clearCoupon, clearCart }), [lines, saved, wishlist, coupon, hydrated, totals, applyVerifiedPrices, addVerifiedItem, addItem, removeItem, setQuantity, saveForLater, moveSavedToCart, removeSaved, toggleWishlist, removeWishlist, moveWishlistToCart, isWishlisted, applyCoupon, clearCoupon, clearCart]);
   return <CartContext.Provider value={value}>{children}<MiniCart open={miniOpen} onClose={() => setMiniOpen(false)} /></CartContext.Provider>;
 }
 export function useCart() { const value = useContext(CartContext); if (!value) throw new Error("useCart must be used inside CartProvider"); return value; }

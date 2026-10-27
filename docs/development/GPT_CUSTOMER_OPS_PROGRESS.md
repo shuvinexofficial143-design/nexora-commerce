@@ -273,3 +273,11 @@ Continue actual customer-visible website capability and QA; preserve Cline's ind
 - Search available-only toggle uses same SQL while retaining token AND semantics, true total and final page clamping; inactive variant SKU queries do not expose retired products.
 - New disposable PostgreSQL coverage validates stock reservations, disabled SKU parent stock, combined price/stock/brand/category filters, pagination, and stock transitions.
 - No schema changes, production migrations/deployments, orders, payments, returns/refunds, or branch merges. Real staging validation and Cline integration remain blocked.
+
+## 27 October 2026 — Real SKU Add-to-Cart and Cart-wide Preflight
+**Branch-only functional implementation. Exact-head CI must verify before treating complete.**
+- Database-backed Product Detail buy controls on desktop and mobile now use existing no-side-effect checkout preview on Add to Cart; this checks current SKU combination, persisted price, current unreserved stock and matching SKU demand already held in customer cart.
+- Shared CartProvider live admission lock prevents simultaneous overlapping SKU check requests. A changed cart during the request fails closed, and errors show clearly near the buy button. Other demo-only UI remains unchanged.
+- Cart page now queries current server quote on cart/coupon changes, displays real pricing/availability issues and server-verified totals, and requires explicit acceptance for newly changed prices. The checkout navigation is blocked until a valid live quote. Final order creation retains a separate authoritative DB reservation.
+- Added focused unit contract and disposable PostgreSQL regression for choice combinations, final unit reserved by a competing purchase, changed variant price, no order created on preflight and no legacy warehouse reservation.
+- Existing secure tracking, checkout idempotency and stock transaction behavior preserved. No production database, migrations, payments, emails, deployment, branch merge or Returns/Refunds expansion.

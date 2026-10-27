@@ -378,3 +378,30 @@ test("legacy product server price race rejects stale quote too",async()=>{
   })),/Product price changed after verification/);
   assert.equal((await db.inventoryItem.findUniqueOrThrow({where:{id:f.inventory.id}})).reserved,0);
 });
+
+test("live product cart admission rejects reserved final SKU and changed prices with no side effects", async () => {
+  const f = await variantFixture();
+  const existing = [{
+    id: f.product.id, slug: f.product.slug, name: f.product.name, brand: "QA",
+    image: "/product-placeholder.svg", stock: "low-stock" as const, price: 1299,
+    quantity: 1, lineId: "black", choices: { colour: "black" },
+  }];
+  const { buildCartAdmissionRequest, assertCartAdmission } = await import("../../lib/commerce/cart-admission");
+  const input = validateCheckoutPreview(buildCartAdmissionRequest(existing[0], { colour: "black" }, existing));
+  assert.equal(input.items[0].quantity, 2);
+  const before = await createCheckoutPreview(input);
+  assert.equal(before.valid, true);
+  assertCartAdmission(before, input);
+  await db.productVariant.update({ where: { id: f.black.id }, data: { reserved: 1 } });
+  const soldOut = await createCheckoutPreview(input);
+  assert.equal(soldOut.valid, false);
+  assert.equal(soldOut.lines[0].availableStock, 1);
+  assert.throws(() => assertCartAdmission(soldOut, input), /insufficient stock/i);
+  await db.productVariant.update({ where: { id: f.black.id },
+    data: { reserved: 0, priceMinor: 135000 } });
+  const repriced = await createCheckoutPreview(input);
+  assert.equal(repriced.changedPrice, true);
+  assert.throws(() => assertCartAdmission(repriced, input), /price changed/);
+  assert.equal(await db.order.count({ where: { userId: f.user.id } }), 0);
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({ where: { id: f.inventory.id } })).reserved, 0);
+});

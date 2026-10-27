@@ -43,6 +43,7 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
         groups={product.choiceGroups ?? []}
         variants={product.pricedVariants ?? []}
         requiresVariant={product.hasPricedVariants ?? false}
+        verifyLive={product.source === "database"}
         colors={product.colorOptions}
         sizes={product.sizes}
       />
