@@ -5,7 +5,7 @@ import { publicVariant } from "@/lib/commerce/product-variants";
 import { findCatalogPricePage } from "@/lib/db/catalog-price-query";
 import type { Prisma } from "@/generated/prisma/client";
 
-function serializeProduct(product: {
+export function serializeProduct(product: {
   id: string;
   slug: string;
   sku: string;

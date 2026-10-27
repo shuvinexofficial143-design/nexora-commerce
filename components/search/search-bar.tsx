@@ -6,7 +6,7 @@ import { useEffect, useId, useState } from "react";
 
 type Suggestion = {
   id: string; slug: string; name: string;
-  brand: string | null; category: string | null; priceMinor: number;
+  brand: string | null; category: string | null; priceMinor: number; available: boolean;
 };
 type LookupState = "idle" | "loading" | "ready" | "unavailable";
 const price = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
@@ -120,6 +120,7 @@ export function SearchBar({ initialQuery = "" }: { initialQuery?: string }) {
               <span className="min-w-0">
                 <span className="block truncate font-black">{item.name}</span>
                 <span className="block truncate text-xs text-black/45">{[item.brand, item.category].filter(Boolean).join(" · ")}</span>
+                {!item.available ? <span className="block text-xs font-semibold text-amber-700">Currently out of stock</span> : null}
               </span>
               <span className="shrink-0 text-xs font-black">{price.format(item.priceMinor / 100)}</span>
             </Link>

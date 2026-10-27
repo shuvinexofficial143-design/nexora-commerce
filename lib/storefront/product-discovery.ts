@@ -1,6 +1,6 @@
 import { getPrisma } from "@/lib/db/prisma";
+import { serializeProduct } from "@/lib/db/products";
 import { mapBackendProductToCatalog } from "@/lib/catalog-backend";
-import type { BackendProduct } from "@/types/backend";
 import type { CatalogProduct } from "@/types/catalog";
 
 export const SEARCH_PAGE_SIZE = 18;
@@ -11,6 +11,7 @@ export type SearchSuggestion = {
   slug: string;
   name: string;
   priceMinor: number;
+  available: boolean;
   category: string | null;
   brand: string | null;
 };
@@ -36,6 +37,7 @@ export function buildProductSearchWhere(query: string) {
       OR: [
         { name: { contains: part, mode: "insensitive" as const } },
         { sku: { contains: part, mode: "insensitive" as const } },
+        { variants: { some: { active: true, sku: { contains: part, mode: "insensitive" as const } } } },
         { shortDescription: { contains: part, mode: "insensitive" as const } },
         { brand: { is: { name: { contains: part, mode: "insensitive" as const } } } },
         { brand: { is: { slug: { contains: part, mode: "insensitive" as const } } } },
@@ -58,6 +60,8 @@ const include = {
   category: { select: { name: true, slug: true } },
   images: { orderBy: { sortOrder: "asc" as const }, select: { url: true, alt: true } },
   inventory: { select: { onHand: true, reserved: true } },
+  choiceGroups: { orderBy: { sortOrder: "asc" as const }, select: { key: true, label: true, required: true, sortOrder: true, values: true } },
+  variants: { select: { id: true, choices: true, signature: true, sku: true, priceMinor: true, onHand: true, reserved: true, active: true } },
 };
 
 export async function searchStoreProducts(query: string, page: number): Promise<{
@@ -80,14 +84,8 @@ export async function searchStoreProducts(query: string, page: number): Promise<
     skip: (safePage - 1) * SEARCH_PAGE_SIZE,
     orderBy: [{ featured: "desc" }, { createdAt: "desc" }, { id: "asc" }],
   });
-  const products = rows.map((row) => {
-    const product: BackendProduct = {
-      ...row,
-      createdAt: row.createdAt.toISOString(),
-      availableStock: row.inventory.reduce((sum, unit) => sum + Math.max(0, unit.onHand - unit.reserved), 0),
-    };
-    return mapBackendProductToCatalog(product);
-  });
+  // Search and Product Detail must derive price/availability from the same persisted SKU.
+  const products = rows.map((row) => mapBackendProductToCatalog(serializeProduct(row)));
   return { products, total, page: safePage, totalPages };
 }
 
@@ -97,20 +95,30 @@ export async function suggestStoreProducts(query: string): Promise<SearchSuggest
     where: buildProductSearchWhere(query),
     select: {
       id: true, slug: true, name: true, priceMinor: true,
+      inventory: { select: { onHand: true, reserved: true } },
+      variants: { select: { priceMinor: true, onHand: true, reserved: true, active: true } },
       brand: { select: { name: true } },
       category: { select: { name: true } },
     },
     orderBy: [{ featured: "desc" }, { createdAt: "desc" }, { id: "asc" }],
     take: 7,
   });
-  return rows.map((product) => ({
-    id: product.id,
-    slug: product.slug,
-    name: product.name,
-    priceMinor: product.priceMinor,
-    category: product.category?.name ?? null,
-    brand: product.brand?.name ?? null,
-  }));
+  return rows.map((product) => {
+    const active = product.variants.filter((variant) => variant.active);
+    const priceMinor = active.length ? Math.min(...active.map((variant) => variant.priceMinor)) : product.priceMinor;
+    const availableStock = product.variants.length
+      ? active.reduce((total, variant) => total + Math.max(0, variant.onHand - variant.reserved), 0)
+      : product.inventory.reduce((total, unit) => total + Math.max(0, unit.onHand - unit.reserved), 0);
+    return {
+      id: product.id,
+      slug: product.slug,
+      name: product.name,
+      priceMinor,
+      available: availableStock > 0,
+      category: product.category?.name ?? null,
+      brand: product.brand?.name ?? null,
+    };
+  });
 }
 
 // Explicit opt-in for isolated browser QA only; production must never

@@ -255,3 +255,13 @@ Continue the real website with controlled Product Variant SKUs/Inventory/Price o
 
 ### Next owner `next`
 Continue actual customer-visible website capability and QA; preserve Cline's independent work, avoid Returns/Refunds. Candidate: improve variant search result relevance and Admin SKU availability experience, or build a safe merge readiness report; never merge, migrate or deploy production without explicit approval.
+
+## 27 October 2026 — Search → Product Detail Variant Parity (Nexora 3)
+
+**Implementation committed on owner branch; exact-HEAD GitHub CI must verify it.**
+- Search result pages now hydrate saved choice groups and all SKU variants, reusing the same authoritative DB serializer as Shop/Product Detail; no parent base price or warehouse stock shown for independently priced SKUs.
+- Search terms include active variant SKU matches before paging (inactive/retired SKU-only matches excluded). Category, brand, multi-token pagination preserved.
+- Suggestions compute minimum active SKU price (base fallback when no active SKU exists) and actual SKU available stock, without leaking underlying stock counts or variant records in public JSON. Search combobox identifies out-of-stock products.
+- Added disposable PostgreSQL regression for live variant SKU-only search, retired identifier exclusion, stock reservations and sell-out; contract test asserts token SKU search.
+- No production migration, deploy, branch merge, payments, emails or refunds. Staging and Cline integration still require owner review.
+

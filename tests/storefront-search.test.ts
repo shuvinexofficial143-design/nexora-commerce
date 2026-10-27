@@ -19,12 +19,13 @@ test("database search requires active products, and token filters match brand an
   const where = buildProductSearchWhere(" Sony  Camera ");
   assert.equal(where.status, "ACTIVE");
   assert.equal(where.AND.length, 2);
-  assert.equal(where.AND[0].OR.length, 7);
+  assert.equal(where.AND[0].OR.length, 8);
   const serialized = JSON.stringify(where);
   assert.match(serialized, /"contains":"sony"/);
   assert.match(serialized, /"contains":"camera"/);
   assert.match(serialized, /"brand":\{"is":\{"name":/);
   assert.match(serialized, /"category":\{"is":\{"name":/);
+  assert.match(serialized, /"variants":\{"some":\{"active":true/);
 });
 
 test("search pagination clamps malformed, negative and high page values", () => {

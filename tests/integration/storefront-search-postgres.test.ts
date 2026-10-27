@@ -93,3 +93,47 @@ test("suggestions expose minimal catalog fields, only active products, at most s
   assert.equal(json.ok, true);
   assert.equal(json.data.length, 7);
 });
+
+test("live SKU-only search and suggestions use active variant price and reserved stock", async () => {
+  const product = await db.product.create({ data: {
+    slug: prefix + "-real-variant", sku: "BASE-REAL-" + id,
+    name: "Real SKU candidate " + id, description: "Published isolated SKU search fixture",
+    status: "ACTIVE", priceMinor: 99000,
+  } });
+  await db.productVariant.create({ data: {
+    productId: product.id, sku: "LIVE-" + id + "-RED",
+    choices: { colour: "red" }, signature: JSON.stringify({ colour: "red" }),
+    priceMinor: 19900, onHand: 7, reserved: 2, active: true,
+  } });
+  await db.productVariant.create({ data: {
+    productId: product.id, sku: "OLD-" + id + "-BLUE",
+    choices: { colour: "blue" }, signature: JSON.stringify({ colour: "blue" }),
+    priceMinor: 100, onHand: 10, reserved: 0, active: false,
+  } });
+  const liveSku = "LIVE-" + id + "-RED";
+  const full = await searchStoreProducts(liveSku.toLowerCase(), 1);
+  assert.equal(full.total, 1);
+  assert.equal(full.products[0].id, product.id);
+  assert.equal(full.products[0].price, 199);
+  assert.equal(full.products[0].inventory, 5);
+  assert.equal(full.products[0].stock, "low-stock");
+  assert.equal(full.products[0].hasPricedVariants, true);
+  assert.equal(full.products[0].liveVariants?.length, 1);
+  assert.equal(full.products[0].liveVariants?.[0].sku, liveSku);
+  const suggested = await suggestStoreProducts(liveSku);
+  assert.equal(suggested.length, 1);
+  assert.equal(suggested[0].priceMinor, 19900);
+  assert.equal(suggested[0].available, true);
+  assert.ok(!("inventory" in suggested[0]) && !("variants" in suggested[0]));
+  assert.equal((await searchStoreProducts("OLD-" + id + "-BLUE", 1)).total, 0);
+  assert.deepEqual(await suggestStoreProducts("OLD-" + id + "-BLUE"), []);
+  const variant = await db.productVariant.findUniqueOrThrow({ where: { sku: liveSku } });
+  await db.productVariant.update({ where: { id: variant.id }, data: { onHand: 2 } });
+  const soldOut = await searchStoreProducts(liveSku, 1);
+  assert.equal(soldOut.total, 1);
+  assert.equal(soldOut.products[0].inventory, 0);
+  assert.equal(soldOut.products[0].stock, "out-of-stock");
+  const soldOutSuggestion = await suggestStoreProducts(liveSku);
+  assert.equal(soldOutSuggestion[0].available, false);
+  assert.equal(soldOutSuggestion[0].priceMinor, 19900);
+});
