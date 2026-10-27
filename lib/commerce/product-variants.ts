@@ -42,7 +42,7 @@ export function validateVariantDefinition(
 
 export function publicVariant(row: ProductSkuVariant) {
   // Customer never sees internal database metadata beyond SKU and availability.
-  return { id: row.id, choices: normalizeChosenOptions(row.choices), sku: row.sku,
+  return { id: row.id, choices: normalizeChosenOptions(row.choices), signature: row.signature, sku: row.sku,
     priceMinor: row.priceMinor, availableStock: Math.max(0, row.onHand - row.reserved),
     active: row.active };
 }

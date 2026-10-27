@@ -228,7 +228,7 @@ function createVariantOrderInput(productId: string, options: Record<string,strin
     items:[{ productId, quantity:1, variant:options }],
     shippingAddress: { fullName:"QA Buyer", phone:"9876543210",
       line1:"Temporary Test Address", city:"Indore", state:"MP", postalCode:"452001" },
-    paymentMethod:"cod", deliveryMethod:"standard",
+    paymentMethod:"cod", deliveryMethod:"standard", contactEmail:"qa@example.invalid",
   });
 }
 
@@ -343,7 +343,7 @@ test("mixed priced-variant and legacy product lines reconcile both inventories",
     ],
     shippingAddress:{fullName:"QA Buyer",phone:"9876543210",line1:"Test St",
       city:"Indore",state:"MP",postalCode:"452001"},
-    paymentMethod:"cod",deliveryMethod:"standard",
+    paymentMethod:"cod",deliveryMethod:"standard",contactEmail:"qa@example.invalid",
   }));
   assert.equal((await db.inventoryItem.findUniqueOrThrow({where:{id:other.inventory.id}})).reserved,1);
   await db.$transaction(async tx=>{

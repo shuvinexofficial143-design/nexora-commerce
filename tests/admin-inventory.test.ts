@@ -23,10 +23,12 @@ function fakeTransaction(options: {
       findMany: async () => { reserveQueries++; return reserves; },
       create: async ({ data }: { data: unknown }) => { movementWrites.push(data); return data; },
     },
+    productVariantMovement: { findFirst: async () => null },
     inventoryItem: {
       findUnique: async ({ where }: { where: { productId_warehouseId: { warehouseId: string } } }) =>
         inventory[where.productId_warehouseId.warehouseId] ?? null,
       update: async ({ data }: { data: unknown }) => { updates.push(data); return data; },
+      updateMany: async ({ data }: { data: unknown }) => { updates.push(data); return { count: 1 }; },
     },
   };
 
