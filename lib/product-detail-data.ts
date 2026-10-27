@@ -52,6 +52,7 @@ export function buildProductDetail(product: CatalogProduct): ProductDetail {
     return {
       ...product,
       choiceGroups: product.liveChoiceGroups ?? [],
+      pricedVariants: product.liveVariants ?? [],
       subtitle: product.liveShortDescription?.trim()
         || product.liveDescription?.trim().slice(0, 160)
         || "Product information from the store.",

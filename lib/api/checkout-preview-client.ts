@@ -31,7 +31,7 @@ export function checkoutPreviewSignature(quote: CheckoutPreview): string {
   // Ignore verification timestamp, which changes on every read.
   return JSON.stringify({
     lines: quote.lines.map(row => [row.slug, row.productId, row.quantity,
-      row.unitPriceMinor, row.availableStock, row.state, row.options]),
+      row.unitPriceMinor, row.availableStock, row.state, row.options, row.variantId]),
     totalMinor: quote.totalMinor,
     subtotalMinor: quote.subtotalMinor,
     discountMinor: quote.discountMinor,

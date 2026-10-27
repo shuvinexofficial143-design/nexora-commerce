@@ -33,6 +33,10 @@ export async function PUT(request: Request, context: Context) {
     const result = await prisma.$transaction(async tx => {
       const found = await tx.product.findUnique({ where: { id: productId }, select: { id: true } });
       if (!found) return null;
+      // Replacing choice groups after SKU setup would orphan priced combinations.
+      if (await tx.productVariant.count({ where: { productId } })) {
+        throw new ValidationError("Product choice groups are locked after SKU variants are created. Edit availability or price in Variant Stock.");
+      }
       await tx.productChoiceGroup.deleteMany({ where: { productId } });
       for (const group of groups) {
         await tx.productChoiceGroup.create({

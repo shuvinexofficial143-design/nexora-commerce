@@ -11,6 +11,8 @@ export type CatalogProduct = Product & {
   liveSku?: string;
   liveImages?: Array<{ src: string; alt: string }>;
   liveChoiceGroups?: import("@/lib/commerce/product-choices").ProductChoiceGroup[];
+  hasPricedVariants?: boolean;
+  liveVariants?: import("@/types/backend").BackendProduct["variants"];
   stock: StockStatus;
   inventory: number;
   delivery: string;

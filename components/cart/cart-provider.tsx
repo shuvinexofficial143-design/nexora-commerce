@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { calculateCartTotals, clampQuantity, makeLineId } from "@/lib/cart-utils";
 import type { CartLine, CartProductSnapshot, SavedLine, WishlistItem } from "@/types/cart";
 import type { CheckoutPreviewLine } from "@/lib/commerce/checkout-preview";
+import { variantSignature } from "@/lib/commerce/product-variants";
 import { MiniCart } from "@/components/cart/mini-cart";
 
 type AddOptions = { color?: string; size?: string; quantity?: number; choices?: Record<string,string> };
@@ -59,9 +60,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const addItem = useCallback((product: CartProductSnapshot, options: AddOptions = {}) => { if (product.stock === "out-of-stock") return; const lineId = makeLineId(product.id, options.color, options.size, options.choices); setLines((current) => { const found = current.find((line) => line.lineId === lineId); if (found) return current.map((line) => line.lineId === lineId ? { ...line, quantity: clampQuantity(line.quantity + (options.quantity || 1)) } : line); return [...current, { ...product, lineId, quantity: clampQuantity(options.quantity || 1), color: options.color, size: options.size, choices: options.choices }]; }); setMiniOpen(true); }, []);
   // Prices are updated only when the customer approves the current DB quote.
   const applyVerifiedPrices = useCallback((products: CheckoutPreviewLine[]) => {
-    const bySlug = new Map(products.filter(row => row.unitPriceMinor !== null).map(row => [row.slug, row]));
+    const key = (slug: string, choices: Record<string,string> | undefined) =>
+      slug + ":" + variantSignature(choices);
+    const byChoice = new Map(products.filter(row => row.unitPriceMinor !== null)
+      .map(row => [key(row.slug, row.options), row]));
     setLines(current => current.map(line => {
-      const verified = bySlug.get(line.slug);
+      const verified = byChoice.get(key(line.slug, line.choices));
       return verified && verified.unitPriceMinor !== null
         ? { ...line, name: verified.name, price: verified.unitPriceMinor / 100,
             stock: verified.availableStock <= 0 ? "out-of-stock" as const

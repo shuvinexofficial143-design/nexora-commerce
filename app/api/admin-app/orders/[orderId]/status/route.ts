@@ -69,7 +69,7 @@ export async function PATCH(
     const order = await prisma.order.findFirst({
       where: { OR: [{ id: orderId }, { orderNumber: orderId }] },
       include: {
-        items: { select: { productId: true, quantity: true } },
+        items: { select: { productId: true, productVariantId: true, quantity: true } },
       },
     });
 

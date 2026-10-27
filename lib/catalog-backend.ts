@@ -29,6 +29,10 @@ function tags(product: BackendProduct) {
 
 export function mapBackendProductToCatalog(product: BackendProduct): CatalogProduct {
   const inventory = Math.max(0, product.availableStock);
+  const variants = product.variants ?? [];
+  const lowestActive = product.hasPricedVariants
+    ? variants.reduce((min, v) => Math.min(min, v.priceMinor), Infinity) : Infinity;
+  const displayedPrice = Number.isFinite(lowestActive) ? lowestActive : product.priceMinor;
   const mediaUrls = product.images.map((item) => item.url).filter(Boolean);
   const directVideo = mediaUrls.find((url) => isDirectVideoUrl(url));
   const youtubeVideoId = mediaUrls.map((url) => getYouTubeVideoId(url)).find(Boolean);
@@ -46,13 +50,15 @@ export function mapBackendProductToCatalog(product: BackendProduct): CatalogProd
     liveShortDescription: product.shortDescription,
     liveSku: product.sku,
     liveChoiceGroups: product.choiceGroups ?? [],
+    hasPricedVariants: product.hasPricedVariants ?? false,
+    liveVariants: variants,
     liveImages: realImages,
     id: product.id,
     slug: product.slug,
     name: product.name,
     brand: product.brand?.name ?? "Unbranded",
     category: product.category?.slug ?? "uncategorized",
-    price: product.priceMinor / 100,
+    price: displayedPrice / 100,
     compareAtPrice:
       product.compareAtMinor && product.compareAtMinor > product.priceMinor
         ? product.compareAtMinor / 100

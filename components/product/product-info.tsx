@@ -22,7 +22,8 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
         <ProductRating rating={product.rating} reviews={product.reviews} />
       </div>
       <div className="mt-3 sm:mt-5">
-        <PriceBlock product={product} />
+        {!product.hasPricedVariants && <PriceBlock product={product} />}
+        {product.hasPricedVariants && <p className="text-sm font-bold text-black/60">Choose options to see exact SKU pricing</p>}
         <div className="mt-2 sm:mt-3">
           <StockStatus status={product.stock} inventory={product.inventory} />
         </div>
@@ -40,6 +41,8 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
           stock: product.stock,
         }}
         groups={product.choiceGroups ?? []}
+        variants={product.pricedVariants ?? []}
+        requiresVariant={product.hasPricedVariants ?? false}
         colors={product.colorOptions}
         sizes={product.sizes}
       />

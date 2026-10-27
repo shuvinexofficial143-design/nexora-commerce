@@ -1,6 +1,7 @@
 import { getPrisma } from "@/lib/db/prisma";
 import type { BackendProduct } from "@/types/backend";
 import { deserializeProductChoiceGroups } from "@/lib/commerce/product-choices";
+import { publicVariant } from "@/lib/commerce/product-variants";
 import type { Prisma } from "@/generated/prisma/client";
 
 function serializeProduct(product: {
@@ -20,13 +21,20 @@ function serializeProduct(product: {
   images: Array<{ url: string; alt: string }>;
   inventory: Array<{ onHand: number; reserved: number }>;
   choiceGroups: Array<{ key: string; label: string; required: boolean; sortOrder: number; values: unknown }>;
+  variants: Array<{ id: string; choices: unknown; signature: string; sku: string; priceMinor: number; onHand: number; reserved: number; active: boolean }>;
   createdAt: Date;
 }): BackendProduct {
   return {
     ...product,
     images: product.images,
     choiceGroups: deserializeProductChoiceGroups(product.choiceGroups),
-    availableStock: product.inventory.reduce((sum, item) => sum + Math.max(0, item.onHand - item.reserved), 0),
+    hasPricedVariants: product.variants.length > 0,
+    variants: product.variants.filter(row => row.active).map(row => publicVariant({ ...row,
+      choices: row.choices as Record<string, string>,
+    })),
+    availableStock: product.variants.length ? product.variants.filter(row => row.active)
+      .reduce((sum, item) => sum + Math.max(0, item.onHand - item.reserved), 0)
+      : product.inventory.reduce((sum, item) => sum + Math.max(0, item.onHand - item.reserved), 0),
     createdAt: product.createdAt.toISOString(),
   };
 }
@@ -37,6 +45,7 @@ const include = {
   images: { orderBy: { sortOrder: "asc" as const }, select: { url: true, alt: true } },
   inventory: { select: { onHand: true, reserved: true } },
   choiceGroups: { orderBy: { sortOrder: "asc" as const }, select: { key: true, label: true, required: true, sortOrder: true, values: true } },
+  variants: { select: { id: true, choices: true, signature: true, sku: true, priceMinor: true, onHand: true, reserved: true, active: true } },
 };
 
 export type ProductListQuery = {

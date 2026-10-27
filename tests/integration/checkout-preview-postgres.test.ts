@@ -5,6 +5,8 @@ import { getPrisma } from "../../lib/db/prisma";
 import { createCheckoutPreview, validateCheckoutPreview } from "../../lib/commerce/checkout-preview";
 import { createOrder } from "../../lib/db/orders";
 import { validateOrder } from "../../lib/server/backend";
+import { reconcileOrder } from "../../lib/admin/stock";
+import { variantSignature } from "../../lib/commerce/product-variants";
 
 function verifyIsolation() {
   if (process.env.NEXORA_QA_ALLOW_DB_INTEGRATION !== "true") throw new Error("Opt-in for disposable test database required");
@@ -200,4 +202,154 @@ test("disabled former option blocks replay of old customer cart without charging
   const checked = await createCheckoutPreview(selected);
   assert.equal(checked.valid, false);
   assert.equal(await db.order.count({ where: { userId: f.user.id } }), 0);
+});
+
+async function variantFixture() {
+  const f = await fixture(80); // Parent stock must NOT be consumed by SKU checkouts.
+  await db.productChoiceGroup.create({
+    data: { productId: f.product.id, key: "colour", label: "Colour", required: true,
+      values: [{value:"black",label:"Black",available:true},
+        {value:"white",label:"White",available:true}], sortOrder: 0 },
+  });
+  const black = await db.productVariant.create({
+    data: { productId: f.product.id, signature: variantSignature({colour:"black"}),
+      choices: {colour:"black"}, sku:"VAR-B-" + uid(), priceMinor:129900,
+      onHand:2, reserved:0, active:true },
+  });
+  const white = await db.productVariant.create({
+    data: { productId: f.product.id, signature: variantSignature({colour:"white"}),
+      choices: {colour:"white"}, sku:"VAR-W-" + uid(), priceMinor:159900,
+      onHand:1, reserved:0, active:true },
+  });
+  return { ...f, black, white };
+}
+function createVariantOrderInput(productId: string, options: Record<string,string>) {
+  return validateOrder({
+    items:[{ productId, quantity:1, variant:options }],
+    shippingAddress: { fullName:"QA Buyer", phone:"9876543210",
+      line1:"Temporary Test Address", city:"Indore", state:"MP", postalCode:"452001" },
+    paymentMethod:"cod", deliveryMethod:"standard",
+  });
+}
+
+test("variant quote resolves exact independently priced SKU without reserving stock", async () => {
+  const f = await variantFixture();
+  const input = validateCheckoutPreview({ items:[
+    { slug:f.product.slug, quantity:1, options:{colour:"black"}, clientPriceMinor:129900 },
+    { slug:f.product.slug, quantity:1, options:{colour:"white"}, clientPriceMinor:159900 },
+  ] });
+  const quote = await createCheckoutPreview(input);
+  assert.equal(quote.valid,true);
+  assert.equal(quote.changedPrice,false);
+  assert.deepEqual(quote.lines.map(x=>x.unitPriceMinor), [129900,159900]);
+  assert.deepEqual(quote.lines.map(x=>x.availableStock), [2,1]);
+  assert.deepEqual(quote.lines.map(x=>x.variantId), [f.black.id,f.white.id]);
+  assert.equal(quote.subtotalMinor,289800);
+  assert.equal(quote.shippingMinor,0);
+  assert.equal((await db.productVariant.findUniqueOrThrow({where:{id:f.black.id}})).reserved,0);
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({where:{id:f.inventory.id}})).reserved,0);
+});
+
+test("same SKU demands aggregate while other SKU stock stays independent", async () => {
+  const f = await variantFixture();
+  const threeBlack = await createCheckoutPreview(validateCheckoutPreview({ items:[
+    {slug:f.product.slug,quantity:2,options:{colour:"black"}},
+    {slug:f.product.slug,quantity:1,options:{colour:"black"}},
+  ] }));
+  assert.equal(threeBlack.valid,false);
+  assert.equal(threeBlack.lines.every(x=>x.state==="insufficient_stock"),true);
+  const oneEach = await createCheckoutPreview(validateCheckoutPreview({ items:[
+    {slug:f.product.slug,quantity:1,options:{colour:"black"}},
+    {slug:f.product.slug,quantity:1,options:{colour:"white"}},
+  ] }));
+  assert.equal(oneEach.valid,true);
+});
+
+test("variant price change is flagged and invalid/disabled choice fails closed", async () => {
+  const f = await variantFixture();
+  await db.productVariant.update({where:{id:f.black.id},data:{priceMinor:139900}});
+  const quote=await createCheckoutPreview(validateCheckoutPreview({ items:[
+    {slug:f.product.slug,quantity:1,options:{colour:"black"},clientPriceMinor:129900},
+  ] }));
+  assert.equal(quote.changedPrice,true);
+  assert.equal(quote.lines[0].unitPriceMinor,139900);
+  await db.productVariant.update({where:{id:f.black.id},data:{active:false}});
+  const disabled=await createCheckoutPreview(validateCheckoutPreview({ items:[
+    {slug:f.product.slug,quantity:1,options:{colour:"black"}},
+  ] }));
+  assert.equal(disabled.valid,false);
+  assert.equal(disabled.lines[0].state,"unavailable");
+  await assert.rejects(
+    createOrder(f.user.id,createVariantOrderInput(f.product.id,{colour:"black"})),
+    /SKU combination is unavailable/,
+  );
+});
+
+test("SKU reservation is atomic; cancelling releases only selected SKU", async () => {
+  const f=await variantFixture();
+  const order=await createOrder(f.user.id,createVariantOrderInput(f.product.id,{colour:"black"}));
+  assert.equal(order.items[0].sku,f.black.sku);
+  assert.equal(order.items[0].productVariantId,f.black.id);
+  assert.equal(order.items[0].unitPriceMinor,129900);
+  assert.deepEqual(order.items[0].variant,{colour:"black"});
+  assert.equal((await db.productVariant.findUniqueOrThrow({where:{id:f.black.id}})).reserved,1);
+  assert.equal((await db.productVariant.findUniqueOrThrow({where:{id:f.white.id}})).reserved,0);
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({where:{id:f.inventory.id}})).reserved,0);
+  await db.$transaction(async tx=>{
+    await reconcileOrder(tx,order,"CANCEL");
+    await tx.order.update({where:{id:order.id},data:{status:"CANCELLED"}});
+  });
+  const after=await db.productVariant.findUniqueOrThrow({where:{id:f.black.id}});
+  assert.equal(after.reserved,0);
+  assert.equal(after.onHand,2);
+  assert.equal(await db.productVariantMovement.count({where:{orderId:order.id,type:"RELEASE"}}),1);
+});
+
+test("SKU delivery decreases only its own on-hand and reserved stock", async()=>{
+  const f=await variantFixture();
+  const order=await createOrder(f.user.id,createVariantOrderInput(f.product.id,{colour:"white"}));
+  await db.$transaction(async tx=>{
+    await reconcileOrder(tx,order,"DELIVER");
+    await tx.order.update({where:{id:order.id},data:{status:"DELIVERED"}});
+  });
+  const after=await db.productVariant.findUniqueOrThrow({where:{id:f.white.id}});
+  assert.equal(after.onHand,0);
+  assert.equal(after.reserved,0);
+  assert.equal((await db.productVariant.findUniqueOrThrow({where:{id:f.black.id}})).onHand,2);
+  assert.equal(await db.productVariantMovement.count({where:{orderId:order.id,type:"OUTBOUND"}}),1);
+});
+
+test("simultaneous shoppers cannot oversell the final variant unit", async()=>{
+  const f=await variantFixture();
+  const alt=await db.user.create({data:{email:"variant-other-"+uid()+"@example.invalid",
+    name:"Other QA Buyer",passwordHash:"qa-no-login"}});
+  const input=createVariantOrderInput(f.product.id,{colour:"white"});
+  const results=await Promise.allSettled([
+    createOrder(f.user.id,input), createOrder(alt.id,input),
+  ]);
+  const success=results.filter(x=>x.status==="fulfilled");
+  assert.equal(success.length,1);
+  assert.equal((await db.productVariant.findUniqueOrThrow({where:{id:f.white.id}})).reserved,1);
+  assert.equal((await db.productVariant.findUniqueOrThrow({where:{id:f.white.id}})).onHand,1);
+});
+
+test("mixed priced-variant and legacy product lines reconcile both inventories", async()=>{
+  const f=await variantFixture();
+  const other=await fixture(3);
+  const order=await createOrder(f.user.id,validateOrder({
+    items:[
+      {productId:f.product.id,quantity:1,variant:{colour:"black"}},
+      {productId:other.product.id,quantity:1},
+    ],
+    shippingAddress:{fullName:"QA Buyer",phone:"9876543210",line1:"Test St",
+      city:"Indore",state:"MP",postalCode:"452001"},
+    paymentMethod:"cod",deliveryMethod:"standard",
+  }));
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({where:{id:other.inventory.id}})).reserved,1);
+  await db.$transaction(async tx=>{
+    await reconcileOrder(tx,order,"CANCEL");
+    await tx.order.update({where:{id:order.id},data:{status:"CANCELLED"}});
+  });
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({where:{id:other.inventory.id}})).reserved,0);
+  assert.equal((await db.productVariant.findUniqueOrThrow({where:{id:f.black.id}})).reserved,0);
 });

@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { ConflictError, ValidationError } from "@/lib/db/errors";
 import { getPrisma } from "@/lib/db/prisma";
 import { deserializeProductChoiceGroups, validateChosenOptions } from "@/lib/commerce/product-choices";
+import { variantSignature } from "@/lib/commerce/product-variants";
 import { resolveCoupon, recordCouponRedemption } from "@/lib/commerce/coupon-engine";
 import { calculateAuthoritativeTotals } from "@/lib/commerce/order-pricing";
 import type { CreateOrderPayload } from "@/types/backend";
@@ -104,27 +105,42 @@ export async function createOrderWithOutcome(
     const ids = [...quantities.keys()];
     const products = await tx.product.findMany({
       where: { id: { in: ids }, status: "ACTIVE" },
-      include: { inventory: true, choiceGroups: true },
+      include: { inventory: true, choiceGroups: true, variants: true },
     });
     if (products.length !== ids.length) {
       throw new ValidationError("One or more products are unavailable.");
     }
     const byId = new Map(products.map((product) => [product.id, product]));
     let subtotalMinor = 0;
+    const variantDemand = new Map<string, number>();
+    const baseQuantities = new Map<string, number>();
     const itemData = input.items.map((item) => {
       const product = byId.get(item.productId)!;
       if (!Number.isSafeInteger(product.priceMinor) || product.priceMinor < 0) {
         throw new ValidationError("Product pricing is currently unavailable.");
       }
       const selected = validateChosenOptions(deserializeProductChoiceGroups(product.choiceGroups), item.variant);
-      const totalMinor = product.priceMinor * item.quantity;
+      const priced = product.variants.length ? product.variants.find(
+        variant => variant.active && variant.signature === variantSignature(selected),
+      ) : null;
+      if (product.variants.length && !priced) {
+        throw new ValidationError(product.name + ": selected SKU combination is unavailable.");
+      }
+      if (priced) variantDemand.set(priced.id, (variantDemand.get(priced.id) ?? 0) + item.quantity);
+      else baseQuantities.set(product.id, (baseQuantities.get(product.id) ?? 0) + item.quantity);
+      const unitPriceMinor = priced ? priced.priceMinor : product.priceMinor;
+      if (!Number.isSafeInteger(unitPriceMinor) || unitPriceMinor < 0) {
+        throw new ValidationError("Product variant price is unavailable.");
+      }
+      const totalMinor = unitPriceMinor * item.quantity;
       subtotalMinor += totalMinor;
       return {
         productId: product.id,
+        productVariantId: priced?.id,
         productName: product.name,
-        sku: product.sku,
+        sku: priced?.sku ?? product.sku,
         quantity: item.quantity,
-        unitPriceMinor: product.priceMinor,
+        unitPriceMinor,
         totalMinor,
         variant: selected,
       };
@@ -155,9 +171,26 @@ export async function createOrderWithOutcome(
       include,
     });
 
+    // Variant inventory is separate from parent inventory; never reserve both.
+    // Atomic WHERE test protects against concurrent buyers overselling a SKU.
+    for (const [variantId, demand] of [...variantDemand].sort(([a], [b]) => a.localeCompare(b))) {
+      const claimed = await tx.$executeRaw`
+        UPDATE "ProductVariant"
+        SET "reserved" = "reserved" + ${demand}, "updatedAt" = NOW()
+        WHERE "id" = ${variantId} AND "active" = true
+          AND "onHand" >= 0 AND "reserved" >= 0
+          AND "onHand" - "reserved" >= ${demand}
+      `;
+      if (claimed !== 1) throw new ValidationError("Selected variant stock changed during checkout.");
+      await tx.productVariantMovement.create({
+        data: { variantId, orderId: order.id, type: "RESERVE", quantity: demand,
+          reference: order.orderNumber },
+      });
+    }
+
     // Aggregate demand by product across variants and repeated lines. Always lock
     // acquisition in product ID + inventory ID order to limit deadlock risk.
-    for (const [productId, demand] of [...quantities].sort(([a], [b]) => a.localeCompare(b))) {
+    for (const [productId, demand] of [...baseQuantities].sort(([a], [b]) => a.localeCompare(b))) {
       const product = byId.get(productId)!;
       let remaining = demand;
       for (const stock of [...product.inventory].sort((a, b) => a.id.localeCompare(b.id))) {

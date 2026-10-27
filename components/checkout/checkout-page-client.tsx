@@ -215,8 +215,8 @@ export function CheckoutPageClient() {
                 <div className="mt-3 space-y-3">
                   <p className="text-sm font-black">One or more product prices changed since they were added to your bag.</p>
                   {preview.lines.filter(line => line.changedPrice && line.unitPriceMinor !== null)
-                    .map(line => <p key={line.slug} className="text-xs font-bold text-black/60">
-                      {line.name}: current verified price ₹{(line.unitPriceMinor! / 100).toLocaleString("en-IN")} per item
+                    .map((line, i) => <p key={line.slug + String(i)} className="text-xs font-bold text-black/60">
+                      {line.name} ({Object.entries(line.options).map(([k,v]) => k + ": " + v).join(", ") || "standard"}): current verified price ₹{(line.unitPriceMinor! / 100).toLocaleString("en-IN")} per item
                     </p>)}
                   <button type="button" onClick={() => applyVerifiedPrices(preview.lines)}
                     className="rounded-full bg-[#d7ff47] px-5 py-3 text-xs font-black">

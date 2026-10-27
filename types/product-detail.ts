@@ -31,4 +31,5 @@ export type ProductDetail = CatalogProduct & {
   seller: string;
   sku: string;
   choiceGroups?: import("@/lib/commerce/product-choices").ProductChoiceGroup[];
+  pricedVariants?: import("@/types/backend").BackendProduct["variants"];
 };

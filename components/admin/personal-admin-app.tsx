@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 import { AdminProductChoicesEditor } from "@/components/admin/admin-product-choices-editor";
+import { AdminProductVariantsEditor } from "@/components/admin/admin-product-variants-editor";
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -404,6 +405,7 @@ function Products() {
       </Panel>
 
       <AdminProductChoicesEditor products={rows.map(row => ({ id: row.id, name: row.name, sku: row.sku }))} />
+      <AdminProductVariantsEditor products={rows.map(row => ({ id: row.id, name: row.name, sku: row.sku }))} />
 
       <Panel title="All products" description={`${rows.length} products in database`}>
         <div className="space-y-3">

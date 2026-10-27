@@ -1,5 +1,6 @@
 import { ValidationError } from "@/lib/db/errors";
 import { deserializeProductChoiceGroups, normalizeChosenOptions, validateChosenOptions } from "@/lib/commerce/product-choices";
+import { variantSignature } from "@/lib/commerce/product-variants";
 import { getPrisma } from "@/lib/db/prisma";
 import { resolveCoupon } from "@/lib/commerce/coupon-engine";
 import { calculateAuthoritativeTotals, type StoreDeliveryMethod } from "@/lib/commerce/order-pricing";
@@ -10,7 +11,7 @@ export type CheckoutPreviewInput = {
   deliveryMethod?: StoreDeliveryMethod;
 };
 export type CheckoutPreviewLine = {
-  slug: string; productId: string | null; name: string; options: Record<string, string>;
+  slug: string; productId: string | null; variantId: string | null; sku: string | null; name: string; options: Record<string, string>;
   quantity: number; availableStock: number; unitPriceMinor: number | null;
   lineTotalMinor: number | null; changedPrice: boolean;
   state: "available" | "unavailable" | "insufficient_stock";
@@ -70,44 +71,70 @@ export async function createCheckoutPreview(input: CheckoutPreviewInput): Promis
   const products = await getPrisma().product.findMany({
     where: { slug: { in: uniqueSlugs }, status: "ACTIVE" },
     select: {
-      id: true, slug: true, name: true, priceMinor: true, currency: true,
+      id: true, slug: true, sku: true, name: true, priceMinor: true, currency: true,
       inventory: { select: { onHand: true, reserved: true } },
       choiceGroups: { select: { key: true, label: true, required: true, sortOrder: true, values: true } },
+      variants: { select: { id: true, sku: true, signature: true, priceMinor: true,
+        onHand: true, reserved: true, active: true } },
     },
   });
   const bySlug = new Map(products.map(p => [p.slug, p]));
-  const demands = new Map<string, number>();
-  for (const row of input.items) demands.set(row.slug, (demands.get(row.slug) ?? 0) + row.quantity);
+  // Demand is grouped by actual purchasable stock bucket, not by product slug.
+  const demand = new Map<string, number>();
+  for (const row of input.items) {
+    const product = bySlug.get(row.slug);
+    if (!product) continue;
+    const matched = product.variants.length ?
+      product.variants.find(v => v.signature === variantSignature(row.options) && v.active) : null;
+    const bucket = matched ? "variant:" + matched.id : "product:" + product.id;
+    demand.set(bucket, (demand.get(bucket) ?? 0) + row.quantity);
+  }
   const issues: string[] = [];
   let subtotalMinor = 0;
   let changedPrice = false;
   const lines: CheckoutPreviewLine[] = input.items.map(row => {
     const product = bySlug.get(row.slug);
     if (!product || product.currency !== "INR" || !Number.isSafeInteger(product.priceMinor) || product.priceMinor < 0) {
-      issues.push(`${row.slug} is no longer available for checkout.`);
-      return { slug: row.slug, productId: null, name: row.slug, quantity: row.quantity, options: row.options ?? {},
-        availableStock: 0, unitPriceMinor: null, lineTotalMinor: null,
-        changedPrice: false, state: "unavailable" };
+      const message = row.slug + " is no longer available for checkout.";
+      if (!issues.includes(message)) issues.push(message);
+      return { slug: row.slug, productId: null, variantId: null, sku: null, name: row.slug,
+        quantity: row.quantity, options: row.options ?? {}, availableStock: 0,
+        unitPriceMinor: null, lineTotalMinor: null, changedPrice: false, state: "unavailable" };
     }
-    let choiceIssue: string | null = null;
+    let optionValid = true;
     try { validateChosenOptions(deserializeProductChoiceGroups(product.choiceGroups), row.options); }
-    catch (err) { choiceIssue = err instanceof Error ? err.message : "Invalid product option."; }
-    if (choiceIssue && !issues.includes(choiceIssue)) issues.push(choiceIssue);
-    const availableStock = product.inventory.reduce((n, stock) => n + Math.max(0, stock.onHand - stock.reserved), 0);
-    const quantityAllowed = availableStock >= demands.get(row.slug)!;
-    const stockIssue = `${product.name} has insufficient stock (available: ${availableStock}).`;
-    if (!quantityAllowed && !issues.includes(stockIssue)) {
-      issues.push(stockIssue);
+    catch (err) {
+      optionValid = false;
+      const message = err instanceof Error ? err.message : "Invalid product option.";
+      if (!issues.includes(message)) issues.push(message);
     }
-    const lineTotalMinor = product.priceMinor * row.quantity;
+    const matched = product.variants.length ?
+      product.variants.find(v => v.signature === variantSignature(row.options) && v.active) : null;
+    if (product.variants.length && !matched) {
+      optionValid = false;
+      const message = product.name + ": selected SKU combination is unavailable.";
+      if (!issues.includes(message)) issues.push(message);
+    }
+    const availableStock = !optionValid ? 0 : matched ?
+      Math.max(0, matched.onHand - matched.reserved)
+      : product.inventory.reduce((n, stock) => n + Math.max(0, stock.onHand - stock.reserved), 0);
+    const bucket = matched ? "variant:" + matched.id : "product:" + product.id;
+    const quantityAllowed = availableStock >= (demand.get(bucket) ?? row.quantity);
+    if (optionValid && !quantityAllowed) {
+      const message = product.name + " has insufficient stock (available: " + availableStock + ").";
+      if (!issues.includes(message)) issues.push(message);
+    }
+    const unitPriceMinor = matched ? matched.priceMinor : product.priceMinor;
+    const lineTotalMinor = unitPriceMinor * row.quantity;
     subtotalMinor += lineTotalMinor;
-    const priceDifference = row.clientPriceMinor !== undefined && product.priceMinor !== row.clientPriceMinor;
+    const priceDifference = row.clientPriceMinor !== undefined && unitPriceMinor !== row.clientPriceMinor;
     changedPrice ||= priceDifference;
     return {
-      slug: row.slug, productId: product.id, name: product.name, quantity: row.quantity, options: row.options ?? {},
-      availableStock, unitPriceMinor: product.priceMinor, lineTotalMinor,
-      changedPrice: priceDifference,
-      state: quantityAllowed ? "available" : "insufficient_stock",
+      slug: row.slug, productId: product.id, variantId: matched?.id ?? null,
+      sku: matched?.sku ?? product.sku, name: product.name,
+      quantity: row.quantity, options: row.options ?? {}, availableStock,
+      unitPriceMinor, lineTotalMinor, changedPrice: priceDifference,
+      state: !optionValid ? "unavailable" : quantityAllowed ? "available" : "insufficient_stock",
     };
   });
   if (!Number.isSafeInteger(subtotalMinor) || subtotalMinor > 2_000_000_000) {
