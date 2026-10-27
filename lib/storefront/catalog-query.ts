@@ -9,7 +9,7 @@ export type LiveCatalogQuery = {
   minPrice: number | null;
   maxPrice: number | null;
   minRating: number | null;
-  stock: ProductListQuery["stock"] | null;
+  stock: NonNullable<ProductListQuery["stock"]> | null;
   sort: NonNullable<ProductListQuery["sort"]>;
   page: number;
 };
