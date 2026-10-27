@@ -446,5 +446,9 @@ test("verified multi-SKU quote produces authoritative order items and identical 
     {slug:f.product.slug, quantity:1, options:{colour:"black"}, clientPriceMinor:129900},
   ]}));
   assert.equal(stale.changedPrice,true);
-  assert.equal(stale.valid,false);
+  // Price changed does not imply stock/choice invalidity: customer must
+  // explicitly accept the new quote before submitting an order.
+  assert.equal(stale.valid,true);
+  assert.throws(() => verifiedCheckoutOrderItems([cart[0]], stale),
+    /another live verification/i);
 });
