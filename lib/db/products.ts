@@ -2,7 +2,7 @@ import { getPrisma } from "@/lib/db/prisma";
 import type { BackendProduct } from "@/types/backend";
 import { deserializeProductChoiceGroups } from "@/lib/commerce/product-choices";
 import { publicVariant } from "@/lib/commerce/product-variants";
-import { findCatalogPricePage } from "@/lib/db/catalog-price-query";
+import { findCatalogPricePage, type CatalogStockFilter } from "@/lib/db/catalog-price-query";
 import type { Prisma } from "@/generated/prisma/client";
 
 export function serializeProduct(product: {
@@ -58,6 +58,7 @@ export type ProductListQuery = {
   minPriceMinor?: number;
   maxPriceMinor?: number;
   minRating?: number;
+  stock?: CatalogStockFilter;
   sort?: "featured" | "newest" | "price-low" | "price-high" | "rating";
   limit?: number;
   offset?: number;
@@ -76,7 +77,7 @@ export async function listProducts(input: ProductListQuery) {
       OR: [
         { name: { contains: query, mode: "insensitive" } },
         { sku: { contains: query, mode: "insensitive" } },
-        { variants: { some: { sku: { contains: query, mode: "insensitive" } } } },
+        { variants: { some: { active: true, sku: { contains: query, mode: "insensitive" } } } },
         { description: { contains: query, mode: "insensitive" } },
         { shortDescription: { contains: query, mode: "insensitive" } },
         { brand: { name: { contains: query, mode: "insensitive" } } },
@@ -96,12 +97,12 @@ export async function listProducts(input: ProductListQuery) {
     input.sort === "newest" ? [{ createdAt: "desc" }, { id: "asc" }] :
     [{ featured: "desc" }, { createdAt: "desc" }, { id: "asc" }];
 
-  // SQL performs variant-aware effective price comparisons BEFORE page slicing.
-  // Prisma relation aggregate cannot ORDER BY lowest active child price.
-  if (input.minPriceMinor !== undefined || input.maxPriceMinor !== undefined ||
+  // Stock and effective SKU price predicates must be applied BEFORE LIMIT.
+  if (input.stock || input.minPriceMinor !== undefined || input.maxPriceMinor !== undefined ||
       input.sort === "price-low" || input.sort === "price-high") {
     const page = await findCatalogPricePage({
       query, categories, brands,
+      stock: input.stock,
       minPriceMinor: input.minPriceMinor,
       maxPriceMinor: input.maxPriceMinor,
       minRating: input.minRating,

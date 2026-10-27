@@ -63,3 +63,6 @@ READ-ONLY integration note: Cline `feature/nexora-gift-store` was `4df818003fd4b
 ## Nexora 3 Search Variant Parity Checkpoint
 GPT-owned Search pages and suggestions now use real active variant prices and available stock and match SKU-only terms; tests added for retired SKUs, reserved stock and sell-out. Verify **exact new HEAD** CI before marking this milestone complete. Next milestone candidates: live in-stock filtering across Shop and Search or read-only Cline integration review based on real code. Return/Refund remains PAUSED; no migration, deployment or merge.
 
+
+## Nexora 3 — Stock Availability Filters across Shop and Search
+Adds persisted GET stock facets (available, low-stock, out-of-stock) in Shop, available-only keyword Search, shared variant-aware SQL filtering before pagination, and isolated PostgreSQL/unit regression. Exact-HEAD CI must be verified before PASS. Cline/main/QA separate; never merge/deploy/migrate, and Returns/Refunds remain deferred. Next: Product Detail to Checkout stock availability coherence and safe Cline integration review.

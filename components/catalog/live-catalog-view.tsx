@@ -84,6 +84,16 @@ export function LiveCatalogView({
             </select>
           </label>
           <label className="block text-xs font-black uppercase tracking-wide text-black/60">
+            Availability
+            <select name="stock" defaultValue={query.stock ?? ""}
+              className="mt-2 w-full rounded-xl border border-black/15 bg-white px-3 py-2.5 text-sm">
+              <option value="">All published products</option>
+              <option value="available">Available to buy (1+ units)</option>
+              <option value="low-stock">Low stock (1–8 units)</option>
+              <option value="out-of-stock">Out of stock</option>
+            </select>
+          </label>
+          <label className="block text-xs font-black uppercase tracking-wide text-black/60">
             Sort by
             <select name="sort" defaultValue={query.sort} className="mt-2 w-full rounded-xl border border-black/15 bg-white px-3 py-2.5 text-sm">
               <option value="featured">Featured</option>

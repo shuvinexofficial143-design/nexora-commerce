@@ -127,6 +127,9 @@ test("live SKU-only search and suggestions use active variant price and reserved
   assert.ok(!("inventory" in suggested[0]) && !("variants" in suggested[0]));
   assert.equal((await searchStoreProducts("OLD-" + id + "-BLUE", 1)).total, 0);
   assert.deepEqual(await suggestStoreProducts("OLD-" + id + "-BLUE"), []);
+  const availableBefore = await searchStoreProducts(liveSku, 1, { availableOnly: true });
+  assert.equal(availableBefore.total, 1);
+  assert.equal(availableBefore.products[0].inventory, 5);
   const variant = await db.productVariant.findUniqueOrThrow({ where: { sku: liveSku } });
   await db.productVariant.update({ where: { id: variant.id }, data: { onHand: 2 } });
   const soldOut = await searchStoreProducts(liveSku, 1);
@@ -136,4 +139,32 @@ test("live SKU-only search and suggestions use active variant price and reserved
   const soldOutSuggestion = await suggestStoreProducts(liveSku);
   assert.equal(soldOutSuggestion[0].available, false);
   assert.equal(soldOutSuggestion[0].priceMinor, 19900);
+  assert.equal((await searchStoreProducts(liveSku, 1, { availableOnly: true })).total, 0);
+});
+
+test("available-only search filters before page slicing and preserves true totals", async () => {
+  const warehouse = await db.warehouse.create({ data: {
+    code: "SEARCHSTOCK-" + id, name: "Search QA stock", city: "Ujjain", state: "MP",
+  } });
+  const scope = "Stockable" + id;
+  const products = await Promise.all(Array.from({ length: 22 }, (_, i) => db.product.create({ data: {
+    slug: prefix + "-stock-" + i, sku: "STOCK-" + id + "-" + i,
+    name: scope + " kitchen bottle " + i,
+    description: "Scoped availability paging fixture", status: "ACTIVE", priceMinor: 20000 + i,
+  } })));
+  await db.inventoryItem.createMany({ data: products.slice(0, 19).map(product => ({
+    productId: product.id, warehouseId: warehouse.id, onHand: 3, reserved: 2,
+  })) });
+  const first = await searchStoreProducts(scope + " kitchen", 1, { availableOnly: true });
+  const second = await searchStoreProducts(scope + " kitchen", 2, { availableOnly: true });
+  const clamped = await searchStoreProducts(scope + " kitchen", 999, { availableOnly: true });
+  assert.equal(first.total, 19);
+  assert.equal(first.products.length, 18);
+  assert.equal(second.products.length, 1);
+  assert.equal(second.totalPages, 2);
+  assert.equal(clamped.page, 2);
+  assert.equal(clamped.products.length, 1);
+  assert.ok([...first.products, ...second.products].every(x => x.inventory === 1));
+  assert.equal(new Set([...first.products, ...second.products].map(x => x.id)).size, 19);
+  assert.equal((await searchStoreProducts(scope + " missing", 1, { availableOnly: true })).total, 0);
 });

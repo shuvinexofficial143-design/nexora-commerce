@@ -2,6 +2,8 @@ import type { Prisma as PrismaType } from "@/generated/prisma/client";
 import { Prisma } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/db/prisma";
 
+export type CatalogStockFilter = "available" | "low-stock" | "out-of-stock";
+
 /**
  * Selects IDs using the same effective price the storefront actually displays:
  * lowest ACTIVE SKU price, otherwise the base product price.
@@ -13,6 +15,8 @@ import { getPrisma } from "@/lib/db/prisma";
  */
 export async function findCatalogPricePage(input: {
   query?: string;
+  queryTerms?: string[];
+  stock?: CatalogStockFilter;
   categories: string[];
   brands: string[];
   minPriceMinor?: number;
@@ -23,20 +27,24 @@ export async function findCatalogPricePage(input: {
   offset: number;
 }): Promise<{ ids: string[]; total: number }> {
   const conditions: PrismaType.Sql[] = [Prisma.sql`p."status" = 'ACTIVE'`];
-  if (input.query) {
-    const pattern = "%" + input.query + "%";
-    conditions.push(Prisma.sql`(
+  // Each keyword matches any live catalog field; terms are combined by AND.
+  const searchPredicate = (term: string): PrismaType.Sql => {
+    const pattern = "%" + term + "%";
+    return Prisma.sql`(
       p."name" ILIKE ${pattern} OR p."sku" ILIKE ${pattern}
       OR p."description" ILIKE ${pattern}
       OR p."shortDescription" ILIKE ${pattern}
-      OR b."name" ILIKE ${pattern} OR c."name" ILIKE ${pattern}
+      OR b."name" ILIKE ${pattern} OR b."slug" ILIKE ${pattern}
+      OR c."name" ILIKE ${pattern} OR c."slug" ILIKE ${pattern}
       OR EXISTS (
         SELECT 1 FROM "ProductVariant" vsearch
-        WHERE vsearch."productId" = p."id"
+        WHERE vsearch."productId" = p."id" AND vsearch."active" = TRUE
           AND vsearch."sku" ILIKE ${pattern}
       )
-    )`);
-  }
+    )`;
+  };
+  if (input.query) conditions.push(searchPredicate(input.query));
+  for (const term of input.queryTerms ?? []) conditions.push(searchPredicate(term));
   if (input.categories.length) {
     conditions.push(Prisma.sql`c."slug" IN (${Prisma.join(input.categories)})`);
   }
@@ -52,6 +60,13 @@ export async function findCatalogPricePage(input: {
   if (input.maxPriceMinor !== undefined) {
     conditions.push(Prisma.sql`COALESCE(priced."minPrice", p."priceMinor") <= ${input.maxPriceMinor}`);
   }
+  // Product detail and checkout do not fall back to parent warehouse stock
+  // if independently stocked SKU rows (even disabled rows) already exist.
+  const availableUnits = Prisma.sql`CASE WHEN sku_stock."variantCount" > 0
+    THEN sku_stock."available" ELSE warehouse_stock."available" END`;
+  if (input.stock === "available") conditions.push(Prisma.sql`${availableUnits} > 0`);
+  else if (input.stock === "low-stock") conditions.push(Prisma.sql`${availableUnits} BETWEEN 1 AND 8`);
+  else if (input.stock === "out-of-stock") conditions.push(Prisma.sql`${availableUnits} = 0`);
   const from = Prisma.sql`
     FROM "Product" p
     LEFT JOIN "Brand" b ON b."id" = p."brandId"
@@ -61,6 +76,15 @@ export async function findCatalogPricePage(input: {
       FROM "ProductVariant" v
       WHERE v."productId" = p."id" AND v."active" = TRUE
     ) priced ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int AS "variantCount",
+        COALESCE(SUM(CASE WHEN v."active" THEN GREATEST(v."onHand" - v."reserved", 0) ELSE 0 END), 0)::bigint AS "available"
+      FROM "ProductVariant" v WHERE v."productId" = p."id"
+    ) sku_stock ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(GREATEST(i."onHand" - i."reserved", 0)), 0)::bigint AS "available"
+      FROM "InventoryItem" i WHERE i."productId" = p."id"
+    ) warehouse_stock ON TRUE
     WHERE ${Prisma.join(conditions, " AND ")}
   `;
   const orderBy =

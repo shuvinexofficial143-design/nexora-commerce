@@ -1,5 +1,6 @@
 import { getPrisma } from "@/lib/db/prisma";
 import { serializeProduct } from "@/lib/db/products";
+import { findCatalogPricePage } from "@/lib/db/catalog-price-query";
 import { mapBackendProductToCatalog } from "@/lib/catalog-backend";
 import type { CatalogProduct } from "@/types/catalog";
 
@@ -64,7 +65,7 @@ const include = {
   variants: { select: { id: true, choices: true, signature: true, sku: true, priceMinor: true, onHand: true, reserved: true, active: true } },
 };
 
-export async function searchStoreProducts(query: string, page: number): Promise<{
+export async function searchStoreProducts(query: string, page: number, options: { availableOnly?: boolean } = {}): Promise<{
   products: CatalogProduct[];
   total: number;
   page: number;
@@ -74,6 +75,27 @@ export async function searchStoreProducts(query: string, page: number): Promise<
   if (!terms.length) return { products: [], total: 0, page: 1, totalPages: 0 };
   const where = buildProductSearchWhere(query);
   const db = getPrisma();
+  if (options.availableOnly) {
+    // SQL filters actual SKU/warehouse buckets before counts and page slicing.
+    const requested = normalizeSearchPage(String(page));
+    const sqlInput = {
+      queryTerms: terms, categories: [], brands: [], stock: "available" as const,
+      sort: "featured" as const, limit: SEARCH_PAGE_SIZE,
+    };
+    let stockPage = await findCatalogPricePage({ ...sqlInput, offset: (requested - 1) * SEARCH_PAGE_SIZE });
+    const totalPages = Math.ceil(stockPage.total / SEARCH_PAGE_SIZE);
+    const safePage = totalPages ? Math.min(requested, totalPages) : 1;
+    if (totalPages && safePage !== requested)
+      stockPage = await findCatalogPricePage({ ...sqlInput, offset: (safePage - 1) * SEARCH_PAGE_SIZE });
+    if (!stockPage.ids.length) return { products: [], total: stockPage.total, page: safePage, totalPages };
+    const rows = await db.product.findMany({ where: { id: { in: stockPage.ids }, status: "ACTIVE" }, include });
+    const byId = new Map(rows.map(row => [row.id, row]));
+    const products = stockPage.ids.flatMap(id => {
+      const row = byId.get(id);
+      return row ? [mapBackendProductToCatalog(serializeProduct(row))] : [];
+    });
+    return { products, total: stockPage.total, page: safePage, totalPages };
+  }
   const total = await db.product.count({ where });
   const totalPages = Math.ceil(total / SEARCH_PAGE_SIZE);
   const safePage = totalPages ? Math.min(normalizeSearchPage(String(page)), totalPages) : 1;

@@ -190,3 +190,67 @@ test("effective minimum ACTIVE SKU price drives filters, ordering, pagination an
   assert.equal(mapBackendProductToCatalog(high.items[1]).compareAtPrice, 1300);
   assert.ok(!high.items.some(p => p.id === draft.id));
 });
+
+test("SQL stock facets combine SKU stock, legacy stock, price sort and pagination", async () => {
+  const scope = "stockfacet" + unique;
+  const warehouse = await db.warehouse.create({ data: {
+    code: "VARSTOCK-" + unique, name: "SKU Stock QA", city: "Ujjain", state: "MP",
+  } });
+  const category = await db.category.findUniqueOrThrow({ where: { slug: categoryOne } });
+  const brand = await db.brand.findUniqueOrThrow({ where: { slug: brandOne } });
+  const make = async (tag: string, basePrice: number, status: "ACTIVE" | "DRAFT" = "ACTIVE") =>
+    db.product.create({ data: { name: "Available " + scope + " " + tag,
+      slug: scope + "-" + tag, sku: "BASE-" + scope + "-" + tag,
+      status, priceMinor: basePrice, description: "Isolated stock fixture",
+      categoryId: category.id, brandId: brand.id,
+    } });
+  const legacyHigh = await make("legacy-high", 90000);
+  const legacyLow = await make("legacy-low", 25000);
+  const legacyEmpty = await make("legacy-empty", 30000);
+  const skuLow = await make("sku-low", 400000);
+  const skuHigh = await make("sku-high", 200000);
+  const skuDisabled = await make("sku-disabled", 10000);
+  const unpublished = await make("draft", 5000, "DRAFT");
+  await db.inventoryItem.createMany({ data: [
+    { productId: legacyHigh.id, warehouseId: warehouse.id, onHand: 12, reserved: 3 },
+    { productId: legacyLow.id, warehouseId: warehouse.id, onHand: 3, reserved: 1 },
+    { productId: skuDisabled.id, warehouseId: warehouse.id, onHand: 99, reserved: 0 },
+    { productId: unpublished.id, warehouseId: warehouse.id, onHand: 99, reserved: 0 },
+  ] });
+  const addSku = (productId: string, tag: string, priceMinor: number, onHand: number,
+    reserved: number, active: boolean) => db.productVariant.create({ data: {
+      productId, sku: "SKU-" + scope + "-" + tag,
+      choices: { size: tag }, signature: JSON.stringify({ size: tag }),
+      priceMinor, onHand, reserved, active,
+    } });
+  await addSku(skuLow.id, "low", 10000, 7, 4, true);
+  await addSku(skuLow.id, "retired", 100, 100, 0, false);
+  await addSku(skuHigh.id, "high", 50000, 12, 2, true);
+  await addSku(skuDisabled.id, "disabled", 500, 999, 0, false);
+  const filter = { query: scope, stock: "available" as const,
+    categories: [categoryOne], brands: [brandOne], sort: "price-low" as const };
+  const first = await listProducts({ ...filter, limit: 2 });
+  const next = await listProducts({ ...filter, limit: 2, offset: 2 });
+  assert.equal(first.total, 4);
+  assert.equal(next.total, 4);
+  assert.deepEqual([...first.items, ...next.items].map(x => x.id),
+    [skuLow.id, legacyLow.id, skuHigh.id, legacyHigh.id]);
+  assert.deepEqual([...first.items, ...next.items].map(x => mapBackendProductToCatalog(x).inventory),
+    [3, 2, 10, 9]);
+  assert.equal(new Set([...first.items, ...next.items].map(x => x.id)).size, 4);
+  const scarce = await listProducts({ query: scope, stock: "low-stock" });
+  assert.equal(scarce.total, 2);
+  assert.deepEqual(new Set(scarce.items.map(x => x.id)), new Set([legacyLow.id, skuLow.id]));
+  const soldOut = await listProducts({ query: scope, stock: "out-of-stock", sort: "price-low" });
+  assert.equal(soldOut.total, 2);
+  assert.deepEqual(new Set(soldOut.items.map(x => x.id)), new Set([legacyEmpty.id, skuDisabled.id]));
+  assert.ok(!soldOut.items.some(x => x.id === unpublished.id));
+  assert.equal(mapBackendProductToCatalog(soldOut.items.find(x => x.id === skuDisabled.id)!).inventory, 0);
+  const minPrice = await listProducts({ ...filter, minPriceMinor: 30000 });
+  assert.deepEqual(new Set(minPrice.items.map(x => x.id)), new Set([skuHigh.id, legacyHigh.id]));
+  assert.equal((await listProducts({ query: "SKU-" + scope + "-retired", stock: "available" })).total, 0);
+  const sold = await db.productVariant.findUniqueOrThrow({ where: { sku: "SKU-" + scope + "-low" } });
+  await db.productVariant.update({ where: { id: sold.id }, data: { onHand: sold.reserved } });
+  assert.equal((await listProducts({ ...filter })).total, 3);
+  assert.equal((await listProducts({ query: scope, stock: "out-of-stock" })).total, 3);
+});

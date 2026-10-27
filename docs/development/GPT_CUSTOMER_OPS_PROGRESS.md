@@ -265,3 +265,11 @@ Continue actual customer-visible website capability and QA; preserve Cline's ind
 - Added disposable PostgreSQL regression for live variant SKU-only search, retired identifier exclusion, stock reservations and sell-out; contract test asserts token SKU search.
 - No production migration, deploy, branch merge, payments, emails or refunds. Staging and Cline integration still require owner review.
 
+
+## 27 October 2026 — Live SQL Stock Availability Filters (Nexora 3)
+**Implementation on GPT branch; exact-HEAD CI verification required before PASS.**
+- Live Shop now accepts available (any stock), low-stock (1–8 units), out-of-stock, and preserves filters across URL pagination and price/sort.
+- Parameterized SQL applies stock and effective SKU price together before count/pagination, active SKU availability when any SKU rows exist, otherwise nonnegative warehouse stock.
+- Search available-only toggle uses same SQL while retaining token AND semantics, true total and final page clamping; inactive variant SKU queries do not expose retired products.
+- New disposable PostgreSQL coverage validates stock reservations, disabled SKU parent stock, combined price/stock/brand/category filters, pagination, and stock transitions.
+- No schema changes, production migrations/deployments, orders, payments, returns/refunds, or branch merges. Real staging validation and Cline integration remain blocked.

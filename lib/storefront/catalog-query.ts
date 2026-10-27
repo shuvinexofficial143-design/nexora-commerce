@@ -9,6 +9,7 @@ export type LiveCatalogQuery = {
   minPrice: number | null;
   maxPrice: number | null;
   minRating: number | null;
+  stock: ProductListQuery["stock"] | null;
   sort: NonNullable<ProductListQuery["sort"]>;
   page: number;
 };
@@ -39,6 +40,7 @@ export function parseLiveCatalogQuery(params: CatalogSearchParams): LiveCatalogQ
   const minPrice = money(params.min);
   const maxPrice = money(params.max);
   const rawQ = Array.isArray(params.q) ? params.q[0] : params.q;
+  const rawStock = Array.isArray(params.stock) ? params.stock[0] : params.stock;
   return {
     query: String(rawQ ?? "").trim().slice(0, 100),
     categories: [...new Set(all(params, "category"))],
@@ -46,6 +48,7 @@ export function parseLiveCatalogQuery(params: CatalogSearchParams): LiveCatalogQ
     minPrice,
     maxPrice,
     minRating: rating(params.rating),
+    stock: rawStock === "available" || rawStock === "low-stock" || rawStock === "out-of-stock" ? rawStock : null,
     sort: allowed.includes(rawSort ?? "") ? rawSort as LiveCatalogQuery["sort"] : "featured",
     page: rawPage && /^[1-9]\d{0,3}$/.test(rawPage) ? Math.min(Number(rawPage), 1000) : 1,
   };
@@ -58,6 +61,7 @@ export function toProductListQuery(query: LiveCatalogQuery, limit = 24): Product
     minPriceMinor: query.minPrice ?? undefined,
     maxPriceMinor: query.maxPrice ?? undefined,
     minRating: query.minRating ?? undefined,
+    stock: query.stock ?? undefined,
     sort: query.sort,
     limit,
     offset: (query.page - 1) * limit,
@@ -71,6 +75,7 @@ export function catalogPageHref(path: "/shop" | "/search", query: LiveCatalogQue
   if (query.minPrice !== null) params.set("min", String(query.minPrice / 100));
   if (query.maxPrice !== null) params.set("max", String(query.maxPrice / 100));
   if (query.minRating !== null) params.set("rating", String(query.minRating));
+  if (query.stock !== null) params.set("stock", query.stock);
   if (query.sort !== "featured") params.set("sort", query.sort);
   if (page > 1) params.set("page", String(page));
   const value = params.toString();

@@ -18,11 +18,11 @@ export const dynamic = "force-dynamic";
 
 type Results = { products: CatalogProduct[]; total: number; page: number; totalPages: number };
 
-function localDemoSearch(query: string, page: number): Results {
+function localDemoSearch(query: string, page: number, availableOnly: boolean): Results {
   const words = searchTerms(query);
   const matched = catalogProducts.filter((product) => words.every((term) =>
     [product.name, product.brand, product.category, ...product.tags].join(" ").toLowerCase().includes(term),
-  ));
+  ) && (!availableOnly || product.inventory > 0));
   const totalPages = Math.ceil(matched.length / SEARCH_PAGE_SIZE);
   const safePage = totalPages ? Math.min(page, totalPages) : 1;
   return { products: matched.slice((safePage - 1) * SEARCH_PAGE_SIZE, safePage * SEARCH_PAGE_SIZE), total: matched.length, page: safePage, totalPages };
@@ -31,11 +31,12 @@ function localDemoSearch(query: string, page: number): Results {
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; stock?: string }>;
 }) {
   const params = await searchParams;
   const query = normalizeStoreSearch(params.q);
   const page = normalizeSearchPage(params.page);
+  const availableOnly = params.stock === "available";
   const canSearch = searchTerms(query).length > 0;
   let results: Results = { products: [], total: 0, page: 1, totalPages: 0 };
   let unavailable = false;
@@ -43,9 +44,9 @@ export default async function SearchPage({
   if (canSearch) {
     if (demoSearchEnabled()) {
       // Explicit isolated CI/demo mode only, never a fallback for a live DB failure.
-      results = localDemoSearch(query, page);
+      results = localDemoSearch(query, page, availableOnly);
     } else {
-      try { results = await searchStoreProducts(query, page); }
+      try { results = await searchStoreProducts(query, page, { availableOnly }); }
       catch (error) {
         console.warn("NEXORA live search unavailable", error instanceof Error ? error.name : "unknown");
         unavailable = true;
@@ -53,14 +54,25 @@ export default async function SearchPage({
     }
   }
 
+  const baseHref = "/search?q=" + encodeURIComponent(query);
+  const filterHref = baseHref + (availableOnly ? "" : "&stock=available");
   const pageHref = (target: number) =>
-    "/search?q=" + encodeURIComponent(query) + "&page=" + target;
+    baseHref + (availableOnly ? "&stock=available" : "") + "&page=" + target;
 
   return (
     <main className="pb-24 pt-8">
       <Container>
         <h1 className="text-3xl font-black tracking-[-.05em] sm:text-5xl">Search Nexora</h1>
         <div className="mt-6 max-w-2xl"><SearchBar initialQuery={query} /></div>
+        {canSearch ? (
+          <nav aria-label="Search stock filters" className="mt-4 flex flex-wrap items-center gap-3">
+            <Link href={filterHref}
+              className={`rounded-full border px-4 py-2 text-sm font-bold ${availableOnly ? "border-black bg-black text-white" : "border-black/15 bg-white text-black"}`}>
+              {availableOnly ? "✓ Available only · Clear filter" : "Show available products only"}
+            </Link>
+            {demoSearchEnabled() ? <span className="text-xs font-medium text-black/50">Preview results only — stock not live.</span> : null}
+          </nav>
+        ) : null}
 
         {!canSearch ? (
           <section className="mt-7 max-w-xl rounded-3xl border border-black/10 bg-white p-7">
