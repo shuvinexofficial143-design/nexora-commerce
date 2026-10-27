@@ -25,7 +25,7 @@ export function ProductInfo({ product }: { product: ProductDetail }) {
         {!product.hasPricedVariants && <PriceBlock product={product} />}
         {product.hasPricedVariants && <p className="text-sm font-bold text-black/60">Choose options to see exact SKU pricing</p>}
         <div className="mt-2 sm:mt-3">
-          <StockStatus status={product.stock} inventory={product.inventory} />
+          {!product.hasPricedVariants && <StockStatus status={product.stock} inventory={product.inventory} />}
         </div>
       </div>
       <div className="my-4 h-px bg-black/8 sm:my-6" />

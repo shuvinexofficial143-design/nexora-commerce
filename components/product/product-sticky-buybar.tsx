@@ -46,7 +46,7 @@ export function ProductStickyBuybar({
           onClick={add}
           className="rounded-full bg-[#D7FF47] px-5 py-3 text-xs font-black text-black disabled:bg-black/20"
         >
-          {product.stock === "out-of-stock" ? "Out of stock" : !ready ? "Select options" : added ? "Added ✓" : "Add to cart"}
+          {!ready ? "Choose available options" : product.stock === "out-of-stock" ? "Out of stock" : added ? "Added ✓" : "Add to cart"}
         </button>
       </div>
     </div>

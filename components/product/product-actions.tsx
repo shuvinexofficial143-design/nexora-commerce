@@ -19,6 +19,15 @@ export function ProductActions({
   choices?: Record<string,string>;
   ready?: boolean;
 }) {
+  if (!ready) {
+    return <div className="grid gap-2">
+      <p className="text-xs font-bold text-black/60">Choose an available SKU combination before adding this product.</p>
+      <button type="button" disabled className="rounded-full bg-black/10 px-5 py-3.5 text-sm font-black text-black/50">
+        Choose available options
+      </button>
+      <WishlistButton product={product} />
+    </div>;
+  }
   if (product.stock === "out-of-stock") {
     return (
       <div className="space-y-2">

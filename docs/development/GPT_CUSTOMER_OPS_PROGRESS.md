@@ -194,3 +194,34 @@ Focus on actual catalog-to-checkout compatibility with Admin-owned custom attrib
 
 ### Next `next`
 Continue the real website with controlled Product Variant SKUs/Inventory/Price or integration QA only after audit of the latest independent Admin/CMS branch. Returns/Refunds remain deferred as requested.
+
+
+## 27 October 2026 — Priced SKU Variants, Stock Reservation & Settlement
+
+**Owner requested real website progress; Returns/Refunds development remains deferred.** Existing Cline Admin/Homepage and QA branches were left untouched.
+
+### Implementation in the isolated GPT feature branch
+- Additive `ProductVariant` with canonical exact choice-combination signature, unique SKU, independent selling price (INR paise), total on-hand stock, reserved units, active flag and unique product/signature key.
+- Additive `ProductVariantMovement` audit records for order reservations and RELEASE / OUTBOUND settlements, with optional `OrderItem.productVariantId` link.
+- Read-only reviewed SQL: `prisma/reviewed-migrations/20261027_priced_sku_variants.sql`. Requires prior `ProductChoiceGroup` migration. **No production SQL was executed.**
+- Bounded authenticated Admin SKU API: `/api/admin-app/products/[productId]/variants` GET, POST and PATCH. POST validates actual admin choices and uniqueness; PATCH only price/on-hand/active, preserves immutable combination/SKU and uses optimistic concurrency/available-reservation checks.
+- Admin Products screen includes a SKU Variant Editor for selecting combinations, SKU, independent price, stock and active state. After variants exist, the old option-group editor is prevented from replacing their definitions behind customers' backs.
+- Customer product detail exposes only active priced combinations; selecting the exact combination shows that SKU's current DB-derived price and on-hand minus reserved stock. Missing/out-of-stock combination disables Add to Cart and mobile purchase.
+- Product/Cart mapping preserves existing nonvariant behavior, while separately priced variants have distinct cart lines and distinct verified price.
+- Side-effect-free checkout preview resolves choice combinations from DB and aggregates demand by actual variant stock bucket; absent/disabled/insufficient inventory is rejected; quote signature includes variant ID.
+- Checkout transaction recalculates exact variant SKU, price and validated choices; atomically reserves variant-specific stock, NOT parent stock, and saves real SKU/price/option snapshot into OrderItem.
+- Customer checkout passes `expectedUnitPriceMinor` based on the latest server preview, which is checked inside the order transaction. A post-quote Admin price change rejects checkout without charging/reserving.
+- Admin CANCEL/DELIVER order reconciliation releases/decrements the correct variant inventory and records stock movements, while the unchanged legacy warehouse inventory path remains operational.
+- Newly added tests verify independent black/white price and stock, duplicate demand aggregation, disabled SKU, cancel and deliver reconciliation, concurrent last-unit shoppers, mixed variant/nonvariant orders and late price changes.
+- Existing unit regression mock updated to support atomic conditional legacy stock updates, no skipped or deleted old tests.
+
+### Verification
+- Functional commit `d1ee8594fcbc4d189a1d422853dd31a69a73c560` and fixes `ef4a80759386e35879c0543fc6ed09175d14cf39`, `f506da20869ebf675c5b7eada08b1715ff192f32`.
+- [Successful isolated CI 40454948802](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40454948802): all three jobs PASS, **111/111 Unit, 44/44 isolated PostgreSQL, 8/8 HTTP and 14/14 Chromium desktop/mobile (177/177 checks)**, TypeScript, lint, Next build, high-severity production dependency audit (zero vulnerabilities). The latest UX/docs-only checkpoint is separately rechecked in CI.
+- No real production order, payment, inventory movement, migration, deploy, branch merge, refund or customer email was executed.
+
+### Release boundaries / next milestone
+- Variant inventory currently uses SKU-wide stock counters, not a per-warehouse variant stock ledger. Warehouse-specific SKU transfers, purchase orders and inbound stocking remain separate future work; existing warehouse stock is NOT silently shared.
+- Homepage/catalog price-range filters and price sorting still reference base Product price at SQL query level even when product cards show lowest active variant price; needs an honest variant-aware SQL filter/sort milestone.
+- Unit and isolated Postgres tests validate actual variant pricing/reservations. Browser CI is preview/demo-only, **not** a real staging/production database end-to-end purchase.
+- Await reviewed integration with latest Cline `feature/nexora-gift-store` and schema migrations; do not modify `main`, deploy production or run migrations without explicit owner request. Returns/Refunds remain deferred.
