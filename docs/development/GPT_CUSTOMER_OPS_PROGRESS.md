@@ -281,3 +281,13 @@ Continue actual customer-visible website capability and QA; preserve Cline's ind
 - Cart page now queries current server quote on cart/coupon changes, displays real pricing/availability issues and server-verified totals, and requires explicit acceptance for newly changed prices. The checkout navigation is blocked until a valid live quote. Final order creation retains a separate authoritative DB reservation.
 - Added focused unit contract and disposable PostgreSQL regression for choice combinations, final unit reserved by a competing purchase, changed variant price, no order created on preflight and no legacy warehouse reservation.
 - Existing secure tracking, checkout idempotency and stock transaction behavior preserved. No production database, migrations, payments, emails, deployment, branch merge or Returns/Refunds expansion.
+
+## 27 October 2026 — Checkout Submission Identity & Pending Payment Recovery (Nexora 3)
+
+**Exact HEAD CI verification required; no real checkout/payment performed.**
+- Checkout captures a canonical full customer intent (SKU/options, quantities, reviewed prices, email, address, coupon, payment, delivery). Async validation and product submission fail closed on changed intent; synchronous ref guard blocks same-frame duplicate Place Order clicks.
+- The final order line builder uses matching product IDs and unit prices from the authoritative refreshed DB checkout quote. It checks ordered SKU choices, quantities, line totals, stock and price; no redundant unverified product slug lookup.
+- Created Cashfree orders persist a minimal SHA-256 intent fingerprint plus order number/email in browser session. After payment-session load failure, the original order can be resumed without re-creating stock reservations. Explicit separate-checkout choice discards only the local retry shortcut, never cancels/release orders. Recovery also shows with an empty cart.
+- Checkout renders pending order reference and tracking link, and freezes contact/address/payment inputs while a submission runs. Successful COD redirects to its persisted order confirmation. Cart is only cleared if it stayed unchanged during the request.
+- Unit coverage: changed intent dimensions, tampered recovery record, SKU mapping/misalignment and price/stock preflight. Disposable PostgreSQL regression: multi-SKU quote maps to exact order items, retry uses one idempotency key and reserves each SKU exactly once even after price updates.
+- Production Cashfree sessions, real orders, refunds, emails, deployment, migration and branch integration NOT exercised. Cline/QA/main preserved. Returns/Refunds remain deferred.

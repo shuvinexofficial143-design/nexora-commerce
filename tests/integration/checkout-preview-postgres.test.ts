@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import { getPrisma } from "../../lib/db/prisma";
 import { createCheckoutPreview, validateCheckoutPreview } from "../../lib/commerce/checkout-preview";
-import { createOrder } from "../../lib/db/orders";
+import { createOrder, createOrderWithOutcome } from "../../lib/db/orders";
 import { validateOrder } from "../../lib/server/backend";
 import { reconcileOrder } from "../../lib/admin/stock";
 import { variantSignature } from "../../lib/commerce/product-variants";
@@ -404,4 +404,47 @@ test("live product cart admission rejects reserved final SKU and changed prices 
   assert.throws(() => assertCartAdmission(repriced, input), /price changed/);
   assert.equal(await db.order.count({ where: { userId: f.user.id } }), 0);
   assert.equal((await db.inventoryItem.findUniqueOrThrow({ where: { id: f.inventory.id } })).reserved, 0);
+});
+
+test("verified multi-SKU quote produces authoritative order items and identical retry never reserves twice", async () => {
+  const f = await variantFixture();
+  const { verifiedCheckoutOrderItems } = await import("../../lib/commerce/checkout-submission");
+  const cart = [
+    { id: f.product.id, slug: f.product.slug, name: f.product.name, brand: "QA",
+      image: "/product-placeholder.svg", stock: "low-stock" as const, price: 1299,
+      quantity: 1, lineId: "black", choices: { colour: "black" } },
+    { id: f.product.id, slug: f.product.slug, name: f.product.name, brand: "QA",
+      image: "/product-placeholder.svg", stock: "low-stock" as const, price: 1599,
+      quantity: 1, lineId: "white", choices: { colour: "white" } },
+  ];
+  const preview = await createCheckoutPreview(validateCheckoutPreview({items:[
+    { slug:f.product.slug, quantity:1, options:{colour:"black"}, clientPriceMinor:129900 },
+    { slug:f.product.slug, quantity:1, options:{colour:"white"}, clientPriceMinor:159900 },
+  ]}));
+  assert.equal(preview.valid, true);
+  const items = verifiedCheckoutOrderItems(cart, preview);
+  assert.deepEqual(items.map(x=>x.expectedUnitPriceMinor),[129900,159900]);
+  assert.deepEqual(items.map(x=>x.variant),[{colour:"black"},{colour:"white"}]);
+  const payload = validateOrder({ ...createVariantOrderInput(f.product.id,{colour:"black"}),
+    contactEmail:f.user.email, items });
+  const key = "qa-retry-variant-" + uid();
+  const first = await createOrderWithOutcome(f.user.id,payload,key);
+  const second = await createOrderWithOutcome(f.user.id,payload,key);
+  assert.equal(first.created,true);
+  assert.equal(second.created,false);
+  assert.equal(first.order.id,second.order.id);
+  assert.equal(await db.order.count({where:{userId:f.user.id}}),1);
+  assert.equal((await db.productVariant.findUniqueOrThrow({where:{id:f.black.id}})).reserved,1);
+  assert.equal((await db.productVariant.findUniqueOrThrow({where:{id:f.white.id}})).reserved,1);
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({where:{id:f.inventory.id}})).reserved,0);
+  await db.productVariant.update({where:{id:f.black.id},data:{priceMinor:149900}});
+  const replay = await createOrderWithOutcome(f.user.id,payload,key);
+  assert.equal(replay.created,false);
+  assert.equal(replay.order.id,first.order.id);
+  assert.equal(await db.order.count({where:{userId:f.user.id}}),1);
+  const stale = await createCheckoutPreview(validateCheckoutPreview({items:[
+    {slug:f.product.slug, quantity:1, options:{colour:"black"}, clientPriceMinor:129900},
+  ]}));
+  assert.equal(stale.changedPrice,true);
+  assert.equal(stale.valid,false);
 });

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/cart/cart-provider";
 import { CheckoutShell } from "@/components/checkout/checkout-shell";
@@ -13,8 +14,8 @@ import { OrderReview } from "@/components/checkout/order-review";
 import { CheckoutSummary } from "@/components/checkout/checkout-summary";
 import { CheckoutEmpty } from "@/components/checkout/checkout-empty";
 import { deliveryOptions, paymentMethods } from "@/lib/checkout-data";
-import { resolveProductSlugs } from "@/lib/api/products-client";
-import { clearCheckoutAttempt, submitBackendOrder } from "@/lib/api/orders-client";
+import { clearCheckoutAttempt, submitBackendOrder, readPendingOnlineOrder, rememberPendingOnlineOrder, clearPendingOnlineOrder } from "@/lib/api/orders-client";
+import { checkoutIntentSignature, checkoutIntentDigest, verifiedCheckoutOrderItems, type PendingOnlineOrder } from "@/lib/commerce/checkout-submission";
 import { createCashfreeSession, openCashfreeCheckout } from "@/lib/api/payments-client";
 import { checkoutPreviewRequest, checkoutPreviewSignature, fetchCheckoutPreview } from "@/lib/api/checkout-preview-client";
 import type { CheckoutPreview } from "@/lib/commerce/checkout-preview";
@@ -31,7 +32,13 @@ export function CheckoutPageClient() {
   const [paymentId, setPaymentId] = useState<PaymentMethodId>("cod");
   const [placing, setPlacing] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [pendingOnlineOrder, setPendingOnlineOrder] = useState<string | null>(null);
+  const [pendingOnlineOrder, setPendingOnlineOrder] = useState<PendingOnlineOrder | null>(null);
+  const placingRef = useRef(false);
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => { if (active) setPendingOnlineOrder(readPendingOnlineOrder()); });
+    return () => { active = false; };
+  }, []);
   const [lastPreview, setLastPreview] = useState<{ key: string; quote: CheckoutPreview } | null>(null);
   const [previewError, setPreviewError] = useState<{ key: string; error: string } | null>(null);
   const previewKey = useMemo(() => JSON.stringify({
@@ -59,6 +66,52 @@ export function CheckoutPageClient() {
 
   const address = addresses.find((item) => item.id === addressId) ?? addresses[0];
   const contactEmail = email.trim().toLowerCase();
+  // Updates after user changes are compared following every async checkout step.
+  const intent = useMemo(() => checkoutIntentSignature({
+    lines, coupon, deliveryId, paymentId, email: contactEmail, address,
+  }), [lines, coupon, deliveryId, paymentId, contactEmail, address]);
+  const latestIntent = useRef(intent);
+  useEffect(() => { latestIntent.current = intent; }, [intent]);
+
+  async function resumePendingOnlinePayment() {
+    if (placingRef.current) return;
+    const existing = pendingOnlineOrder ?? readPendingOnlineOrder();
+    if (!existing) return;
+    placingRef.current = true;
+    setPlacing(true);
+    setSubmitError("");
+    try {
+      const paymentSession = await createCashfreeSession(existing.orderNumber, existing.email);
+      await openCashfreeCheckout(paymentSession);
+    } catch (caught) {
+      setSubmitError(caught instanceof Error ? caught.message : "Could not resume online payment.");
+    } finally {
+      placingRef.current = false;
+      setPlacing(false);
+    }
+  }
+  function beginSeparateCheckout() {
+    if (placingRef.current) return;
+    // This does not cancel or release the original order; only clears the
+    // browser's recovery shortcut after explicit customer action.
+    clearPendingOnlineOrder();
+    clearCheckoutAttempt();
+    setPendingOnlineOrder(null);
+    setSubmitError("Previous online order remains in order tracking. This is a separate checkout.");
+  }
+  const pendingNotice = pendingOnlineOrder ? (
+    <section role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm">
+      <p className="font-black">An online order already exists: {pendingOnlineOrder.orderNumber}</p>
+      <p className="mt-2 text-black/70">Payment may still be pending. Resume payment on this order, or check its status before placing a separate order.</p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button type="button" disabled={placing} onClick={() => void resumePendingOnlinePayment()}
+          className="rounded-full bg-black px-4 py-2 font-black text-white disabled:opacity-50">Resume existing payment</button>
+        <Link href="/track-order" className="font-bold underline underline-offset-2">Track order</Link>
+        <button type="button" disabled={placing} onClick={beginSeparateCheckout}
+          className="rounded-full border border-black/20 px-3 py-2 font-bold disabled:opacity-50">Start separate checkout</button>
+      </div>
+    </section>
+  ) : null;
 
   if (!hydrated) {
     return (
@@ -68,7 +121,11 @@ export function CheckoutPageClient() {
     );
   }
 
-  if (!lines.length) return <CheckoutEmpty />;
+  if (!lines.length) return <div className="mx-auto max-w-7xl space-y-4 px-4 pt-8">
+    {pendingNotice}
+    <CheckoutEmpty />
+    {submitError ? <p role="alert" className="text-sm font-bold text-red-700">{submitError}</p> : null}
+  </div>;
 
   const addAddress = (next: CheckoutAddress) => {
     setAddresses((current) => [next, ...current.filter((item) => item.id !== next.id)]);
@@ -77,29 +134,47 @@ export function CheckoutPageClient() {
   };
 
   const placeOrder = async () => {
-    if (placing) return;
-
+    // React setState is async; ref blocks two clicks within the same frame.
+    if (placingRef.current) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
       setSubmitError("Enter a valid email address for order updates.");
       return;
     }
-
     if (!address) {
       setSubmitError("Add a delivery address before placing the order.");
       return;
     }
 
+    placingRef.current = true;
     setPlacing(true);
     setSubmitError("");
+    // Freeze an immutable purchase intent before the first awaited operation.
+    const intentAtClick = intent;
+    const linesAtClick = lines.map(line => ({ ...line,
+      choices: line.choices ? { ...line.choices } : undefined }));
+    const addressAtClick = { ...address };
+    const couponAtClick = coupon;
+    const emailAtClick = contactEmail;
+    const paymentAtClick = paymentId;
+    const deliveryAtClick = delivery;
+    const isUnchanged = () => {
+      if (latestIntent.current !== intentAtClick) {
+        throw new Error("Your cart or checkout details changed during verification. Review and submit again.");
+      }
+    };
 
     try {
-      if (paymentId === "cashfree" && pendingOnlineOrder) {
-        const paymentSession = await createCashfreeSession(
-          pendingOnlineOrder,
-          contactEmail,
-        );
+      const digest = await checkoutIntentDigest(intentAtClick);
+      isUnchanged();
+      const pending = pendingOnlineOrder ?? readPendingOnlineOrder();
+      if (pending) {
+        if (paymentAtClick !== "cashfree" || pending.digest !== digest || pending.email !== emailAtClick) {
+          throw new Error("An earlier online order already exists. Resume or track it, or explicitly start a separate checkout.");
+        }
+        // Crucially: a persisted online order already has reserved stock.
+        // Never create a second order during payment-session retries.
+        const paymentSession = await createCashfreeSession(pending.orderNumber, pending.email);
         await openCashfreeCheckout(paymentSession);
-        setPlacing(false);
         return;
       }
 
@@ -112,86 +187,76 @@ export function CheckoutPageClient() {
       if (preview.changedPrice) {
         throw new Error("An item price has changed. Review and update your bag before placing the order.");
       }
-      // Recheck immediately before checkout. Final reservation occurs only
-      // inside the existing order transaction.
-      const refreshed = await fetchCheckoutPreview(checkoutPreviewRequest(lines, coupon, "standard"));
+
+      // Refresh the exact captured cart before submitting, not live mutable
+      // component state. The DB order transaction still rechecks all stock.
+      const refreshed = await fetchCheckoutPreview(checkoutPreviewRequest(linesAtClick, couponAtClick, "standard"));
+      isUnchanged();
       if (!refreshed.valid || refreshed.changedPrice ||
           checkoutPreviewSignature(refreshed) !== checkoutPreviewSignature(preview)) {
         setLastPreview({ key: previewKey, quote: refreshed });
         throw new Error("Cart price or stock changed. Please review the updated checkout before ordering.");
       }
-
-      const resolved = await resolveProductSlugs(lines.map((line) => line.slug));
-      const bySlug = new Map(resolved.map((product) => [product.slug, product]));
-
-      const unresolved = lines.filter((line) => !bySlug.has(line.slug));
-      if (unresolved.length) {
-        throw new Error(
-          `${unresolved[0].name} is not in the production database yet. Run the NEXORA database seed first.`,
-        );
-      }
+      const items = verifiedCheckoutOrderItems(linesAtClick, refreshed);
+      isUnchanged();
 
       const order = await submitBackendOrder({
-        items: lines.map((line, index) => ({
-          productId: bySlug.get(line.slug)!.id,
-          quantity: line.quantity,
-          expectedUnitPriceMinor: refreshed.lines[index].unitPriceMinor!,
-          variant: line.choices ?? {},
-        })),
+        items,
         shippingAddress: {
-          fullName: address.fullName,
-          phone: address.phone,
-          line1: address.line1,
-          city: address.city,
-          state: address.state,
-          postalCode: address.postalCode,
-          country: address.country,
+          fullName: addressAtClick.fullName,
+          phone: addressAtClick.phone,
+          line1: addressAtClick.line1,
+          city: addressAtClick.city,
+          state: addressAtClick.state,
+          postalCode: addressAtClick.postalCode,
+          country: addressAtClick.country,
         },
-        paymentMethod: paymentId,
-        deliveryMethod: delivery.id,
-        contactEmail,
-        coupon: coupon || undefined,
-        notes: contactEmail ? `Checkout contact: ${contactEmail}` : undefined,
+        paymentMethod: paymentAtClick,
+        deliveryMethod: deliveryAtClick.id,
+        contactEmail: emailAtClick,
+        coupon: couponAtClick || undefined,
+        notes: emailAtClick ? `Checkout contact: ${emailAtClick}` : undefined,
       });
 
-      sessionStorage.setItem(
-        "nexora-last-order",
-        JSON.stringify({
-          orderId: order.orderNumber,
-          email: contactEmail,
-          deliveryLabel: delivery.label,
-          paymentId,
-          itemCount: lines.reduce((sum, line) => sum + line.quantity, 0),
-        }),
-      );
+      // The DB order now exists. Never mask success because sessionStorage is
+      // blocked, nor destroy items that the customer added meanwhile.
+      try {
+        sessionStorage.setItem("nexora-last-order", JSON.stringify({
+          orderId: order.orderNumber, email: emailAtClick,
+          deliveryLabel: deliveryAtClick.label, paymentId: paymentAtClick,
+          itemCount: linesAtClick.reduce((sum, line) => sum + line.quantity, 0),
+        }));
+      } catch { /* Confirmation route may still read URL order reference. */ }
 
-      if (paymentId === "cashfree") {
-        setPendingOnlineOrder(order.orderNumber);
-        const paymentSession = await createCashfreeSession(
-          order.orderNumber,
-          contactEmail,
-        );
+      if (paymentAtClick === "cashfree") {
+        const recovery = { orderNumber: order.orderNumber, email: emailAtClick, digest };
+        rememberPendingOnlineOrder(recovery);
+        setPendingOnlineOrder(recovery);
+        // Payment-session failure leaves the existing order recoverable.
+        const paymentSession = await createCashfreeSession(order.orderNumber, emailAtClick);
         await openCashfreeCheckout(paymentSession);
-        setPlacing(false);
         return;
       }
 
       clearCheckoutAttempt();
-      clearCart();
+      if (latestIntent.current === intentAtClick) clearCart();
       router.push(`/checkout/success?order=${encodeURIComponent(order.orderNumber)}`);
     } catch (caught) {
       setSubmitError(caught instanceof Error ? caught.message : "Could not create your order.");
+    } finally {
+      placingRef.current = false;
       setPlacing(false);
     }
   };
-
   return (
       <CheckoutShell>
         <CheckoutSteps step={step} onStep={setStep} />
+        {pendingNotice}
 
         <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_390px] lg:items-start">
           <div className="space-y-5">
-            <ContactPanel email={contactEmail} onEmail={setEmail} />
+            <div className={placing ? "pointer-events-none opacity-60" : ""} aria-busy={placing}>
+              <ContactPanel email={contactEmail} onEmail={setEmail} />
             <AddressSection
               addresses={addresses}
               selectedId={addressId}
@@ -200,6 +265,7 @@ export function CheckoutPageClient() {
             />
             <DeliverySection options={deliveryOptions} selectedId={deliveryId} onSelect={setDeliveryId} />
             <PaymentSection methods={paymentMethods} selectedId={paymentId} onSelect={setPaymentId} />
+            </div>
 
             {submitError ? (
               <div className="rounded-[24px] border border-red-200 bg-red-50 p-4 text-sm font-bold leading-6 text-red-800">

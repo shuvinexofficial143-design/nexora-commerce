@@ -1,7 +1,24 @@
 import { apiFetch } from "@/lib/api/http";
 import type { BackendOrder, CreateOrderPayload } from "@/types/backend";
+import { parsePendingOnlineOrder, type PendingOnlineOrder } from "@/lib/commerce/checkout-submission";
 
 const STORAGE_KEY = "nexora-checkout-attempt-v1";
+const PENDING_ONLINE_KEY = "nexora-pending-online-order-v1";
+
+// A successfully created online order already owns its reservation. Retry
+// hosted checkout against that order, never create a duplicate reservation.
+export function readPendingOnlineOrder(): PendingOnlineOrder | null {
+  try { return parsePendingOnlineOrder(sessionStorage.getItem(PENDING_ONLINE_KEY)); }
+  catch { return null; }
+}
+export function rememberPendingOnlineOrder(order: PendingOnlineOrder): void {
+  try { sessionStorage.setItem(PENDING_ONLINE_KEY, JSON.stringify(order)); }
+  catch { /* In-memory state still permits the retry while tab remains open. */ }
+}
+export function clearPendingOnlineOrder(): void {
+  try { sessionStorage.removeItem(PENDING_ONLINE_KEY); } catch {}
+}
+
 
 export function fetchMyOrders() {
   return apiFetch<BackendOrder[]>("/api/backend/orders");
