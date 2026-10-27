@@ -76,3 +76,17 @@ export const InventoryMovementType = {
 } as const
 
 export type InventoryMovementType = (typeof InventoryMovementType)[keyof typeof InventoryMovementType]
+
+
+export const AttributeType = {
+  TEXT: 'TEXT',
+  NUMBER: 'NUMBER',
+  SELECT: 'SELECT',
+  MULTI_SELECT: 'MULTI_SELECT',
+  BOOLEAN: 'BOOLEAN',
+  COLOR: 'COLOR',
+  DATE: 'DATE',
+  IMAGE_REQUEST: 'IMAGE_REQUEST'
+} as const
+
+export type AttributeType = (typeof AttributeType)[keyof typeof AttributeType]

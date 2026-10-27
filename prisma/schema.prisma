@@ -110,21 +110,65 @@ model Address {
 }
 
 model Category {
-  id        String    @id @default(cuid())
-  name      String
-  slug      String    @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  products  Product[]
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  description String?
+  imageUrl    String?
+  sortOrder   Int        @default(0)
+  visible     Boolean    @default(true)
+  archived    Boolean    @default(false)
+  parentId    String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
+  attributes  AttributeDefinition[]
+
+  @@index([parentId, visible, archived, sortOrder])
 }
 
 model Brand {
-  id        String    @id @default(cuid())
-  name      String
-  slug      String    @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  products  Product[]
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  logoUrl     String?
+  active      Boolean   @default(true)
+  featured    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+enum AttributeType {
+  TEXT
+  NUMBER
+  SELECT
+  MULTI_SELECT
+  BOOLEAN
+  COLOR
+  DATE
+  IMAGE_REQUEST
+}
+
+model AttributeDefinition {
+  id           String        @id @default(cuid())
+  categoryId   String
+  name         String
+  slug         String
+  type         AttributeType @default(TEXT)
+  required     Boolean       @default(false)
+  options      Json?
+  sortOrder    Int           @default(0)
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  category     Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, slug])
+  @@index([categoryId, active, sortOrder])
 }
 
 model Product {
@@ -143,6 +187,7 @@ model Product {
   featured       Boolean         @default(false)
   categoryId     String?
   brandId        String?
+  attributes     Json?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)

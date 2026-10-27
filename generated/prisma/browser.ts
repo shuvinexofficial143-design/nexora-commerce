@@ -43,6 +43,11 @@ export type Category = Prisma.CategoryModel
  */
 export type Brand = Prisma.BrandModel
 /**
+ * Model AttributeDefinition
+ * 
+ */
+export type AttributeDefinition = Prisma.AttributeDefinitionModel
+/**
  * Model Product
  * 
  */

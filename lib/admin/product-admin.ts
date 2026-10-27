@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
+import { validateProductAttributes } from "@/lib/admin/catalog-admin";
+import type { Prisma } from "@/generated/prisma/client";
 import {
   getYouTubeVideoId,
   isDirectVideoUrl,
@@ -7,6 +9,25 @@ import {
   isSupportedProductVideoUrl,
   resolveProductMedia,
 } from "@/lib/product-media";
+
+type GalleryInput = { url: string; alt?: string };
+
+export function normalizeGallery(value: unknown, productName: string) {
+  if (!Array.isArray(value)) throw new Error("Product gallery must be an array.");
+  const seen = new Set<string>();
+  return value.map((item, index) => {
+    const candidate = typeof item === "string" ? { url: item } : item as GalleryInput;
+    const url = String(candidate?.url ?? "").trim();
+    if (!isSupportedPosterUrl(url)) throw new Error("Gallery images must use HTTPS from Unsplash, YouTube, Cloudinary, or Supabase Storage.");
+    if (seen.has(url)) throw new Error("Gallery images must be unique.");
+    seen.add(url);
+    return {
+      url,
+      alt: String(candidate?.alt ?? `${productName} image ${index + 1}`).trim() || `${productName} image ${index + 1}`,
+      sortOrder: index + 10,
+    };
+  });
+}
 
 const slug = (value: string) =>
   value
@@ -30,6 +51,7 @@ export async function createProduct(input: Record<string, unknown>) {
     videoUrl: typeof input.videoUrl === "string" ? input.videoUrl : undefined,
     posterUrl: typeof input.posterUrl === "string" ? input.posterUrl : undefined,
   });
+  const gallery = input.images === undefined ? [] : normalizeGallery(input.images, name);
 
   const prisma = getPrisma();
 
@@ -50,10 +72,12 @@ export async function createProduct(input: Record<string, unknown>) {
         ...(typeof input.brandSlug === "string" && input.brandSlug.trim()
           ? { brand: { connect: { slug: input.brandSlug.trim().toLowerCase() } } }
           : {}),
+        ...(input.attributes !== undefined ? { attributes: await resolveAttributes(input.attributes, typeof input.categorySlug === "string" ? input.categorySlug : undefined) as Prisma.InputJsonValue } : {}),
       },
     });
 
     const productMedia = [
+      ...gallery.map((item) => ({ productId: product.id, ...item })),
       ...(media.posterUrl
         ? [{
             productId: product.id,
@@ -90,6 +114,7 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
     compareAtMinor?: number | null;
     categoryId?: string | null;
     brandId?: string | null;
+    attributes?: Prisma.InputJsonValue;
   } = {};
 
   if (typeof input.name === "string") {
@@ -138,13 +163,15 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
     const brand = input.brandSlug.trim().toLowerCase();
     data.brandId = brand ? (await getPrisma().brand.findUniqueOrThrow({ where: { slug: brand }, select: { id: true } })).id : null;
   }
+  if (input.attributes !== undefined) data.attributes = await resolveAttributes(input.attributes, typeof input.categorySlug === "string" ? input.categorySlug : undefined, id) as Prisma.InputJsonValue;
 
   const mediaUpdateRequested =
-    typeof input.videoUrl === "string" || typeof input.posterUrl === "string";
+    typeof input.videoUrl === "string" || typeof input.posterUrl === "string" || Array.isArray(input.images);
   const nextVideoUrl =
     typeof input.videoUrl === "string" ? input.videoUrl.trim() || null : undefined;
   const nextPosterUrl =
     typeof input.posterUrl === "string" ? input.posterUrl.trim() || null : undefined;
+  const nextGallery = Array.isArray(input.images) ? normalizeGallery(input.images, typeof input.name === "string" ? input.name.trim() : "Product") : undefined;
 
   if (nextVideoUrl && !isSupportedProductVideoUrl(nextVideoUrl)) {
     throw new Error("Use a valid YouTube link or a direct HTTPS MP4/WebM/OGG/M4V/MOV URL.");
@@ -164,7 +191,7 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
 
   return prisma.$transaction(async (tx) => {
     const product = Object.keys(data).length
-      ? await tx.product.update({ where: { id }, data })
+      ? await tx.product.update({ where: { id }, data: data as Prisma.ProductUncheckedUpdateInput })
       : await tx.product.findUniqueOrThrow({ where: { id } });
 
     if (mediaUpdateRequested) {
@@ -177,8 +204,17 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
         (item) => isDirectVideoUrl(item.url) || Boolean(getYouTubeVideoId(item.url)),
       );
       const posterRecord = existing.find(
-        (item) => !isDirectVideoUrl(item.url) && !getYouTubeVideoId(item.url),
+        (item) => item.sortOrder === 0 && !isDirectVideoUrl(item.url) && !getYouTubeVideoId(item.url),
       );
+
+      if (nextGallery !== undefined) {
+        await tx.productImage.deleteMany({
+          where: { productId: id, id: { notIn: [videoRecord?.id, posterRecord?.id].filter((item): item is string => Boolean(item)) } },
+        });
+        if (nextGallery.length) {
+          await tx.productImage.createMany({ data: nextGallery.map((item) => ({ productId: id, ...item })) });
+        }
+      }
 
       if (nextVideoUrl !== undefined) {
         if (nextVideoUrl === null) {
@@ -223,4 +259,14 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
 
     return product;
   });
+}
+
+async function resolveAttributes(value: unknown, categorySlug?: string, productId?: string) {
+  const prisma = getPrisma();
+  let categoryId: string | undefined;
+  if (categorySlug?.trim()) categoryId = (await prisma.category.findUniqueOrThrow({ where: { slug: categorySlug.trim().toLowerCase() }, select: { id: true } })).id;
+  if (!categoryId && productId) categoryId = (await prisma.product.findUniqueOrThrow({ where: { id: productId }, select: { categoryId: true } })).categoryId ?? undefined;
+  if (!categoryId) throw new Error("A category is required for product attributes.");
+  const definitions = await prisma.attributeDefinition.findMany({ where: { categoryId }, select: { slug: true, name: true, type: true, required: true, active: true, options: true } });
+  return validateProductAttributes(definitions, value);
 }

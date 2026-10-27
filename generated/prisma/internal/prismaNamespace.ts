@@ -402,6 +402,7 @@ export const ModelName = {
   Address: 'Address',
   Category: 'Category',
   Brand: 'Brand',
+  AttributeDefinition: 'AttributeDefinition',
   Product: 'Product',
   ProductImage: 'ProductImage',
   HomepageBanner: 'HomepageBanner',
@@ -426,7 +427,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "session" | "address" | "category" | "brand" | "product" | "productImage" | "homepageBanner" | "warehouse" | "inventoryItem" | "inventoryMovement" | "order" | "orderItem" | "checkoutAttempt"
+    modelProps: "user" | "session" | "address" | "category" | "brand" | "attributeDefinition" | "product" | "productImage" | "homepageBanner" | "warehouse" | "inventoryItem" | "inventoryMovement" | "order" | "orderItem" | "checkoutAttempt"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -797,6 +798,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.BrandCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.BrandCountAggregateOutputType> | number
+        }
+      }
+    }
+    AttributeDefinition: {
+      payload: Prisma.$AttributeDefinitionPayload<ExtArgs>
+      fields: Prisma.AttributeDefinitionFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.AttributeDefinitionFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AttributeDefinitionPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.AttributeDefinitionFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AttributeDefinitionPayload>
+        }
+        findFirst: {
+          args: Prisma.AttributeDefinitionFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AttributeDefinitionPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.AttributeDefinitionFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AttributeDefinitionPayload>
+        }
+        findMany: {
+          args: Prisma.AttributeDefinitionFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AttributeDefinitionPayload>[]
+        }
+        create: {
+          args: Prisma.AttributeDefinitionCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AttributeDefinitionPayload>
+        }
+        createMany: {
+          args: Prisma.AttributeDefinitionCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.AttributeDefinitionCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AttributeDefinitionPayload>[]
+        }
+        delete: {
+          args: Prisma.AttributeDefinitionDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AttributeDefinitionPayload>
+        }
+        update: {
+          args: Prisma.AttributeDefinitionUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AttributeDefinitionPayload>
+        }
+        deleteMany: {
+          args: Prisma.AttributeDefinitionDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.AttributeDefinitionUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.AttributeDefinitionUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AttributeDefinitionPayload>[]
+        }
+        upsert: {
+          args: Prisma.AttributeDefinitionUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AttributeDefinitionPayload>
+        }
+        aggregate: {
+          args: Prisma.AttributeDefinitionAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAttributeDefinition>
+        }
+        groupBy: {
+          args: Prisma.AttributeDefinitionGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AttributeDefinitionGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.AttributeDefinitionCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AttributeDefinitionCountAggregateOutputType> | number
         }
       }
     }
@@ -1555,6 +1630,12 @@ export const CategoryScalarFieldEnum = {
   id: 'id',
   name: 'name',
   slug: 'slug',
+  description: 'description',
+  imageUrl: 'imageUrl',
+  sortOrder: 'sortOrder',
+  visible: 'visible',
+  archived: 'archived',
+  parentId: 'parentId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -1566,11 +1647,32 @@ export const BrandScalarFieldEnum = {
   id: 'id',
   name: 'name',
   slug: 'slug',
+  description: 'description',
+  logoUrl: 'logoUrl',
+  active: 'active',
+  featured: 'featured',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type BrandScalarFieldEnum = (typeof BrandScalarFieldEnum)[keyof typeof BrandScalarFieldEnum]
+
+
+export const AttributeDefinitionScalarFieldEnum = {
+  id: 'id',
+  categoryId: 'categoryId',
+  name: 'name',
+  slug: 'slug',
+  type: 'type',
+  required: 'required',
+  options: 'options',
+  sortOrder: 'sortOrder',
+  active: 'active',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AttributeDefinitionScalarFieldEnum = (typeof AttributeDefinitionScalarFieldEnum)[keyof typeof AttributeDefinitionScalarFieldEnum]
 
 
 export const ProductScalarFieldEnum = {
@@ -1589,6 +1691,7 @@ export const ProductScalarFieldEnum = {
   featured: 'featured',
   categoryId: 'categoryId',
   brandId: 'brandId',
+  attributes: 'attributes',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -1724,19 +1827,19 @@ export const SortOrder = {
 export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
 
 
-export const JsonNullValueInput = {
-  JsonNull: JsonNull
-} as const
-
-export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
-
-
 export const NullableJsonNullValueInput = {
   DbNull: DbNull,
   JsonNull: JsonNull
 } as const
 
 export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
+
+
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {
@@ -1848,6 +1951,34 @@ export type ListIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel,
 
 
 /**
+ * Reference to a field of type 'AttributeType'
+ */
+export type EnumAttributeTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'AttributeType'>
+    
+
+
+/**
+ * Reference to a field of type 'AttributeType[]'
+ */
+export type ListEnumAttributeTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'AttributeType[]'>
+    
+
+
+/**
+ * Reference to a field of type 'Json'
+ */
+export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
+    
+
+
+/**
+ * Reference to a field of type 'QueryMode'
+ */
+export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'QueryMode'>
+    
+
+
+/**
  * Reference to a field of type 'Float'
  */
 export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
@@ -1914,20 +2045,6 @@ export type EnumPaymentStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$Pr
  * Reference to a field of type 'PaymentStatus[]'
  */
 export type ListEnumPaymentStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'PaymentStatus[]'>
-    
-
-
-/**
- * Reference to a field of type 'Json'
- */
-export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
-    
-
-
-/**
- * Reference to a field of type 'QueryMode'
- */
-export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'QueryMode'>
     
 
 /**
@@ -2086,6 +2203,7 @@ export type GlobalOmitConfig = {
   address?: Prisma.AddressOmit
   category?: Prisma.CategoryOmit
   brand?: Prisma.BrandOmit
+  attributeDefinition?: Prisma.AttributeDefinitionOmit
   product?: Prisma.ProductOmit
   productImage?: Prisma.ProductImageOmit
   homepageBanner?: Prisma.HomepageBannerOmit

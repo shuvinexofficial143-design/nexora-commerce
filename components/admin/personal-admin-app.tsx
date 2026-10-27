@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 import { CmsHeroEditor } from "@/components/admin/cms-hero-editor";
+import { CatalogManagement } from "@/components/admin/catalog-management";
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -64,6 +65,7 @@ type ProductRow = {
   reserved: number;
   videoUrl: string | null;
   posterUrl: string | null;
+  media: Array<{ url: string; alt: string; sortOrder: number }>;
   updatedAt: string;
 };
 
@@ -460,7 +462,7 @@ function Products() {
                   </div>
                 </div>
               </summary>
-              <ProductEditForm product={product} onSave={(patch) => updateProduct(product, patch)} />
+              <ProductEditForm product={product} options={options} onSave={(patch) => updateProduct(product, patch)} />
             </details>
           ))}
           {!rows.length ? <p className="py-6 text-center text-sm font-bold text-black/35">No products yet.</p> : null}
@@ -474,7 +476,7 @@ function Homepage() {
   return <div className="space-y-6"><div><p className="text-xs font-black uppercase tracking-[.18em] text-black/35">Storefront CMS</p><h1 className="mt-1 text-3xl font-black tracking-[-.05em]">Homepage banners</h1><p className="mt-2 max-w-2xl text-sm font-medium text-black/50">Create and publish category-aware banners. Changes persist only when the reviewed HomepageBanner migration has been applied.</p></div><CmsHeroEditor /></div>;
 }
 
-function ProductEditForm({ product, onSave }: { product: ProductRow; onSave: (patch: Record<string, unknown>) => Promise<void> }) {
+function ProductEditForm({ product, options, onSave }: { product: ProductRow; options: CatalogOptions; onSave: (patch: Record<string, unknown>) => Promise<void> }) {
   const [name, setName] = useState(product.name);
   const [price, setPrice] = useState(String(product.priceMinor / 100));
   const [compareAtPrice, setCompareAtPrice] = useState(product.compareAtMinor == null ? "" : String(product.compareAtMinor / 100));
@@ -482,13 +484,17 @@ function ProductEditForm({ product, onSave }: { product: ProductRow; onSave: (pa
   const [featured, setFeatured] = useState(product.featured);
   const [videoUrl, setVideoUrl] = useState(product.videoUrl || "");
   const [posterUrl, setPosterUrl] = useState(product.posterUrl || "");
+  const [categorySlug, setCategorySlug] = useState(product.categorySlug || "");
+  const [brandSlug, setBrandSlug] = useState(product.brandSlug || "");
+  const [status, setStatus] = useState(product.status);
+  const [gallery, setGallery] = useState(product.media.filter((item) => item.sortOrder >= 10).map((item) => item.url).join("\n"));
   const [busy, setBusy] = useState(false);
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     try {
-      await onSave({ name, price: Number(price), compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null, description, featured, videoUrl, posterUrl });
+      await onSave({ name, price: Number(price), compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null, description, featured, videoUrl, posterUrl, categorySlug, brandSlug, status, images: gallery.split("\n").map((value) => value.trim()).filter(Boolean) });
     } finally {
       setBusy(false);
     }
@@ -501,6 +507,8 @@ function ProductEditForm({ product, onSave }: { product: ProductRow; onSave: (pa
       <input value={compareAtPrice} onChange={(e) => setCompareAtPrice(e.target.value)} type="number" min={price} placeholder="Compare-at price (optional)" className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
       <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold"><input checked={featured} onChange={(e) => setFeatured(e.target.checked)} type="checkbox" /> Featured product</label>
       <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Product description" className="md:col-span-2 rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
+      <select value={categorySlug} onChange={(e) => setCategorySlug(e.target.value)} className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold"><option value="">Uncategorized</option>{options.categories.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}</select>
+      <select value={brandSlug} onChange={(e) => setBrandSlug(e.target.value)} className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold"><option value="">No brand</option>{options.brands.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}</select>
       <label className="md:col-span-2">
         <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-black/35">Product video</span>
         <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="YouTube or HTTPS MP4/WebM URL" className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
@@ -511,16 +519,17 @@ function ProductEditForm({ product, onSave }: { product: ProductRow; onSave: (pa
         <input value={posterUrl} onChange={(e) => setPosterUrl(e.target.value)} placeholder="Poster image URL" className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
         <AdminMediaUpload resourceType="image" label="Upload new poster" onUploaded={setPosterUrl} />
       </label>
+      <label className="md:col-span-2"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-black/35">Gallery images</span><textarea value={gallery} onChange={(e) => setGallery(e.target.value)} rows={3} placeholder="One approved HTTPS image URL per line" className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" /><span className="mt-1 block text-[11px] font-bold text-black/40">These replace the additional gallery images; poster and video remain separate.</span></label>
       <div className="flex flex-wrap gap-2 md:col-span-2">
         <button disabled={busy} className="rounded-full bg-black px-4 py-2 text-xs font-black text-white">{busy ? "Saving…" : "Save changes"}</button>
-        {["DRAFT", "ACTIVE", "ARCHIVED"].map((status) => (
+        {["DRAFT", "ACTIVE", "ARCHIVED"].map((nextStatus) => (
           <button
-            key={status}
+            key={nextStatus}
             type="button"
-            onClick={() => void onSave({ status })}
-            className={`rounded-full px-4 py-2 text-xs font-black ${product.status === status ? "bg-[#d7ff47]" : "bg-black/5"}`}
+            onClick={() => { setStatus(nextStatus); void onSave({ status: nextStatus }); }}
+            className={`rounded-full px-4 py-2 text-xs font-black ${status === nextStatus ? "bg-[#d7ff47]" : "bg-black/5"}`}
           >
-            {status}
+            {nextStatus}
           </button>
         ))}
       </div>
@@ -1182,6 +1191,7 @@ export function PersonalAdminApp() {
 
   const section = useMemo(() => {
     if (pathname.startsWith("/admin/products")) return <Products />;
+    if (pathname.startsWith("/admin/catalog")) return <CatalogManagement />;
     if (pathname.startsWith("/admin/homepage")) return <Homepage />;
     if (pathname.startsWith("/admin/orders")) return <Orders />;
     if (pathname.startsWith("/admin/inventory")) return <Inventory />;
