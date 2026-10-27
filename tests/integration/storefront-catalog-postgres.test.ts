@@ -107,3 +107,86 @@ test("live mapping does not invent delivery guarantees, fake badges or product p
   assert.equal(mapped.image, "/product-placeholder.svg");
   assert.deepEqual(mapped.colors, []);
 });
+
+test("effective minimum ACTIVE SKU price drives filters, ordering, pagination and variant SKU search", async () => {
+  const scope = "pricedcatalog" + unique;
+  const category = await db.category.findUniqueOrThrow({ where: { slug: categoryOne } });
+  const brand = await db.brand.findUniqueOrThrow({ where: { slug: brandOne } });
+  const mk = async (tag: string, basePrice: number, status: "ACTIVE" | "DRAFT" = "ACTIVE") =>
+    db.product.create({ data: {
+      slug: scope + "-" + tag, sku: "BASE-" + scope + "-" + tag,
+      name: "Price test " + scope + " " + tag, description: "Scoped SKU filter fixture",
+      priceMinor: basePrice, status, categoryId: category.id, brandId: brand.id,
+      compareAtMinor: basePrice + 50000,
+    } });
+  const legacy = await mk("legacy", 80000);
+  const black = await mk("black", 250000);
+  const white = await mk("white", 10000);
+  const disabled = await mk("disabled", 5000);
+  const draft = await mk("draft", 400);
+  const addVariant = async (
+    productId: string, tag: string, value: string, priceMinor: number, active: boolean,
+  ) => db.productVariant.create({ data: {
+    productId, sku: "VAR-" + scope + "-" + tag,
+    choices: { colour: value }, signature: JSON.stringify({ colour: value }),
+    priceMinor, onHand: 5, reserved: 0, active,
+  } });
+  await addVariant(black.id, "black-cheap", "black", 30000, true);
+  await addVariant(black.id, "black-expensive", "red", 70000, true);
+  await addVariant(white.id, "white", "white", 120000, true);
+  await addVariant(white.id, "white-inactive", "red", 100, false);
+  await addVariant(disabled.id, "disabled-only", "blue", 100, false);
+  await addVariant(draft.id, "draft", "gold", 100, true);
+
+  const low = await listProducts({ query: scope, sort: "price-low", limit: 2 });
+  const lowSecond = await listProducts({ query: scope, sort: "price-low", limit: 2, offset: 2 });
+  const high = await listProducts({ query: scope, sort: "price-high", limit: 10 });
+  assert.equal(low.total, 4);
+  assert.equal(lowSecond.total, 4);
+  assert.deepEqual([...low.items, ...lowSecond.items].map(p => p.id),
+    [disabled.id, black.id, legacy.id, white.id]);
+  assert.deepEqual(high.items.map(p => p.id), [white.id, legacy.id, black.id, disabled.id]);
+  assert.deepEqual(high.items.map(p => mapBackendProductToCatalog(p).price),
+    [1200, 800, 300, 50]);
+  assert.equal(new Set([...low.items, ...lowSecond.items].map(p => p.id)).size, 4);
+
+  const between = await listProducts({
+    query: scope, minPriceMinor: 20000, maxPriceMinor: 90000, sort: "price-low", limit: 1,
+  });
+  const betweenNext = await listProducts({
+    query: scope, minPriceMinor: 20000, maxPriceMinor: 90000, sort: "price-low", limit: 1, offset: 1,
+  });
+  assert.equal(between.total, 2);
+  assert.equal(betweenNext.total, 2);
+  assert.deepEqual([...between.items, ...betweenNext.items].map(p => p.id), [black.id, legacy.id]);
+  // A product is not allowed to enter ₹200–₹900 just because one MORE EXPENSIVE
+  // variant is in that band; the effective card price must match the predicate.
+  const onlyWhite = await listProducts({ query: scope, minPriceMinor: 100000, limit: 24 });
+  assert.deepEqual(onlyWhite.items.map(p => p.id), [white.id]);
+  const fallback = await listProducts({ query: scope, maxPriceMinor: 6000, limit: 24 });
+  assert.deepEqual(fallback.items.map(p => p.id), [disabled.id]);
+
+  const facet = await listProducts({
+    query: scope, categories: [categoryOne], brands: [brandOne],
+    minPriceMinor: 20000, maxPriceMinor: 90000, sort: "newest",
+  });
+  assert.equal(facet.total, 2);
+  assert.equal(facet.items.every(p => p.category?.slug === categoryOne && p.brand?.slug === brandOne), true);
+  assert.equal((await listProducts({ query: scope, brands: ["not-listed"] })).total, 0);
+  assert.equal((await listProducts({ query: scope, categories: [categoryTwo] })).total, 0);
+
+  const variantLookup = await listProducts({ query: ("VAR-" + scope + "-white").toUpperCase() });
+  assert.equal(variantLookup.total, 1); // active & inactive variant SKUs resolve to one product
+  assert.deepEqual(new Set(variantLookup.items.map(p => p.id)), new Set([white.id]));
+  const pricedVariantQuery = await listProducts({
+    query: ("VAR-" + scope + "-white").toUpperCase(),
+    minPriceMinor: 100000, sort: "price-high",
+  });
+  assert.equal(pricedVariantQuery.total, 1);
+  assert.equal(pricedVariantQuery.items[0].id, white.id);
+
+  // Independent SKU products may not inherit the base compare-at price.
+  assert.equal(mapBackendProductToCatalog(high.items[0]).compareAtPrice, undefined);
+  assert.equal(mapBackendProductToCatalog(high.items[1]).compareAtPrice, 1300);
+  assert.ok(!high.items.some(p => p.id === draft.id));
+});

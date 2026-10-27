@@ -2,6 +2,7 @@ import { getPrisma } from "@/lib/db/prisma";
 import type { BackendProduct } from "@/types/backend";
 import { deserializeProductChoiceGroups } from "@/lib/commerce/product-choices";
 import { publicVariant } from "@/lib/commerce/product-variants";
+import { findCatalogPricePage } from "@/lib/db/catalog-price-query";
 import type { Prisma } from "@/generated/prisma/client";
 
 function serializeProduct(product: {
@@ -75,6 +76,7 @@ export async function listProducts(input: ProductListQuery) {
       OR: [
         { name: { contains: query, mode: "insensitive" } },
         { sku: { contains: query, mode: "insensitive" } },
+        { variants: { some: { sku: { contains: query, mode: "insensitive" } } } },
         { description: { contains: query, mode: "insensitive" } },
         { shortDescription: { contains: query, mode: "insensitive" } },
         { brand: { name: { contains: query, mode: "insensitive" } } },
@@ -84,8 +86,6 @@ export async function listProducts(input: ProductListQuery) {
   }
   if (categories.length) and.push({ category: { slug: { in: categories } } });
   if (brands.length) and.push({ brand: { slug: { in: brands } } });
-  if (input.minPriceMinor !== undefined) and.push({ priceMinor: { gte: input.minPriceMinor } });
-  if (input.maxPriceMinor !== undefined) and.push({ priceMinor: { lte: input.maxPriceMinor } });
   if (input.minRating !== undefined) and.push({ rating: { gte: input.minRating } });
 
   const where: Prisma.ProductWhereInput = { status: "ACTIVE", ...(and.length ? { AND: and } : {}) };
@@ -95,6 +95,27 @@ export async function listProducts(input: ProductListQuery) {
     input.sort === "rating" ? [{ rating: "desc" }, { reviewCount: "desc" }, { id: "asc" }] :
     input.sort === "newest" ? [{ createdAt: "desc" }, { id: "asc" }] :
     [{ featured: "desc" }, { createdAt: "desc" }, { id: "asc" }];
+
+  // SQL performs variant-aware effective price comparisons BEFORE page slicing.
+  // Prisma relation aggregate cannot ORDER BY lowest active child price.
+  if (input.minPriceMinor !== undefined || input.maxPriceMinor !== undefined ||
+      input.sort === "price-low" || input.sort === "price-high") {
+    const page = await findCatalogPricePage({
+      query, categories, brands,
+      minPriceMinor: input.minPriceMinor,
+      maxPriceMinor: input.maxPriceMinor,
+      minRating: input.minRating,
+      sort: input.sort ?? "featured", limit, offset,
+    });
+    if (!page.ids.length) return { items: [], total: page.total, limit, offset };
+    const rows = await prisma.product.findMany({ where: { id: { in: page.ids }, status: "ACTIVE" }, include });
+    const byId = new Map(rows.map(row => [row.id, row]));
+    return {
+      items: page.ids.map(id => byId.get(id)).filter((row): row is NonNullable<typeof row> => row !== undefined)
+        .map(serializeProduct),
+      total: page.total, limit, offset,
+    };
+  }
 
   const [rows, total] = await Promise.all([
     prisma.product.findMany({ where, include, orderBy, take: limit, skip: offset }),

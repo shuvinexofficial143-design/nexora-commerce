@@ -59,8 +59,10 @@ export function mapBackendProductToCatalog(product: BackendProduct): CatalogProd
     brand: product.brand?.name ?? "Unbranded",
     category: product.category?.slug ?? "uncategorized",
     price: displayedPrice / 100,
-    compareAtPrice:
-      product.compareAtMinor && product.compareAtMinor > product.priceMinor
+    // A base-product compare-at price is not evidence of a discount on
+    // independently priced SKU variants; avoid fabricated sale badges.
+    compareAtPrice: product.hasPricedVariants ? undefined
+      : product.compareAtMinor && product.compareAtMinor > product.priceMinor
         ? product.compareAtMinor / 100
         : undefined,
     rating: product.rating,
