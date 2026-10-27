@@ -123,7 +123,7 @@ test("effective minimum ACTIVE SKU price drives filters, ordering, pagination an
   const black = await mk("black", 250000);
   const white = await mk("white", 10000);
   const disabled = await mk("disabled", 5000);
-  const draft = await mk("draft", 400);
+  const draft = await mk("draft", 400, "DRAFT");
   const addVariant = async (
     productId: string, tag: string, value: string, priceMinor: number, active: boolean,
   ) => db.productVariant.create({ data: {
