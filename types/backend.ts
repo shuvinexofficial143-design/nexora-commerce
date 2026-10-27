@@ -121,6 +121,7 @@ export type CreateOrderPayload = {
     productId: string;
     quantity: number;
     variant?: Record<string, string>;
+    expectedUnitPriceMinor?: number;
   }>;
   shippingAddress: {
     fullName: string;

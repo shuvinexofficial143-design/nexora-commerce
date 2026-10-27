@@ -132,9 +132,10 @@ export function CheckoutPageClient() {
       }
 
       const order = await submitBackendOrder({
-        items: lines.map((line) => ({
+        items: lines.map((line, index) => ({
           productId: bySlug.get(line.slug)!.id,
           quantity: line.quantity,
+          expectedUnitPriceMinor: refreshed.lines[index].unitPriceMinor!,
           variant: line.choices ?? {},
         })),
         shippingAddress: {

@@ -60,7 +60,7 @@ export async function reconcileOrder(
         });
         left -= quantity;
       }
-      if (left) throw new Error("Reserved product stock could not be fully reconciled.");
+      if (left) throw new Error("Reserved stock could not be fully reconciled.");
     }
   }
 

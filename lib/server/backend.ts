@@ -63,7 +63,13 @@ export function validateOrder(value: unknown): CreateOrderPayload {
        JSON.stringify(raw.variant).length > 2048)) {
       throw new ValidationError("Invalid product variant.");
     }
-    return { productId, quantity, variant: normalizeChosenOptions(raw.variant) };
+    const expectedUnitPriceMinor = raw.expectedUnitPriceMinor;
+    if (expectedUnitPriceMinor !== undefined && (
+      !Number.isSafeInteger(expectedUnitPriceMinor) ||
+      expectedUnitPriceMinor < 0 || expectedUnitPriceMinor > 100_000_000
+    )) throw new ValidationError("Invalid verified product price.");
+    return { productId, quantity, variant: normalizeChosenOptions(raw.variant),
+      ...(expectedUnitPriceMinor === undefined ? {} : { expectedUnitPriceMinor }) };
   });
   if (!input.shippingAddress || typeof input.shippingAddress !== "object" || Array.isArray(input.shippingAddress)) {
     throw new ValidationError("Shipping address is required.");

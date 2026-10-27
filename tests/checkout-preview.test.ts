@@ -32,6 +32,14 @@ test("paid express/priority delivery cannot be claimed without actual serviceabi
     contactEmail: "qa@example.invalid", paymentMethod: "cod", deliveryMethod: "priority",
   }));
 });
+test("order rejects forged or non-integer expected prices",()=>{
+  const base={items:[{productId:"p1",quantity:1,expectedUnitPriceMinor:-1}],
+    shippingAddress:{fullName:"QA Customer",phone:"9876543210",line1:"Test address",
+      city:"Indore",state:"MP",postalCode:"452001"},
+    contactEmail:"qa@example.invalid",paymentMethod:"cod",deliveryMethod:"standard"};
+  assert.throws(()=>validateOrder(base),/Invalid verified product price/);
+  assert.throws(()=>validateOrder({...base,items:[{productId:"p1",quantity:1,expectedUnitPriceMinor:2.2}]}));
+});
 test("server pricing is consistent for standard shipping threshold and GST", () => {
   const below = calculateAuthoritativeTotals({ subtotalMinor: 99899, discountMinor: 0, deliveryMethod: "standard" });
   const above = calculateAuthoritativeTotals({ subtotalMinor: 99900, discountMinor: 0, deliveryMethod: "standard" });

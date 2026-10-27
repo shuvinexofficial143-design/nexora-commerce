@@ -353,3 +353,28 @@ test("mixed priced-variant and legacy product lines reconcile both inventories",
   assert.equal((await db.inventoryItem.findUniqueOrThrow({where:{id:other.inventory.id}})).reserved,0);
   assert.equal((await db.productVariant.findUniqueOrThrow({where:{id:f.black.id}})).reserved,0);
 });
+
+test("quote to order price race rejects unexpected SKU reprice with no reservation", async()=>{
+  const f=await variantFixture();
+  const quote=await createCheckoutPreview(validateCheckoutPreview({items:[
+    {slug:f.product.slug,quantity:1,options:{colour:"black"},clientPriceMinor:129900},
+  ]}));
+  assert.equal(quote.valid,true);
+  await db.productVariant.update({where:{id:f.black.id},data:{priceMinor:145000}});
+  await assert.rejects(createOrder(f.user.id,validateOrder({
+    ...createVariantOrderInput(f.product.id,{colour:"black"}),
+    items:[{productId:f.product.id,quantity:1,variant:{colour:"black"},
+      expectedUnitPriceMinor:quote.lines[0].unitPriceMinor!}],
+  })),/Product price changed after verification/);
+  assert.equal((await db.productVariant.findUniqueOrThrow({where:{id:f.black.id}})).reserved,0);
+  assert.equal(await db.order.count({where:{userId:f.user.id}}),0);
+});
+test("legacy product server price race rejects stale quote too",async()=>{
+  const f=await fixture(4);
+  await db.product.update({where:{id:f.product.id},data:{priceMinor:90000}});
+  await assert.rejects(createOrder(f.user.id,validateOrder({
+    ...createVariantOrderInput(f.product.id,{}),
+    items:[{productId:f.product.id,quantity:1,expectedUnitPriceMinor:80000}],
+  })),/Product price changed after verification/);
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({where:{id:f.inventory.id}})).reserved,0);
+});

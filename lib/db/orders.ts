@@ -132,6 +132,11 @@ export async function createOrderWithOutcome(
       if (!Number.isSafeInteger(unitPriceMinor) || unitPriceMinor < 0) {
         throw new ValidationError("Product variant price is unavailable.");
       }
+      // The checked-out price must match the most recent server quote.
+      // Stock and price can change between preflight and this transaction.
+      if (item.expectedUnitPriceMinor !== undefined && item.expectedUnitPriceMinor !== unitPriceMinor) {
+        throw new ValidationError("Product price changed after verification. Review your cart.");
+      }
       const totalMinor = unitPriceMinor * item.quantity;
       subtotalMinor += totalMinor;
       return {
