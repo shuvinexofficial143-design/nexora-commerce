@@ -81,7 +81,8 @@ export async function getPublishedHomepageBanners(): Promise<HomepageBannerData[
   try {
     const rows = await getPrisma().homepageBanner.findMany({
       where:{published:true, archived:false},
-      orderBy:[{sortOrder:"asc"},{updatedAt:"desc"},{id:"asc"}],take:5,
+      // Filter unpublishable banners BEFORE selecting the first five live slots.
+      orderBy:[{sortOrder:"asc"},{updatedAt:"desc"},{id:"asc"}],take:1000,
       select:{id:true,title:true,description:true,imageUrl:true,mobileImageUrl:true,
         ctaText:true,ctaHref:true,categorySlug:true,sortOrder:true,published:true,archived:true},
     });
@@ -103,6 +104,7 @@ export async function getPublishedHomepageBanners(): Promise<HomepageBannerData[
         return !cat || permitted.has(cat);
       } catch {return false;}
     })
+      .slice(0,5)
       .map(({id,title,description,imageUrl,mobileImageUrl,ctaText,ctaHref,categorySlug})=>({
         id,title,description,imageUrl,mobileImageUrl,ctaText,ctaHref,categorySlug,
       }));

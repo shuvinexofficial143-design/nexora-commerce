@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
+import { BannerPreview } from "@/components/admin/banner-preview";
 
 type Banner = {
   id:string; title:string; description:string|null;
@@ -107,6 +108,7 @@ function BannerForm({initial,save,busy}:{initial:Draft;save:(draft:Draft)=>Promi
             published:event.target.checked?false:current.published}))} />
         Archived (hidden from customers)
       </label>
+      <BannerPreview banner={form}/>
       <button type="submit" disabled={busy}
         className="rounded-full bg-black px-5 py-3 text-sm font-black text-white disabled:opacity-50 sm:col-span-2">
         {busy?"Saving…":"Save banner"}
@@ -143,6 +145,23 @@ export function HomepageBannersPanel() {
     } catch(error) {setError(error instanceof Error?error.message:"Cannot update banner.");return false;}
     finally {setBusy(false);}
   }
+  async function moveBanner(id:string,direction:-1|1){
+    const active=rows.filter(row=>!row.archived);
+    if(active.length<2||active.length>100||busy)return;
+    const index=active.findIndex(row=>row.id===id);
+    const next=index+direction;
+    if(index<0||next<0||next>=active.length)return;
+    const reordered=[...active];
+    [reordered[index],reordered[next]]=[reordered[next],reordered[index]];
+    setBusy(true);setError("");
+    try{
+      await ownerBannerFetch<{reordered:number}>("/api/admin-app/banners/reorder","POST",{
+        items:reordered.map(row=>({id:row.id,updatedAt:row.updatedAt})),
+      });
+      await load();
+    }catch(error){setError(error instanceof Error?error.message:"Cannot change banner order.");}
+    finally{setBusy(false);}
+  }
   return (
     <div className="space-y-5">
       <header>
@@ -160,6 +179,8 @@ export function HomepageBannersPanel() {
       </div>
       <div className="space-y-4">
         <h2 className="text-xl font-black">Saved banners · {rows.length}</h2>
+        <p className="text-xs text-black/55">Use Move up / Move down to reorder published and draft banners. Archived banners are excluded. Order changes save immediately.</p>
+        {rows.filter(row=>!row.archived).length>100?<p role="alert" className="text-xs font-bold text-red-700">More than 100 active banners: archive older banners before reordering.</p>:null}
         {rows.map(row=>(
           <details key={row.id} className="overflow-hidden rounded-[26px] border border-black/10 bg-white">
             <summary className="flex cursor-pointer flex-wrap items-center gap-4 p-4 sm:p-5">
@@ -173,6 +194,16 @@ export function HomepageBannersPanel() {
                   {row.archived?"Archived":row.published?"Published":"Draft"} · Order {row.sortOrder}
                 </p>
               </div>
+              {!row.archived?<span className="flex gap-2">
+                <button type="button" aria-label={"Move "+row.title+" up"}
+                  disabled={busy||rows.filter(x=>!x.archived).findIndex(x=>x.id===row.id)===0}
+                  onClick={event=>{event.preventDefault();event.stopPropagation();void moveBanner(row.id,-1);}}
+                  className="rounded-full border border-black/15 px-3 py-2 text-xs font-bold disabled:opacity-35">Move up</button>
+                <button type="button" aria-label={"Move "+row.title+" down"}
+                  disabled={busy||rows.filter(x=>!x.archived).findIndex(x=>x.id===row.id)>=rows.filter(x=>!x.archived).length-1}
+                  onClick={event=>{event.preventDefault();event.stopPropagation();void moveBanner(row.id,1);}}
+                  className="rounded-full border border-black/15 px-3 py-2 text-xs font-bold disabled:opacity-35">Move down</button>
+              </span>:null}
               <span className="text-xs font-bold text-black/45">Edit / toggle</span>
             </summary>
             <div className="border-t border-black/10 p-4 sm:p-6">

@@ -420,3 +420,12 @@ Owner requested coding only; **NO VERCEL deployment** and no Production/staging 
 - Live homepage category metadata is derived only from eligible visible categories with published products; approved owner-provided images and display order override fallback product imagery. Unapproved or stale media URLs are ignored, hidden categories are never inserted into public categories. QA demo continues using its own sample categories.
 - Tests: pure price/metadata validation and homepage category fallback, plus disposable PostgreSQL create/edit rollback, comparison price display, CMS persistence, invalid media rollback, hidden category exclusion. Exact-head GitHub CI required before considering verified.
 - Remaining: Cline nonconflicting editor details, final integration branch review, staging configuration, real Cashfree/checkout and full production readiness QA.
+
+
+## 28 October 2026 — Banner Preview + Revision-Safe Reorder Integration
+- User explicitly requires continuing GPT branch development only. **NO Vercel deployment, no production database mutation or migrations**, no blind Cline/QA merge.
+- Rechecked Cline latest `104af207b2ab7e45b9ff2380da4830155893ca51` vs GPT `76223598fcb69d7172c075c936a503651f324724`. Safely ported Cline's admin-only desktop/mobile `BannerPreview`; embedded it on draft and existing banner edit forms.
+- Added Cline-compatible `POST /api/admin-app/banners/reorder` with Owner-session auth and bounded request. Serializable transaction, revision-pin `updatedAt`, all active non-archived banner IDs required, duplicate/forged revision rejection, failed all-or-nothing stale edits. Archived banners excluded. Admin Move up/down buttons call reorder and reload actual saved rows.
+- Fixed public homepage banner starvation: formerly selecting five candidates from PostgreSQL before filtering hidden/archived-category campaigns could mask valid later campaigns. Now scan up to 1000 published candidates, filter invalid/hidden linked categories first, THEN take five live banners.
+- Added pure parsing/auth tests, disposable PostgreSQL tests for moving all active banners, stale/archived ID failures and six hidden banners ahead of a valid sixth-plus campaign. Existing schema is sufficient; no migration.
+- This milestone stays incomplete until exact-HEAD TypeScript, ESLint, production build, unit, isolated PostgreSQL and desktop/mobile Chromium regressions pass. Remaining Cline/QA integration and actual staging + payment verification are separate milestones.
