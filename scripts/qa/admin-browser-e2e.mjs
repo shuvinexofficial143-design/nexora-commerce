@@ -474,6 +474,81 @@ try {
     assert.equal(rows.find(x => x.title === bannerTitle)?.published, false, "Restored banner must remain Draft");
   });
 
+
+  await verify("homepage-banner-atomic-reordering-and-stale-conflict", async () => {
+    const titles = ["QA Sort First " + suffix, "QA Sort Second " + suffix];
+    for (let index = 0; index < titles.length; index++) {
+      await api(ctx, "/api/admin-app/banners", "POST", {
+        title: titles[index], imageUrl: img1, mobileImageUrl: "",
+        ctaText: "Shop now", ctaHref: "/shop", description: "QA banner sort",
+        sortOrder: 10 + index * 10, categorySlug: null, published: true, archived: false,
+      });
+    }
+    const initial = (await api(ctx, "/api/admin-app/banners")).filter(x => !x.archived);
+    assert.ok(initial.findIndex(x => x.title === titles[0]) < initial.findIndex(x => x.title === titles[1]));
+    const staleItems = initial.map(x => ({ id: x.id, updatedAt: x.updatedAt }));
+    await page.goto(new URL("/admin/homepage", base).href);
+    const sortedRow = page.getByText(titles[1], { exact: true }).last().locator("..").locator("..");
+    const request = page.waitForResponse(r => new URL(r.url()).pathname === "/api/admin-app/banners/reorder" &&
+      r.request().method() === "POST");
+    await sortedRow.getByRole("button", { name: "Move banner " + titles[1] + " up" }).click();
+    const moved = await request;
+    assert.equal(moved.status(), 200, "Owner reorder must persist transactionally");
+    const ordered = (await api(ctx, "/api/admin-app/banners")).filter(x => !x.archived);
+    assert.ok(ordered.findIndex(x => x.title === titles[1]) < ordered.findIndex(x => x.title === titles[0]));
+    assert.deepEqual(ordered.map(x => x.sortOrder), ordered.map((_,i) => i), "Ranks must be dense and unique");
+    const stale = await ctx.request.post(new URL("/api/admin-app/banners/reorder", base).href, {
+      data: { items: staleItems },
+    });
+    assert.equal(stale.status(), 409);
+    const duplicate = await ctx.request.post(new URL("/api/admin-app/banners/reorder", base).href, {
+      data: { items: [staleItems[0], staleItems[0]] },
+    });
+    assert.equal(duplicate.status(), 400);
+    const guest = await browser.newContext();
+    try {
+      const forbidden = await guest.request.post(new URL("/api/admin-app/banners/reorder", base).href, {
+        data: { items: staleItems },
+      });
+      assert.equal(forbidden.status(), 401);
+    } finally { await guest.close(); }
+    const upload = page.locator("form").first();
+    await upload.getByRole("button", { name: "Upload banner desktop image" }).waitFor();
+    await upload.locator('input[type="file"]').first().setInputFiles({
+      name: "qa-banner.png", mimeType: "image/png", buffer: Buffer.from([137,80,78,71,13,10,26,10]),
+    });
+    await upload.getByText("Cloudinary upload is not configured yet.").waitFor();
+  });
+
+  await verify("publish-blocks-invalid-stored-required-attributes-in-single-and-bulk", async () => {
+    const original = await api(ctx, "/api/admin-app/products/manage", "POST", {
+      name: "QA Publish Required " + suffix, sku: "QA-PUBLISH-REQUIRED-" + suffix.toUpperCase(),
+      price: 249, categorySlug, brandSlug, status: "DRAFT",
+      attributes: { "storage-gb": 32, "case-color": "Black" },
+    });
+    const categories = await api(ctx, "/api/admin-app/catalog/categories?archived=true");
+    const category = categories.find(x => x.slug === categorySlug);
+    assert.ok(category, "Owner QA category must exist");
+    await api(ctx, "/api/admin-app/catalog/attributes", "POST", {
+      categoryId: category.id, name: "Warranty Months", type: "NUMBER", required: true,
+    });
+    const url = new URL("/api/admin-app/products/" + original.id, base).href;
+    const invalidSingle = await ctx.request.patch(url, { data: { status: "ACTIVE" } });
+    assert.equal(invalidSingle.status(), 500, "Existing product must not bypass a newly required field");
+    const before = (await api(ctx, "/api/admin-app/products")).find(x => x.id === original.id);
+    assert.equal(before.status, "DRAFT");
+    const invalidBulk = await ctx.request.post(new URL("/api/admin-app/products/bulk", base).href, {
+      data: { action: "PUBLISH", products: [{ id: original.id, updatedAt: before.updatedAt }] },
+    });
+    assert.equal(invalidBulk.status(), 500, "Bulk publish must reject invalid persisted attributes");
+    assert.equal((await api(ctx, "/api/admin-app/products")).find(x => x.id === original.id).status, "DRAFT");
+    await api(ctx, "/api/admin-app/products/" + original.id, "PATCH", {
+      attributes: { "storage-gb": 32, "case-color": "Black", "warranty-months": 24 },
+    });
+    const valid = await api(ctx, "/api/admin-app/products/" + original.id, "PATCH", { status: "ACTIVE" });
+    assert.equal(valid.status, "ACTIVE");
+    await api(ctx, "/api/admin-app/products/" + original.id, "PATCH", { status: "DRAFT" });
+  });
   await ctx.close();
 } finally {
   await browser.close();
