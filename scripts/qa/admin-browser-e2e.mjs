@@ -360,7 +360,7 @@ try {
     await dbClient.connect();
     let triggerCreated = false;
     try {
-      await dbClient.query("CREATE FUNCTION qa_reject_bulk_audit() RETURNS trigger AS $ BEGIN RAISE EXCEPTION 'QA audit insert rejected'; END; $ LANGUAGE plpgsql");
+      await dbClient.query("CREATE FUNCTION qa_reject_bulk_audit() RETURNS trigger AS $qafunc$ BEGIN RAISE EXCEPTION 'QA audit insert rejected'; END; $qafunc$ LANGUAGE plpgsql");
       await dbClient.query('CREATE TRIGGER qa_reject_bulk_audit_trg BEFORE INSERT ON "AdminActivityLog" FOR EACH ROW WHEN (NEW."action" = \'PRODUCT_BULK_FEATURE\') EXECUTE FUNCTION qa_reject_bulk_audit()');
       triggerCreated = true;
       const original = await product(ctx);
