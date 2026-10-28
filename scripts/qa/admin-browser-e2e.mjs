@@ -151,7 +151,11 @@ try {
     await gallery.getByRole("button", { name: "Add image URL" }).click();
     await gallery.getByRole("button", { name: "Move image 2 up" }).click();
     await gallery.getByRole("button", { name: "Move image 1 down" }).click();
+    const saveResult = page.waitForResponse((response) => new URL(response.url()).pathname.includes("/api/admin-app/products/") && response.request().method() === "PATCH");
     await form.getByRole("button", { name: "Save changes" }).click();
+    const savedResponse = await saveResult;
+    const savePayload = await savedResponse.json();
+    assert.equal(savedResponse.status(), 200, "Edit API response: " + JSON.stringify(savePayload));
     await page.waitForFunction(async (id) => {
       const result = await (await fetch("/api/admin-app/products")).json();
       const row = result.data?.find(v => v.sku === id);

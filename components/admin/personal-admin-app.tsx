@@ -547,7 +547,7 @@ function ProductEditForm({ product, options, definitions, attributesLoading, att
       const attrs = categoryId ? normalizeAttributeDraft(applicableDefinitions, draftAttributes) : undefined;
       await onSave({
         name, price: Number(price), compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null,
-        description, featured, videoUrl, posterUrl, status,
+        ...(description.trim() !== product.description.trim() ? { description } : {}), featured, videoUrl, posterUrl, status,
         ...(categorySlug !== (product.categorySlug ?? "") ? { categorySlug } : {}),
         ...(brandSlug !== (product.brandSlug ?? "") ? { brandSlug } : {}),
         ...(attrs !== undefined ? { attributes: attrs } : {}),

@@ -71,10 +71,11 @@ test("Admin Product create/update reload and storefront publication use real iso
     "Required-attribute rejection must not create partial rows.");
 
   const product = await createProduct({
-    ...input, attributes: { "storage-gb": 128, "case-color": "Black", waterproof: false },
+    ...input, description: " ", attributes: { "storage-gb": 128, "case-color": "Black", waterproof: false },
   });
   productIds.push(product.id);
   assert.equal(product.status, "DRAFT");
+  assert.equal(product.description, input.name + " on NEXORA", "Empty optional description must get a safe default.");
   assert.deepEqual(await db.product.findUnique({ where: { id: product.id }, select: { attributes: true } }).then(p => p?.attributes),
     { "storage-gb": 128, "case-color": "Black", waterproof: false });
   assert.equal(await getProductBySlug(product.slug), null, "Draft products must remain private.");

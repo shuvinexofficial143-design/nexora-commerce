@@ -77,7 +77,7 @@ export async function createProduct(input: Record<string, unknown>) {
         slug: `${slug(name)}-${randomUUID().slice(0, 6)}`,
         sku,
         name,
-        description: String(input.description ?? `${name} on NEXORA`),
+        description: String(input.description ?? "").trim() || `${name} on NEXORA`,
         priceMinor: Math.round(price * 100),
         compareAtMinor: compareAt === null ? null : Math.round(compareAt * 100),
         status: input.status === "ACTIVE" ? "ACTIVE" : "DRAFT",
