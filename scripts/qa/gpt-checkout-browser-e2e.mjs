@@ -28,6 +28,16 @@ const db=new pg.Client({connectionString:process.env.DATABASE_URL});
 const tag=randomUUID().replaceAll("-","").slice(0,12);
 const results=[];
 const url=path=>new URL(path,base).href;
+async function waitForLocalServer(){
+  for(let attempt=0;attempt<90;attempt++){
+    try{
+      const response=await fetch(url("/"),{signal:AbortSignal.timeout(3000)});
+      if(response.status===200)return;
+    }catch{/* Next.js server may still be compiling */}
+    await new Promise(resolve=>setTimeout(resolve,1000));
+  }
+  throw Error("Local-only Nexora server failed readiness before checkout E2E.");
+}
 const postal={fullName:"Disposable QA Buyer",phone:"9876543210",line1:"QA-only delivery road",
   city:"Indore",state:"Madhya Pradesh",postalCode:"452001",country:"India"};
 async function fixture(label,onHand,priceMinor){
@@ -73,6 +83,7 @@ async function api(path,body,options={}){
 let browser;
 await db.connect();
 try{
+  await waitForLocalServer();
   const a=await fixture("api",3,80000);
   const b=await fixture("browser",1,129900);
   const email="qa-checkout-"+tag+"@example.invalid";
