@@ -133,7 +133,7 @@ export function HomepageBannersPanel() {
       setRows(response);setLoaded(true);setError("");
     } catch(error) {setError(error instanceof Error?error.message:"Cannot read banners.");}
   },[]);
-  useEffect(()=>{void load();},[load]);
+  useEffect(()=>{queueMicrotask(()=>{void load();});},[load]);
   async function write(url:string,method:"POST"|"PATCH",data:unknown) {
     setError("");setBusy(true);
     try {
