@@ -600,6 +600,95 @@ try {
     }
   });
 
+
+  await verify("single-product-create-and-edit-audit-failure-roll-back-media-and-product", async () => {
+    const dbClient = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await dbClient.connect();
+    let triggerCreated = false;
+    const candidateSku = "QA-ROLLBACK-" + suffix.toUpperCase();
+    try {
+      await dbClient.query("CREATE FUNCTION qa_reject_single_product_audit() RETURNS trigger AS $qaudit$ BEGIN RAISE EXCEPTION 'QA single product audit rejection'; END; $qaudit$ LANGUAGE plpgsql");
+      await dbClient.query('CREATE TRIGGER qa_reject_single_product_audit_trg BEFORE INSERT ON "AdminActivityLog" FOR EACH ROW WHEN (NEW."action" IN (\'PRODUCT_CREATE\',\'PRODUCT_UPDATE\')) EXECUTE FUNCTION qa_reject_single_product_audit()');
+      triggerCreated = true;
+      const createFailure = await ctx.request.post(new URL("/api/admin-app/products/manage", base).href, {
+        data: { name: "QA Failed Create " + suffix, sku: candidateSku, price: 699,
+          posterUrl: img1, status: "DRAFT" },
+      });
+      assert.equal(createFailure.status(), 500, "Audit insert failure must return safe server error");
+      const failureBody = await createFailure.json();
+      assert.equal(failureBody.error, "Unexpected admin server error.", "Internal SQL errors must not leak");
+      const created = await dbClient.query('SELECT "id" FROM "Product" WHERE "sku" = $1', [candidateSku]);
+      assert.equal(created.rows.length, 0, "Failed audit must roll back product and its media");
+
+      const original = await product(ctx);
+      const auditBefore = await dbClient.query('SELECT count(*)::int AS total FROM "AdminActivityLog" WHERE "entityId" = $1', [original.id]);
+      const updateFailure = await ctx.request.patch(new URL("/api/admin-app/products/" + original.id, base).href, {
+        data: { description: "QA this update must not persist " + suffix, posterUrl: img2 },
+      });
+      assert.equal(updateFailure.status(), 500, "Failed audit must fail the entire Product edit");
+      assert.equal((await updateFailure.json()).error, "Unexpected admin server error.");
+      const after = await product(ctx);
+      assert.equal(after.description, original.description, "Product description must roll back");
+      assert.equal(after.posterUrl, original.posterUrl, "Poster media change must roll back");
+      assert.equal(after.updatedAt, original.updatedAt, "Product revision must remain unchanged");
+      const auditAfter = await dbClient.query('SELECT count(*)::int AS total FROM "AdminActivityLog" WHERE "entityId" = $1', [original.id]);
+      assert.equal(auditAfter.rows[0].total, auditBefore.rows[0].total, "Failed audit must leave no activity");
+    } finally {
+      if (triggerCreated) await dbClient.query('DROP TRIGGER IF EXISTS qa_reject_single_product_audit_trg ON "AdminActivityLog"');
+      await dbClient.query("DROP FUNCTION IF EXISTS qa_reject_single_product_audit()");
+      await dbClient.end();
+    }
+  });
+
+  await verify("cms-media-cancel-in-flight-xhr-and-safe-retry", async () => {
+    await page.goto(new URL("/admin/homepage", base).href);
+    const form = page.locator("form").first();
+    const before = await api(ctx, "/api/admin-app/banners");
+    const uploaded = "https://res.cloudinary.com/nexora-qa-only/image/upload/qa-retry.png";
+    let requests = 0;
+    await page.route("**/api/admin-app/media/sign", route => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: {
+        cloudName: "nexora-qa-only", apiKey: "qa", timestamp: 123456,
+        folder: "nexora/products/images", signature: "mock", resourceType: "image",
+      } }),
+    }));
+    await page.route("https://api.cloudinary.com/**", async route => {
+      if (route.request().method() === "OPTIONS") {
+        try { await route.fulfill({ status: 204, headers: {
+          "access-control-allow-origin": "*", "access-control-allow-methods": "POST, OPTIONS",
+          "access-control-allow-headers": "*",
+        } }); } catch {}
+        return;
+      }
+      requests++;
+      if (requests === 1) await new Promise(resolve => setTimeout(resolve, 3000));
+      try { await route.fulfill({ status: 200, contentType: "application/json",
+        headers: { "access-control-allow-origin": "*" },
+        body: JSON.stringify({ secure_url: uploaded }),
+      }); } catch {} // First aborted request may no longer have a consumer.
+    });
+    await page.route("https://res.cloudinary.com/**", route => route.abort());
+    const file = { name: "qa-retry.png", mimeType: "image/png", buffer: Buffer.from([137,80,78,71,13,10,26,10]) };
+    try {
+      const started = page.waitForRequest(request => request.url().startsWith("https://api.cloudinary.com/") && request.method() === "POST");
+      await form.locator('input[type="file"]').first().setInputFiles(file);
+      await started;
+      await form.getByRole("button", { name: "Cancel upload" }).click();
+      await form.getByRole("alert").getByText("Upload was cancelled.").waitFor();
+      assert.equal(await form.getByLabel("Desktop image URL").inputValue(), "", "Aborted upload cannot set media URL");
+      await form.locator('input[type="file"]').first().setInputFiles(file);
+      await page.waitForFunction(url => document.querySelector('input[aria-label="Desktop image URL"]')?.value === url, uploaded);
+      assert.equal(requests, 2, "Cancelled upload is retried exactly once");
+      assert.equal((await api(ctx, "/api/admin-app/banners")).length, before.length,
+        "Neither cancelled nor retried unsaved media changes persist to DB");
+    } finally {
+      await page.unroute("**/api/admin-app/media/sign");
+      await page.unroute("https://api.cloudinary.com/**");
+      await page.unroute("https://res.cloudinary.com/**");
+    }
+  });
+
   await ctx.close();
 } finally {
   await browser.close();
