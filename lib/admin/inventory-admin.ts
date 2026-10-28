@@ -1,15 +1,29 @@
 import { getPrisma } from "@/lib/db/prisma";
+import { logAdmin } from "@/lib/admin/audit";
+
+export class StockAdjustmentError extends Error {
+  constructor(message: string) { super(message); this.name = "StockAdjustmentError"; }
+}
+export class StockAdjustmentConflict extends Error {
+  constructor() {
+    super("Cannot reduce stock below reserved quantity or adjust invalid stock. Refresh and retry.");
+    this.name = "StockAdjustmentConflict";
+  }
+}
 
 /** Change warehouse stock without racing a simultaneous checkout reservation.
  * The conditional UPDATE is the sole authority; a prior SELECT is not a lock. */
-export async function adjustStock(input: Record<string, unknown>) {
-  const id = String(input.inventoryId ?? "").trim();
-  const delta = Number(input.delta);
-  const note = String(input.note ?? "").trim();
+export async function adjustStock(input: Record<string, unknown>, adminUserId?: string) {
+  const id = typeof input.inventoryId === "string" ? input.inventoryId.trim() : "";
+  const delta = input.delta;
+  const note = typeof input.note === "string" ? input.note.trim() : "";
 
-  if (!id || !Number.isSafeInteger(delta) || delta === 0 ||
-      Math.abs(delta) > 1_000_000 || note.length < 3 || note.length > 500) {
-    throw new Error("A bounded stock adjustment and reason are required.");
+  if (!id || id.length > 128 || typeof delta !== "number" || !Number.isSafeInteger(delta) || delta === 0 ||
+      Math.abs(delta) > 100_000 || note.length < 3 || note.length > 500) {
+    throw new StockAdjustmentError("A bounded stock adjustment and reason are required.");
+  }
+  if (adminUserId !== undefined && (!adminUserId.trim() || adminUserId.length > 128)) {
+    throw new StockAdjustmentError("Invalid admin identity.");
   }
 
   return getPrisma().$transaction(async (tx) => {
@@ -24,8 +38,8 @@ export async function adjustStock(input: Record<string, unknown>) {
     `;
     if (updatedCount !== 1) {
       const existing = await tx.inventoryItem.findUnique({ where: { id }, select: { id: true } });
-      if (!existing) throw new Error("Inventory row not found.");
-      throw new Error("Cannot reduce stock below reserved quantity or adjust invalid stock.");
+      if (!existing) throw new StockAdjustmentError("Inventory row not found.");
+      throw new StockAdjustmentConflict();
     }
     const updated = await tx.inventoryItem.findUniqueOrThrow({ where: { id } });
     await tx.inventoryMovement.create({
@@ -38,6 +52,13 @@ export async function adjustStock(input: Record<string, unknown>) {
         note,
       },
     });
+    if (adminUserId) {
+      await logAdmin({
+        adminUserId, action: "INVENTORY_ADJUSTMENT", entityType: "INVENTORY",
+        entityId: updated.id, summary: "Inventory adjusted by " + delta,
+        metadata: { note },
+      }, tx);
+    }
     return updated;
   });
 }
