@@ -88,3 +88,15 @@ The GPT-only Admin Products response now also supplies the Cline-readable descri
 - New pure unit tests and disposable PostgreSQL integration tests cover create with poster+video+gallery, admin serialization and live mapping, poster-only update, reorder/removal, invalid rollback and poster deletion without gallery loss.
 - Outstanding Cline features: bulk publish/draft/feature controls, compareAt price admin edit, category image metadata editor, Attribute advanced editor and QA-specific tests; require carefully reviewed ports or separate integration branch. Avoid a raw Cline merge that overwrites GPT checkout, order recovery, SKU, security, search and banner changes.
 - Exact final GPT HEAD CI must succeed before marking this milestone verified.
+
+
+## 28 October 2026 — GPT/Cline Integration: Safe Bulk Product Management (CI pending)
+- **No Vercel deployment, no production/staging migrations or writes, no cross-branch merge.** GPT branch only.
+- Read Cline Bulk service/API contracts from `9a4d17d609bd2e54800ab05ffea6f61e109e0469`; preserved actions `PUBLISH`, `MOVE_TO_DRAFT`, `FEATURE`, `UNFEATURE`, max 25 products and `updatedAt` revision pins.
+- Re-implemented Cline Bulk inside GPT's SKU-aware backend with a **single Serializable transaction**. All revisions validated before changes; concurrent edits return conflict; archived products rejected.
+- Crucial GPT-only protection: all draft→ACTIVE transitions are validated with the same `validateProductAttributes` required/typed specification logic as individual publishes, plus full recursive public Category eligibility and active Brand eligibility. No price/stock, choice-group or SKU mutation in bulk. Already ACTIVE products in a PUBLISH request are left unchanged.
+- Each changed row gets a bound-parameter `PRODUCT_BULK_*` audit entry **within the transaction** so failed batches leave neither partial product state nor misleading audit records. Existing raw `AdminActivityLog` schema is required; QA test creates it only on disposable local PostgreSQL.
+- New Admin Products section with checkbox selection, action choice, Apply, Clear, loading/error feedback and refreshed table after success.
+- Added pure input validation, unauthenticated API, isolated PostgreSQL rollback/required field, hidden-category/inactive-brand, revision conflict, featured/draft, idempotent no-op and audit tests. No production payments or data changed.
+- Cline Gallery port from prior milestone remains; Cline's remaining Catalog UX, compare-at editor and Final Branch Integration are still separate tasks.
+- Do not claim exact HEAD CI success until GitHub run completes.

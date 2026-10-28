@@ -7,6 +7,7 @@ import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 import { AdminProductChoicesEditor } from "@/components/admin/admin-product-choices-editor";
 import { AdminProductVariantsEditor } from "@/components/admin/admin-product-variants-editor";
 import { ProductGalleryEditor } from "@/components/admin/product-gallery-editor";
+import { BulkProductActions } from "@/components/admin/bulk-product-actions";
 import { HomepageBannersPanel } from "@/components/admin/homepage-banners-panel";
 import { CatalogVisibilityControls } from "@/components/admin/catalog-visibility-controls";
 import { AttributeDefinitionManager, ProductAttributeFields } from "@/components/admin/product-attribute-controls";
@@ -63,6 +64,7 @@ type ProductRow = {
   activeVariantCount?: number;
   totalVariantCount?: number;
   status: string;
+  featured:boolean;
   brand: string | null;
   brandSlug?: string | null;
   category: string | null;
@@ -490,6 +492,7 @@ function Products() {
       <AdminProductChoicesEditor products={rows.map(row => ({ id: row.id, name: row.name, sku: row.sku }))} />
       <AdminProductVariantsEditor products={rows.map(row => ({ id: row.id, name: row.name, sku: row.sku }))} />
 
+      <BulkProductActions rows={rows} onComplete={load}/>
       <Panel title="All products" description={`${rows.length} products in database`}>
         <div className="space-y-3">
           {rows.map((product) => (
