@@ -2,32 +2,32 @@
 
 **Date:** 2026-10-28
 **Repository:** `shuvinexofficial143-design/nexora-commerce`
-**ONLY authorized write branch:** `feature/nexora-gift-store`
-**Last CI-verified functional commit:** `20fae2d6736b5e5b0a587f3a9066f9cddd2a2b40`
-**Run:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40674836800 — 4/4 PASS, Owner Browser **7 PASS / 0 FAIL**.
-This documentation commit is newer than the functional commit: on next turn inspect *latest branch HEAD and exact CI*.
+**Authorized write branch ONLY:** `feature/nexora-gift-store`
+**Latest CI-verified functional HEAD:** `0cf11d3263b8ec8a39191f624166660675a14a2b`
+**CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40677403764 — **4/4 PASS**.
+**Owner Chromium (disposable PostgreSQL) 10 PASS / 0 FAIL.**
+Note: the documentation commit containing this handoff is newer. Read actual latest branch SHA and CI on each subsequent `next`.
 
-## This milestone (Bulk Product Admin)
-- `lib/admin/product-bulk.ts`: validated 1..25 distinct products with stored `updatedAt` snapshots; one PostgreSQL transaction and per-change audited action. Supports ONLY PUBLISH, MOVE_TO_DRAFT, FEATURE, UNFEATURE. Archived products blocked. If any selected product changed meanwhile, 409 and zero mutations.
-- `app/api/admin-app/products/bulk/route.ts`: POST owner-auth 401/400/409 handling. No stock or pricing action, no deletion.
-- `components/admin/personal-admin-app.tsx`: selection checkboxes, search/filter scoped selection, select up to 25, clear selection, action dropdown, explicit confirmation, success/error recovery.
-- `tests/product-bulk.test.ts`: input contract/limit/duplicates/stale-revision format tests.
-- `scripts/qa/admin-browser-e2e.mjs`: 7 passing real Chromium steps covering existing Product CRUD, optional media, publish and new Bulk auth, 409 conflict, all four supported operations, committed audit integrity.
-- CI 4/4 PASS at `20fae2d6736b5e5b0a587f3a9066f9cddd2a2b40`.
+## New milestone: Product Preview and catalog lifecycle Browser QA
 
-## Previously delivered and still protected
-- Categories, Brands, category-specific Attributes, Product create/edit, Gallery Upload/Preview/Order/Remove, Product publish, isolated disposable PostgreSQL tests, Owner Login.
-- Reused bounded production Prisma connection pool.
-- `prisma/reviewed-migrations/20261028_admin_observability.sql` SQL creates raw `AdminActivityLog` and `AdminNotification` tables. Applied ONLY in GitHub disposable PostgreSQL browser tests; no production migration.
-- Existing reviewed catalog/banner migrations require manual production approval; `prisma db push` alone does not create raw-SQL Admin Audit tables.
-- Cloudinary upload itself remains untested against external Cloudinary: current Chromium E2E validates URL additions and persistence.
+- `components/admin/product-preview.tsx`: live unsaved Admin Preview, gallery thumbnails, price/status/description and image-error placeholder. Product Create and Edit both render Preview via `components/admin/personal-admin-app.tsx`.
+- `components/admin/product-gallery-editor.tsx`: safe reusable image fallback on broken URLs.
+- `components/admin/admin-media-upload.tsx`: zero-byte rejection, XHR timeout, cancellation/unmount abort, safe returned URL validation and input cleanup.
+- `scripts/qa/admin-browser-e2e.mjs`: new tests for draft preview without DB writes, image-error fallback and rejected empty upload; real Category UI hide/show/edit/archive/restore; real Brand UI edit/deactivate/reactivate. Real Browser run had **10 passing tests**.
+- Existing Owner Login/Product Create/Edit/Gallery/Bulk Actions/publish/unpublish tests still PASS.
+- Existing `feature/nexora-gift-store` CI 4 jobs all PASS, SHA `0cf11d3263b8ec8a39191f624166660675a14a2b`.
 
-## Safety boundaries
-1. Do not modify or merge Nexora 3 `feature/nexora-gpt-customer-ops` or QA `feature/nexora-qa-automation` branches.
-2. Do not deploy Vercel Production, apply live SQL, call live payment/refund gateways, change checkout reservation or variant identity until separately authorized.
-3. Keep existing isolated QA-only PostgreSQL database identity guard and secure Owner Login/session protections.
-4. Bulk product changes intentionally do not touch inventory/price/orders; all changed products require transaction-persisted audit records.
-5. Run exact HEAD CI on each substantive change. No fabricated pass claims.
+## Safety and deployment limits
+
+- Do not write, merge or deploy Nexora 3 `feature/nexora-gpt-customer-ops` or QA `feature/nexora-qa-automation`.
+- No production Vercel deploy, migration or live Cashfree/refund flow; never alter checkout reservations, order identities, variant contract, or inventory calculations in Admin-specific development.
+- `prisma/reviewed-migrations/20261028_admin_observability.sql` plus previous catalog/banner migration SQL remains **not applied** to production. Admin raw audit/notification tables require controlled migration approval; `prisma db push` does not create those raw tables.
+- Browser tests use isolated `localhost`, disposable user/database `nexora_qa`, and explicit safety guards. Do not remove.
+- Real third-party Cloudinary uploads NOT yet verified; this increment tests invalid/empty browser file paths and preview only. Do not claim upload provider E2E success.
 
 ## Next `next`
-Fetch latest HEAD and CI. Prioritize safer Product preview and media failure states; expand Browser E2E for category/brand deactivate/reactivate and audit-failure rollback and concurrent bulk requests. Add meaningful real code, tests, commit on authorized branch and refresh progress/handoff. No production deploy.
+
+1. Read remote HEAD and exact-HEAD CI first.
+2. Investigate atomic audit failure rollback and simultaneous bulk-update requests with disposable DB; add meaningful regression.
+3. Test upload signer invalid/missing credentials and browser upload failure states with local interception only, no real external Cloudinary traffic.
+4. Extend Homepage CMS editing and local preview and other Admin functions as appropriate. Implement code + tests + CI, document findings, do not deploy to production.

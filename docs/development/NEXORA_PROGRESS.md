@@ -1,5 +1,35 @@
 # NEXORA 4 — Admin Development Progress
 
+## 28 October 2026 — Live Product Preview, Gallery Resilience & Catalog Browser E2E
+
+**Working branch:** `feature/nexora-gift-store`
+**CI-verified functional commit:** `0cf11d3263b8ec8a39191f624166660675a14a2b`
+**GitHub Actions run:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40677403764 — **4/4 jobs PASS**, authenticated Owner Chromium **10 PASS / 0 FAIL**.
+**Production Deploy:** NOT performed. No production SQL changes.
+
+### Delivered
+- New `components/admin/product-preview.tsx`: client-only visual Product Preview with real draft/edit name, rupee price, compare-at, description, poster/gallery selector and status label. A preview does not create/publish a product or affect stock.
+- Reused `AdminPreviewImage` fallback in `components/admin/product-gallery-editor.tsx` for missing, unsupported or failed media URLs, instead of visibly broken images.
+- Added live Product Preview to both Create and Edit forms in `components/admin/personal-admin-app.tsx` while keeping gallery data separate from poster/video.
+- Hardened `components/admin/admin-media-upload.tsx`: empty files refused, 120-second request timeout and cancellation, abort pending upload on component teardown, rejection of unsupported returned media URLs, uploaded file controls reset safely. Cloudinary external upload success has NOT been tested; the E2E intentionally uses local rejection paths.
+- Expanded real Owner Chromium script `scripts/qa/admin-browser-e2e.mjs` to **10 tests** (previously 7): unsaved Product Preview/image failure/empty upload must not write to DB; Category create, hide, show, edit, archive and restore; Brand create, edit, deactivate and reactivate; all through the actual Admin UI and isolated PostgreSQL.
+- Fixed E2E dynamic-heading selector: during edit, “Add category/brand” switches to “Edit category/brand”, so stable Section selection is required. The final run passed all cases.
+
+### CI evidence
+- Real PostgreSQL checkout regression: PASS.
+- Existing QA unit/security, TypeScript, ESLint and Production Build (not deploy): PASS.
+- Local HTTP and desktop/mobile storefront Chromium: PASS.
+- Authenticated Owner Chromium + disposable PostgreSQL: **10 PASS, 0 FAIL**.
+- Exact functional SHA: `0cf11d3263b8ec8a39191f624166660675a14a2b`. No other branch modified.
+
+### Next priorities
+- Add browser regression for real media upload signed URL handling without external calls using deterministic mocked responses; external Cloudinary integration requires authorized test credentials.
+- Audit failure rollback / concurrent bulk changes and product publish required-attribute edge cases.
+- Product gallery UX, image upload progression, advanced Admin catalogue management and homepage CMS preview.
+- Production DB reviewed migration prerequisites remain unapproved/unapplied; never run automatic production migrations from CI.
+
+## Earlier Milestones
+
 ## 28 October 2026 — Product Bulk Actions (4/4 CI Jobs PASS)
 
 **Branch:** `feature/nexora-gift-store`
