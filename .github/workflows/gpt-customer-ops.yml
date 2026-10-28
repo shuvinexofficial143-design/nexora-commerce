@@ -201,8 +201,8 @@ jobs:
           npm run dev -- --hostname 127.0.0.1 --port 3137 > "$RUNNER_TEMP/nexora-owner-local.log" 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
-          node scripts/qa/gpt-admin-browser-e2e.mjs 2>&1 | tee "$RUNNER_TEMP/nexora-owner-e2e.log"
           node scripts/qa/gpt-checkout-browser-e2e.mjs 2>&1 | tee "$RUNNER_TEMP/nexora-checkout-e2e.log"
+          node scripts/qa/gpt-admin-browser-e2e.mjs 2>&1 | tee "$RUNNER_TEMP/nexora-owner-e2e.log"
       - name: Upload owner E2E screenshots and evidence (QA-only)
         if: always()
         uses: actions/upload-artifact@v4

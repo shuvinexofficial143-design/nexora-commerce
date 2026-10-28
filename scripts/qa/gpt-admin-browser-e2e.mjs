@@ -98,8 +98,16 @@ try{
     await page.goto(endpoint("/admin/login"),{waitUntil:"domcontentloaded"});
     await page.getByPlaceholder("Owner username").fill(process.env.ADMIN_USERNAME);
     await page.locator('input[type="password"]').fill(process.env.ADMIN_PASSWORD);
+    const loginResponse=page.waitForResponse(resp=>
+      new URL(resp.url()).pathname==="/api/admin-app/auth/login"&&
+      resp.request().method()==="POST",{timeout:60000});
     await page.getByRole("button",{name:"Open admin panel"}).click();
-    await page.waitForURL(url=>url.pathname==="/admin",{timeout:30000});
+    const received=await loginResponse;
+    assert.equal(received.status(),200,
+      "Owner login rejected: "+await received.text());
+    await page.waitForURL(url=>url.pathname==="/admin",{
+      waitUntil:"domcontentloaded",timeout:60000,
+    });
     const owner=await api("/api/admin-app/auth/me");
     assert.equal(owner.user.role,"ADMIN");
     await page.goto(endpoint("/admin/products"),{waitUntil:"domcontentloaded"});
