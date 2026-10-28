@@ -18,7 +18,7 @@ export function parseAttributeFilters(raw:readonly string[]):AttributeFiltersPar
   const groups=new Map<string,AttributeFilter>();
   for(const entry of raw){
     if(entry.length>260)return {filters:[],invalid:true};
-    const m=/^([a-z0-9-]{1,64})\.([a-z0-9-]{1,64}):(.+)$/s.exec(entry);
+    const m=/^([a-z0-9-]{1,64})\.([a-z0-9-]{1,64}):(.+)$/.exec(entry);
     if(!m||!slug.test(m[1])||!slug.test(m[2])||!validValue(m[3]))
       return {filters:[],invalid:true};
     const key=m[1]+"."+m[2];
