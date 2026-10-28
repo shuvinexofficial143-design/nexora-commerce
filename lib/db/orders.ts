@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ConflictError, ValidationError } from "@/lib/db/errors";
 import { getPrisma } from "@/lib/db/prisma";
+import { publicProductWhere } from "@/lib/commerce/catalog-visibility";
 import { deserializeProductChoiceGroups, validateChosenOptions } from "@/lib/commerce/product-choices";
 import { variantSignature } from "@/lib/commerce/product-variants";
 import { resolveCoupon, recordCouponRedemption } from "@/lib/commerce/coupon-engine";
@@ -103,8 +104,9 @@ export async function createOrderWithOutcome(
 
     // Fresh catalog read is inside the transaction. Never rely on client prices.
     const ids = [...quantities.keys()];
+    const visibility = await publicProductWhere(tx);
     const products = await tx.product.findMany({
-      where: { id: { in: ids }, status: "ACTIVE" },
+      where: { id: { in: ids }, status: "ACTIVE", AND: [visibility] },
       include: { inventory: true, choiceGroups: true, variants: true },
     });
     if (products.length !== ids.length) {

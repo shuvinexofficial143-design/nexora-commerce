@@ -7,6 +7,7 @@ import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 import { AdminProductChoicesEditor } from "@/components/admin/admin-product-choices-editor";
 import { AdminProductVariantsEditor } from "@/components/admin/admin-product-variants-editor";
 import { HomepageBannersPanel } from "@/components/admin/homepage-banners-panel";
+import { CatalogVisibilityControls } from "@/components/admin/catalog-visibility-controls";
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -295,7 +296,7 @@ type TaxonomyOptions = {categories:TaxonomyOption[];brands:TaxonomyOption[]};
 function Products() {
   const [rows, setRows] = useState<ProductRow[]>([]);
   const [options, setOptions] = useState<TaxonomyOptions>({categories:[],brands:[]});
-  const [newOption, setNewOption] = useState<{kind:"category"|"brand";name:string}>({kind:"category",name:""});
+  const [newOption, setNewOption] = useState<{kind:"category"|"brand";name:string;parentSlug:string}>({kind:"category",name:"",parentSlug:""});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
@@ -322,7 +323,7 @@ function Products() {
       });
       setForm(current=>({...current,
         [newOption.kind==="category"?"categorySlug":"brandSlug"]:created.slug}));
-      setNewOption(current=>({...current,name:""}));
+      setNewOption(current=>({...current,name:"",parentSlug:""}));
       loadOptions();
     } catch(error) { setError(error instanceof Error ? error.message : "Cannot create catalog option."); }
     finally {setBusy(false);}
@@ -386,12 +387,20 @@ function Products() {
               className="mt-1 w-full rounded-xl border border-black/15 bg-white px-3 py-2.5"
               placeholder="Electronics, Apparel, Home…" />
           </label>
+          {newOption.kind==="category" ? <label className="min-w-[200px] text-xs font-black">Parent category (optional)
+            <select value={newOption.parentSlug} onChange={e=>setNewOption(current=>({...current,parentSlug:e.target.value}))}
+              className="mt-1 w-full rounded-xl border border-black/15 bg-white px-3 py-2.5">
+              <option value="">Top level</option>
+              {options.categories.map(c=><option key={c.id} value={c.slug}>{c.name}</option>)}
+            </select>
+          </label> : null}
           <button disabled={busy} className="rounded-full bg-black px-5 py-3 text-xs font-black text-white disabled:opacity-50">
             Add {newOption.kind}
           </button>
         </form>
         <p className="mt-3 text-xs text-black/50">{options.categories.length} categories · {options.brands.length} brands saved</p>
       </Panel>
+      <CatalogVisibilityControls onChanged={loadOptions} />
       <Panel title="Add product" description="Create a draft product with optional product video">
         <form onSubmit={create} className="grid gap-3 md:grid-cols-2">
           {[

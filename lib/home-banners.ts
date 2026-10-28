@@ -1,6 +1,7 @@
 import { getPrisma, isDatabaseConfigured } from "@/lib/db/prisma";
 import { NotFoundError, ValidationError } from "@/lib/db/errors";
 import { isSupportedPosterUrl } from "@/lib/product-media";
+import { eligiblePublicCategoryIds } from "@/lib/commerce/catalog-visibility";
 
 export type HomepageBannerData = {
   id: string;
@@ -84,8 +85,24 @@ export async function getPublishedHomepageBanners(): Promise<HomepageBannerData[
       select:{id:true,title:true,description:true,imageUrl:true,mobileImageUrl:true,
         ctaText:true,ctaHref:true,categorySlug:true,sortOrder:true,published:true,archived:true},
     });
-    // Preexisting CMS data may predate the strict validation: fail closed.
-    return rows.filter(row=>{try{validateBanner(row);return true;}catch{return false;}})
+    // Published campaigns must not advertise a hidden/archived category or
+    // a child of a hidden ancestor. A missing/deleted category fails closed.
+    const prisma = getPrisma();
+    const ids = await eligiblePublicCategoryIds(prisma);
+    const categories = await prisma.category.findMany({
+      where: { id: { in: ids } }, select: { slug: true },
+    });
+    const permitted = new Set(categories.map(row => row.slug));
+    // Preexisting CMS data may predate strict validation: fail closed.
+    return rows.filter(row=>{
+      try {
+        validateBanner(row);
+        if(row.categorySlug && !permitted.has(row.categorySlug))return false;
+        const url=new URL(row.ctaHref,"https://nexora.invalid");
+        const cat=url.searchParams.get("category");
+        return !cat || permitted.has(cat);
+      } catch {return false;}
+    })
       .map(({id,title,description,imageUrl,mobileImageUrl,ctaText,ctaHref,categorySlug})=>({
         id,title,description,imageUrl,mobileImageUrl,ctaText,ctaHref,categorySlug,
       }));

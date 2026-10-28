@@ -2,6 +2,7 @@ import { getPrisma } from "@/lib/db/prisma";
 import type { BackendProduct } from "@/types/backend";
 import { deserializeProductChoiceGroups } from "@/lib/commerce/product-choices";
 import { publicVariant } from "@/lib/commerce/product-variants";
+import { eligiblePublicCategoryIds, publicProductVisibilityWhere } from "@/lib/commerce/catalog-visibility";
 import { findCatalogPricePage, type CatalogStockFilter } from "@/lib/db/catalog-price-query";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -66,6 +67,8 @@ export type ProductListQuery = {
 
 export async function listProducts(input: ProductListQuery) {
   const prisma = getPrisma();
+  const eligibleIds = await eligiblePublicCategoryIds(prisma);
+  const visibility = publicProductVisibilityWhere(eligibleIds);
   const limit = Number.isFinite(input.limit) ? Math.min(Math.max(Math.floor(input.limit!), 1), 100) : 24;
   const offset = Number.isFinite(input.offset) ? Math.min(Math.max(Math.floor(input.offset!), 0), 1_000_000) : 0;
   const query = input.query?.trim().slice(0, 100);
@@ -89,7 +92,7 @@ export async function listProducts(input: ProductListQuery) {
   if (brands.length) and.push({ brand: { slug: { in: brands } } });
   if (input.minRating !== undefined) and.push({ rating: { gte: input.minRating } });
 
-  const where: Prisma.ProductWhereInput = { status: "ACTIVE", ...(and.length ? { AND: and } : {}) };
+  const where: Prisma.ProductWhereInput = { status: "ACTIVE", AND: [visibility, ...and] };
   const orderBy: Prisma.ProductOrderByWithRelationInput[] =
     input.sort === "price-low" ? [{ priceMinor: "asc" }, { id: "asc" }] :
     input.sort === "price-high" ? [{ priceMinor: "desc" }, { id: "asc" }] :
@@ -101,7 +104,7 @@ export async function listProducts(input: ProductListQuery) {
   if (input.stock || input.minPriceMinor !== undefined || input.maxPriceMinor !== undefined ||
       input.sort === "price-low" || input.sort === "price-high") {
     const page = await findCatalogPricePage({
-      query, categories, brands,
+      query, categories, brands, eligibleCategoryIds: eligibleIds,
       stock: input.stock,
       minPriceMinor: input.minPriceMinor,
       maxPriceMinor: input.maxPriceMinor,
@@ -109,7 +112,7 @@ export async function listProducts(input: ProductListQuery) {
       sort: input.sort ?? "featured", limit, offset,
     });
     if (!page.ids.length) return { items: [], total: page.total, limit, offset };
-    const rows = await prisma.product.findMany({ where: { id: { in: page.ids }, status: "ACTIVE" }, include });
+    const rows = await prisma.product.findMany({ where: { id: { in: page.ids }, status: "ACTIVE", AND: [visibility] }, include });
     const byId = new Map(rows.map(row => [row.id, row]));
     return {
       items: page.ids.map(id => byId.get(id)).filter((row): row is NonNullable<typeof row> => row !== undefined)
@@ -127,15 +130,17 @@ export async function listProducts(input: ProductListQuery) {
 
 export async function listPublicCatalogFacets() {
   const prisma = getPrisma();
+  const visibleIds = await eligiblePublicCategoryIds(prisma);
+  const publicWhere = { status: "ACTIVE" as const, AND: [publicProductVisibilityWhere(visibleIds)] };
   const [categories, brands] = await Promise.all([
     prisma.category.findMany({
-      where: { products: { some: { status: "ACTIVE" } } },
+      where: { id: { in: visibleIds }, products: { some: publicWhere } },
       select: { slug: true, name: true },
       orderBy: { name: "asc" },
       take: 100,
     }),
     prisma.brand.findMany({
-      where: { products: { some: { status: "ACTIVE" } } },
+      where: { active: true, products: { some: publicWhere } },
       select: { slug: true, name: true },
       orderBy: { name: "asc" },
       take: 100,
@@ -145,6 +150,9 @@ export async function listPublicCatalogFacets() {
 }
 
 export async function getProductBySlug(slug: string) {
-  const product = await getPrisma().product.findFirst({ where: { slug, status: "ACTIVE" }, include });
+  const prisma = getPrisma();
+  const visibleIds = await eligiblePublicCategoryIds(prisma);
+  const product = await prisma.product.findFirst({ where: {
+    slug, status: "ACTIVE", AND: [publicProductVisibilityWhere(visibleIds)] }, include });
   return product ? serializeProduct(product) : null;
 }

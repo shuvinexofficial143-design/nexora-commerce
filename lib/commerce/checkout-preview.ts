@@ -2,6 +2,7 @@ import { ValidationError } from "@/lib/db/errors";
 import { deserializeProductChoiceGroups, normalizeChosenOptions, validateChosenOptions } from "@/lib/commerce/product-choices";
 import { variantSignature } from "@/lib/commerce/product-variants";
 import { getPrisma } from "@/lib/db/prisma";
+import { publicProductWhere } from "@/lib/commerce/catalog-visibility";
 import { resolveCoupon } from "@/lib/commerce/coupon-engine";
 import { calculateAuthoritativeTotals, type StoreDeliveryMethod } from "@/lib/commerce/order-pricing";
 
@@ -68,8 +69,10 @@ export function validateCheckoutPreview(value: unknown): CheckoutPreviewInput {
 
 export async function createCheckoutPreview(input: CheckoutPreviewInput): Promise<CheckoutPreview> {
   const uniqueSlugs = [...new Set(input.items.map(row => row.slug))];
-  const products = await getPrisma().product.findMany({
-    where: { slug: { in: uniqueSlugs }, status: "ACTIVE" },
+  const prisma = getPrisma();
+  const visibility = await publicProductWhere(prisma);
+  const products = await prisma.product.findMany({
+    where: { slug: { in: uniqueSlugs }, status: "ACTIVE", AND: [visibility] },
     select: {
       id: true, slug: true, sku: true, name: true, priceMinor: true, currency: true,
       inventory: { select: { onHand: true, reserved: true } },

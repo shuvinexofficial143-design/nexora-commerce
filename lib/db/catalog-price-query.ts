@@ -19,6 +19,7 @@ export async function findCatalogPricePage(input: {
   stock?: CatalogStockFilter;
   categories: string[];
   brands: string[];
+  eligibleCategoryIds: string[];
   minPriceMinor?: number;
   maxPriceMinor?: number;
   minRating?: number;
@@ -26,7 +27,13 @@ export async function findCatalogPricePage(input: {
   limit: number;
   offset: number;
 }): Promise<{ ids: string[]; total: number }> {
-  const conditions: PrismaType.Sql[] = [Prisma.sql`p."status" = 'ACTIVE'`];
+  const conditions: PrismaType.Sql[] = [
+    Prisma.sql`p."status" = 'ACTIVE'`,
+    Prisma.sql`(p."categoryId" IS NULL OR ${input.eligibleCategoryIds.length
+      ? Prisma.sql`p."categoryId" IN (${Prisma.join(input.eligibleCategoryIds)})`
+      : Prisma.sql`FALSE`})`,
+    Prisma.sql`(p."brandId" IS NULL OR b."active" = TRUE)`,
+  ];
   // Each keyword matches any live catalog field; terms are combined by AND.
   const searchPredicate = (term: string): PrismaType.Sql => {
     const pattern = "%" + term + "%";

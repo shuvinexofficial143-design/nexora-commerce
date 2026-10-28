@@ -17,13 +17,17 @@ function guardIsolatedDatabase() {
 guardIsolatedDatabase();
 const db=getPrisma();
 const tag=randomUUID().slice(0,8);
+const categorySlug="cms-category-"+tag;
 const src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop";
 let firstId="",secondId="";
-before(async()=>{await db.$connect();});
+before(async()=>{
+  await db.$connect();
+  await db.category.create({data:{name:"CMS test "+tag,slug:categorySlug}});
+});
 after(async()=>{await db.$disconnect();});
 function fixture(title:string,sortOrder:number) {
   return {title,description:"Campaign for "+tag,imageUrl:src,mobileImageUrl:null,
-    ctaText:"Browse products",ctaHref:"/shop?category=electronics",categorySlug:"electronics",
+    ctaText:"Browse products",ctaHref:"/shop?category="+categorySlug,categorySlug,
     sortOrder,published:false,archived:false};
 }
 test("Owner can create Cline-compatible draft banner; public gets no draft",async()=>{
@@ -42,7 +46,7 @@ test("Publish controls display order and safe CTA/description on live homepage",
   const publicRows=await getPublishedHomepageBanners();
   assert.deepEqual(publicRows.filter(x=>x.id===firstId||x.id===secondId).map(x=>x.id),[secondId,firstId]);
   assert.equal(publicRows.find(x=>x.id===secondId)?.mobileImageUrl,src);
-  assert.equal(publicRows.find(x=>x.id===firstId)?.ctaHref,"/shop?category=electronics");
+  assert.equal(publicRows.find(x=>x.id===firstId)?.ctaHref,"/shop?category="+categorySlug);
   assert.equal(publicRows.find(x=>x.id===firstId)?.description,"Campaign for "+tag);
 });
 test("Invalid edit is atomic and cannot expose an external CTA",async()=>{
@@ -51,7 +55,7 @@ test("Invalid edit is atomic and cannot expose an external CTA",async()=>{
   }),/internal store link/);
   const stored=await db.homepageBanner.findUniqueOrThrow({where:{id:firstId}});
   assert.equal(stored.title,"Banner A "+tag);
-  assert.equal(stored.ctaHref,"/shop?category=electronics");
+  assert.equal(stored.ctaHref,"/shop?category="+categorySlug);
   assert.equal(stored.published,true);
   await assert.rejects(updateHomepageBanner("no-such-banner-"+tag,{published:true}),/not found/);
   await assert.rejects(updateHomepageBanner(firstId,{id:"tampered"}),/Unsupported banner update fields/);
