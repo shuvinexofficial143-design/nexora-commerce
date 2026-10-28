@@ -1,5 +1,32 @@
 # NEXORA 4 — Admin Development Progress
 
+## 28 October 2026 — Atomic Single Product Audit & In-flight Upload Cancellation
+
+**Authorized branch only:** `feature/nexora-gift-store`  
+**Functional exact CI-verified HEAD:** `a6c444cb622eeec4f33d2cdfb9300e8cf10e420c`  
+**GitHub Actions:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40701325492 — **4/4 PASS**, Owner Chromium **19 PASS / 0 FAIL**.
+
+### Changes
+- `lib/admin/audit.ts`: `logAdmin` accepts an optional Prisma transaction executor; old standalone admin audit callers remain supported.
+- `lib/admin/product-admin.ts`: `createProduct(input, adminUserId?)` and `updateProduct(id, input, adminUserId?)` commit **Product + ProductImage media + activity Audit** in one PostgreSQL transaction when invoked from authorized Owner API. Existing direct QA helpers without Owner context remain supported.
+- `app/api/admin-app/products/manage/route.ts`, `app/api/admin-app/products/[productId]/route.ts`: pass authenticated Owner user ID into the product transaction, remove the post-commit independent `logAdmin` calls, preserve the previous HTTP response contracts and typed Publish 400.
+- `scripts/qa/admin-browser-e2e.mjs`: new test installs a **QA-only** PostgreSQL BEFORE INSERT trigger to reject `PRODUCT_CREATE` and `PRODUCT_UPDATE` audit writes. Asserts API generic HTTP 500 without internal SQL leaks, zero new product from failed Create, unchanged description/media/revision after failed Edit, unchanged audit count, and trigger clean-up.
+- Second new Owner Browser test intercepts signer and Cloudinary requests; starts slow in-flight XHR, clicks **Cancel upload**, verifies cancellation and no Image URL, then retries with an approved mocked URL. Confirms no unsaved Banner persisted. All external provider requests are intercepted; no real Cloudinary access.
+
+### Verification
+- Owner Chromium **19 PASS / 0 FAIL** on isolated localhost/PostgreSQL.
+- Unit/security/TypeScript/ESLint/build PASS.
+- Disposable PostgreSQL checkout/stock regressions PASS.
+- Local Storefront desktop/mobile Chromium + HTTP PASS.
+- No production Vercel deployment, no migrations, no Cashfree/refund activities.
+
+### Next boundary
+- Owner API Product write audit now atomic, Bulk write audit already separately verified. Other single-purpose Admin APIs may still have separate audit patterns, review before production.
+- Media Cancel + Retry QA verified XHR abort path, signer fetch AbortController wired but no dedicated separate signer-pending Browser regression yet.
+- Reviewed Admin observation and catalog/banner SQL remain **unapplied to production**. Real Cloudinary provider upload E2E not run.
+
+## Earlier Milestones
+
 ## 28 October 2026 — Typed Product Publish Errors and CMS Upload Recovery
 
 **Repository:** `shuvinexofficial143-design/nexora-commerce`  
