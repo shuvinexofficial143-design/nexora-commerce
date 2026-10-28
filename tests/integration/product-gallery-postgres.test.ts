@@ -46,7 +46,7 @@ test("Cline gallery integrates into GPT create while preserving poster/video tra
   const publicProduct=await getProductBySlug(slug);
   assert.ok(publicProduct);
   const card=mapBackendProductToCatalog(publicProduct);
-  assert.deepEqual(card.liveImages.map(x=>x.src),[poster,a,b]);
+  assert.deepEqual((card.liveImages ?? []).map(x=>x.src),[poster,a,b]);
 });
 test("Poster-only edit never mutates extra gallery and video media",async()=>{
   await updateProduct(productId,{posterUrl:c});
