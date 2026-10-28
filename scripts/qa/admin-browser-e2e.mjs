@@ -278,6 +278,48 @@ try {
     await page.unroute("https://images.unsplash.com/photo-1");
   });
 
+
+  await verify("category-browser-create-hide-edit-archive-restore", async () => {
+    const slug = "qa-lifecycle-category-" + suffix;
+    await page.goto(new URL("/admin/catalog", base).href);
+    const section = page.locator("section").filter({ has: page.getByRole("heading", { name: "Add category" }) }).first();
+    const form = section.locator("form").first();
+    await form.locator("label").filter({ hasText: "Category name" }).locator("input").fill("QA Lifecycle Category " + suffix);
+    await form.locator("label").filter({ hasText: "Slug" }).locator("input").fill(slug);
+    const mutation = (verb) => page.waitForResponse(r =>
+      new URL(r.url()).pathname.startsWith("/api/admin-app/catalog/categories") && r.request().method() === verb);
+    let response = mutation("POST");
+    await form.getByRole("button", { name: "Create category" }).click();
+    assert.equal((await response).status(), 201);
+    const row = () => section.locator(".divide-y > div").filter({ hasText: slug }).first();
+    await row().getByRole("button", { name: "Hide" }).waitFor();
+    response = mutation("PATCH");
+    await row().getByRole("button", { name: "Hide" }).click();
+    assert.equal((await response).status(), 200);
+    await row().getByRole("button", { name: "Show" }).waitFor();
+    response = mutation("PATCH");
+    await row().getByRole("button", { name: "Show" }).click();
+    assert.equal((await response).status(), 200);
+    await row().getByRole("button", { name: "Edit" }).click();
+    await form.locator("label").filter({ hasText: "Description" }).locator("textarea").fill("Category lifecycle verified");
+    response = mutation("PATCH");
+    await form.getByRole("button", { name: "Save category changes" }).click();
+    assert.equal((await response).status(), 200);
+    page.once("dialog", dialog => void dialog.accept());
+    response = mutation("DELETE");
+    await row().getByRole("button", { name: "Archive" }).click();
+    assert.equal((await response).status(), 200);
+    await section.getByLabel("Show archived").check();
+    await row().getByRole("button", { name: "Restore" }).waitFor();
+    response = mutation("PATCH");
+    await row().getByRole("button", { name: "Restore" }).click();
+    assert.equal((await response).status(), 200);
+    const cat = (await api(ctx, "/api/admin-app/catalog/categories?archived=true")).find(x => x.slug === slug);
+    assert.equal(cat.archived, false);
+    assert.equal(cat.visible, true);
+    assert.equal(cat.description, "Category lifecycle verified");
+  });
+
   await ctx.close();
 } finally {
   await browser.close();
