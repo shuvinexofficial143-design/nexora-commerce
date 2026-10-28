@@ -1,43 +1,49 @@
-# NEXORA 4 — GitHub development handoff (28 October 2026)
+# NEXORA 4 — Admin Development Handoff
 
-## Ownership and safety
+Date: 2026-10-28
+Repo: `shuvinexofficial143-design/nexora-commerce`
+Authorized write branch: `feature/nexora-gift-store`
+Latest CI-verified functional commit: `24e2ccfb64f5c34aedaa66afc4b54fc2109e4ab2`
+CI: https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40670637634 — all 3 jobs PASS, including 14 disposable PostgreSQL integration tests (0 fail).
+This documentation update creates a newer HEAD: check current branch and CI before future writes.
 
-- Repo: `shuvinexofficial143-design/nexora-commerce`
-- **Write only:** `feature/nexora-gift-store`
-- Read-only integration references: `feature/nexora-gpt-customer-ops` (Nexora 3), `feature/nexora-qa-automation`.
-- Do not merge into main, deploy production, access live payments, apply production database migrations, or modify customer/QA branches.
-- Fetch HEAD before every write, use fast-forward only, preserve existing Prisma and checkout contracts.
+## Completed work
 
-## Verified milestone
+- Existing category/brand management + Product Admin/media + homepage banner CMS preserved.
+- Product Attribute Editor now renders dynamically from category-scoped definitions and handles numbers, text, selections, colors, multiple selections, Boolean, dates and text customization requests.
+- Create and Edit Product persist server-validated attributes, load existing values, and reject missing required attributes.
+- HTTP product Admin list includes attributes, while category/brand option API includes stable IDs.
+- Underlying service+database regression exercises create/draft/update/public product resolution/unpublish and invalid/inactive behavior in isolated PostgreSQL.
+- Last commits:
+  - `acfc083604fc2457b1f849bf0999f0418f72d66e` — AttributeEditor, editor parsing contract, unit tests.
+  - `2a3f43762b5eb54f2c27976217252c45515c789f` — Product Editor API wiring, definitions, persisted-value hydration.
+  - `24e2ccfb64f5c34aedaa66afc4b54fc2109e4ab2` — PostgreSQL admin catalog integration tests, stronger validation.
 
-Functional code commit `7041e4c729ce38a3a6c5918ef90a7a1438bd7879` passed all 3 jobs in CI https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40661384662.
+## Important source files
 
-Commits in chronological order:
-- `9544045638f6dffcb6d55de5338b9e7938f3018e` — dependency patch / browser runner.
-- `360559cc10fb55a02a749c62b09a214358864bb4` — safe catalog PATCH / required attributes.
-- `cb645fc97bed8f0cf10cc93dc8eb1632dae26c09` — complete Category/Brand Admin editor workflow.
-- `7041e4c729ce38a3a6c5918ef90a7a1438bd7879` — active catalog assignments and attributes validation.
+- `components/admin/personal-admin-app.tsx`
+- `components/admin/product-attribute-editor.tsx`
+- `lib/admin/attribute-input.ts`
+- `lib/admin/catalog-admin.ts`
+- `lib/admin/product-admin.ts`
+- `app/api/admin-app/catalog/options/route.ts`
+- `app/api/admin-app/products/route.ts`
+- `tests/admin-attribute-input.test.ts`
+- `tests/integration/admin-catalog-postgres.test.ts`
 
-Important implementation locations:
-- `components/admin/catalog-management.tsx`: Category/Brand/Attribute UI, existing authenticated endpoints, loading/error/empty states and mutation refresh.
-- `lib/admin/catalog-admin.ts`: category/brand persistence, soft archive, restore, parent rules, required attributes and assignment checks.
-- `lib/admin/product-admin.ts`: transactional create/update, status/media, category/brand assignment, required attribute checks.
-- `app/api/admin-app/catalog/options/route.ts`: selectable visible/active category and brand options.
-- `tests/catalog-admin-validation.test.ts`: pure validation regression tests.
-- `.github/workflows/checkout-safety.yml`: security/type/lint/build, isolated PostgreSQL checkout and Chromium HTTP testing.
+## Important boundaries
 
-## Next authorized milestone
+- Do not modify/merge `feature/nexora-gpt-customer-ops` (Nexora 3) or `feature/nexora-qa-automation`.
+- Do not deploy production, run live payment/refund operations, expose customer data, or apply production migrations.
+- Do not bypass stock reservation/checkout pricing or create a competing variant model.
+- Existing reviewed catalog and banner migrations are NOT applied to production.
+- PostgreSQL DB tests run with `NEXORA_QA_ALLOW_DB_INTEGRATION=true` and require local host, `nexora_qa` username and database. Never weaken the isolation guard.
+- Only backend service persistence tests were added for the new attribute flow. Authenticated browser/UI save-reload remains **unverified** (existing browser smoke workflow covers other paths).
 
-1. Verify current branch HEAD and latest CI; fix any regression before more code.
-2. Read the existing Products component (`components/admin/personal-admin-app.tsx`) and product APIs. Add a usable category-specific attribute editor to Product Admin, including required/optional/type-aware controls and server error feedback. Avoid editing variant price/stock logic.
-3. Test owner product create/edit/save/reload with required attributes on an isolated migrated database, and test storefront visibility after publishing; do not claim these flows pass without executing them.
-4. Add safe inventory and bulk product controls only where the existing stock/reservation contract permits.
-5. Record actual changed files, new commit, CI link, database migration requirements and integration gaps in both progress docs.
+## On next user message `next`
 
-## Database and unresolved boundaries
-
-- Existing reviewed SQL files `20261021_homepage_banner.sql` and `20261021_catalog_management.sql` have NOT been applied in production. Use only isolated test PostgreSQL and reviewed migrations.
-- The automated PostgreSQL job covers checkout/coupon/concurrency, not full authenticated Admin catalog persistence E2E.
-- Product variants remain gated by the Nexora 3 checkout identity/order-item/inventory contract.
-- Never activate live Cashfree operations during development.
-- The documentation commit postdates the above verified functional commit; check actual GitHub HEAD and CI before relying on a status claim.
+1. Fetch current branch HEAD and CI; read this handoff and progress docs.
+2. Build authenticated browser E2E for Product Admin create/edit/save/reload, type-specific attributes and Category/Brand workflows using disposable PostgreSQL, local server and test-owner login.
+3. Add tests for media/gallery and state transitions while preserving existing data contracts.
+4. Continue with meaningful product preview and guarded bulk actions only after successful tests.
+5. Commit via GitHub on the same Admin branch, re-check exact HEAD CI, update these docs, report real delivery and remaining gaps.
