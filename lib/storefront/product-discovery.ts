@@ -1,6 +1,7 @@
 import { getPrisma } from "@/lib/db/prisma";
 import { serializeProduct } from "@/lib/db/products";
 import { findCatalogPricePage } from "@/lib/db/catalog-price-query";
+import { eligiblePublicCategoryIds, publicProductVisibilityWhere } from "@/lib/commerce/catalog-visibility";
 import { mapBackendProductToCatalog } from "@/lib/catalog-backend";
 import type { CatalogProduct } from "@/types/catalog";
 
@@ -73,13 +74,16 @@ export async function searchStoreProducts(query: string, page: number, options: 
 }> {
   const terms = searchTerms(query);
   if (!terms.length) return { products: [], total: 0, page: 1, totalPages: 0 };
-  const where = buildProductSearchWhere(query);
   const db = getPrisma();
+  const eligibleIds = await eligiblePublicCategoryIds(db);
+  const policy = publicProductVisibilityWhere(eligibleIds);
+  const search = buildProductSearchWhere(query);
+  const where = { status: "ACTIVE" as const, AND: [policy, ...search.AND] };
   if (options.availableOnly) {
     // SQL filters actual SKU/warehouse buckets before counts and page slicing.
     const requested = normalizeSearchPage(String(page));
     const sqlInput = {
-      queryTerms: terms, categories: [], brands: [], stock: "available" as const,
+      queryTerms: terms, categories: [], brands: [], eligibleCategoryIds: eligibleIds, stock: "available" as const,
       sort: "featured" as const, limit: SEARCH_PAGE_SIZE,
     };
     let stockPage = await findCatalogPricePage({ ...sqlInput, offset: (requested - 1) * SEARCH_PAGE_SIZE });
@@ -88,7 +92,7 @@ export async function searchStoreProducts(query: string, page: number, options: 
     if (totalPages && safePage !== requested)
       stockPage = await findCatalogPricePage({ ...sqlInput, offset: (safePage - 1) * SEARCH_PAGE_SIZE });
     if (!stockPage.ids.length) return { products: [], total: stockPage.total, page: safePage, totalPages };
-    const rows = await db.product.findMany({ where: { id: { in: stockPage.ids }, status: "ACTIVE" }, include });
+    const rows = await db.product.findMany({ where: { id: { in: stockPage.ids }, status: "ACTIVE", AND: [policy] }, include });
     const byId = new Map(rows.map(row => [row.id, row]));
     const products = stockPage.ids.flatMap(id => {
       const row = byId.get(id);
@@ -113,8 +117,11 @@ export async function searchStoreProducts(query: string, page: number, options: 
 
 export async function suggestStoreProducts(query: string): Promise<SearchSuggestion[]> {
   if (searchTerms(query).length === 0) return [];
-  const rows = await getPrisma().product.findMany({
-    where: buildProductSearchWhere(query),
+  const db = getPrisma();
+  const eligibleIds = await eligiblePublicCategoryIds(db);
+  const search = buildProductSearchWhere(query);
+  const rows = await db.product.findMany({
+    where: { status: "ACTIVE", AND: [publicProductVisibilityWhere(eligibleIds), ...search.AND] },
     select: {
       id: true, slug: true, name: true, priceMinor: true,
       inventory: { select: { onHand: true, reserved: true } },
