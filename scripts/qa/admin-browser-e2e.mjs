@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Runs only with a local disposable PostgreSQL instance and an ephemeral QA owner.
 import assert from "node:assert/strict";
+import pg from "pg";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -351,6 +352,126 @@ try {
     const brand = (await api(ctx, "/api/admin-app/catalog/brands?inactive=true")).find(x => x.slug === slug);
     assert.equal(brand.active, true);
     assert.equal(brand.description, "Brand lifecycle verified");
+  });
+
+
+  await verify("bulk-audit-write-failure-rolls-back-all-products", async () => {
+    const dbClient = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await dbClient.connect();
+    let triggerCreated = false;
+    try {
+      await dbClient.query("CREATE FUNCTION qa_reject_bulk_audit() RETURNS trigger AS $ BEGIN RAISE EXCEPTION 'QA audit insert rejected'; END; $ LANGUAGE plpgsql");
+      await dbClient.query('CREATE TRIGGER qa_reject_bulk_audit_trg BEFORE INSERT ON "AdminActivityLog" FOR EACH ROW WHEN (NEW."action" = \'PRODUCT_BULK_FEATURE\') EXECUTE FUNCTION qa_reject_bulk_audit()');
+      triggerCreated = true;
+      const original = await product(ctx);
+      assert.equal(original.status, "DRAFT");
+      assert.equal(original.featured, false);
+      const countBefore = await dbClient.query('SELECT count(*)::int AS count FROM "AdminActivityLog" WHERE "entityId" = $1', [original.id]);
+      const result = await ctx.request.post(new URL("/api/admin-app/products/bulk", base).href, {
+        data: { action: "FEATURE", products: [{ id: original.id, updatedAt: original.updatedAt }] },
+      });
+      assert.equal(result.status(), 500, "Audit trigger rejection should fail the product transaction");
+      const unchanged = await product(ctx);
+      assert.equal(unchanged.featured, false);
+      assert.equal(unchanged.updatedAt, original.updatedAt);
+      const countAfter = await dbClient.query('SELECT count(*)::int AS count FROM "AdminActivityLog" WHERE "entityId" = $1', [original.id]);
+      assert.equal(countAfter.rows[0].count, countBefore.rows[0].count, "Rolled-back activity must not persist");
+    } finally {
+      if (triggerCreated) await dbClient.query('DROP TRIGGER IF EXISTS qa_reject_bulk_audit_trg ON "AdminActivityLog"');
+      await dbClient.query("DROP FUNCTION IF EXISTS qa_reject_bulk_audit()");
+      await dbClient.end();
+    }
+  });
+
+  await verify("concurrent-bulk-actions-allow-only-one-stale-revision-winner", async () => {
+    const original = await product(ctx);
+    assert.equal(original.featured, false);
+    assert.equal(original.status, "DRAFT");
+    const products = [{ id: original.id, updatedAt: original.updatedAt }];
+    const url = new URL("/api/admin-app/products/bulk", base).href;
+    const responses = await Promise.all([
+      ctx.request.post(url, { data: { action: "PUBLISH", products } }),
+      ctx.request.post(url, { data: { action: "FEATURE", products } }),
+    ]);
+    assert.deepEqual(responses.map(r => r.status()).sort((a,b) => a - b), [200,409],
+      "Only one transaction may commit when two actions share a revision");
+    const after = await product(ctx);
+    assert.equal(Number(after.status === "ACTIVE") + Number(after.featured === true), 1,
+      "A stale concurrent update must never alter the second field");
+  });
+
+  await verify("media-signer-disabled-and-mocked-cloudinary-upload-error", async () => {
+    const signer = await ctx.request.post(new URL("/api/admin-app/media/sign", base).href, {
+      data: { resourceType: "image" },
+    });
+    assert.equal(signer.status(), 503, "QA has no external Cloudinary credentials");
+    await page.goto(new URL("/admin/products", base).href);
+    const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: "Add product" }) }).first();
+    const gallery = panel.getByRole("group", { name: "Product gallery images" });
+    const file = { name: "qa-image.png", mimeType: "image/png", buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]) };
+    await gallery.locator('input[type="file"]').setInputFiles(file);
+    await gallery.getByText("Cloudinary upload is not configured yet.").waitFor();
+    await page.route("**/api/admin-app/media/sign", route => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: {
+        cloudName: "nexora-qa-only", apiKey: "qa", timestamp: 123456,
+        folder: "nexora/products/images", signature: "qa-test-only", resourceType: "image",
+      } }),
+    }));
+    await page.route("https://api.cloudinary.com/**", route => route.fulfill({
+      status: route.request().method() === "OPTIONS" ? 204 : 503,
+      contentType: "application/json",
+      headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "POST, OPTIONS", "access-control-allow-headers": "*" },
+      body: route.request().method() === "OPTIONS" ? "" : JSON.stringify({ error: { message: "QA upload service unavailable" } }),
+    }));
+    try {
+      await gallery.locator('input[type="file"]').setInputFiles(file);
+      await gallery.getByText("QA upload service unavailable").waitFor();
+      assert.equal(await gallery.getByText("No extra images added yet.").count(), 1);
+    } finally {
+      await page.unroute("**/api/admin-app/media/sign");
+      await page.unroute("https://api.cloudinary.com/**");
+    }
+  });
+
+  await verify("homepage-banner-live-preview-save-publish-archive-and-restore", async () => {
+    const bannerTitle = "QA Live Hero " + suffix;
+    await page.goto(new URL("/admin/homepage", base).href);
+    const form = page.locator("form").filter({ hasText: "Create homepage banner" }).first();
+    await form.getByLabel("Title", { exact: true }).fill(bannerTitle);
+    await form.getByLabel("Desktop image URL").fill(img1);
+    const preview = page.getByRole("region", { name: "Unsaved homepage banner preview" });
+    await preview.getByText(bannerTitle).waitFor();
+    await preview.getByRole("button", { name: "Mobile" }).click();
+    await preview.getByText(bannerTitle).waitFor();
+    const before = await api(ctx, "/api/admin-app/banners");
+    assert.equal(before.some(x => x.title === bannerTitle), false, "Unsaved preview must not persist");
+    const response = page.waitForResponse(r => new URL(r.url()).pathname === "/api/admin-app/banners" && r.request().method() === "POST");
+    await form.getByRole("button", { name: "Create banner" }).click();
+    assert.equal((await response).status(), 201);
+    const findRow = () => page.getByText(bannerTitle, { exact: true }).last().locator("..").locator("..");
+    await findRow().getByRole("button", { name: "Edit" }).waitFor();
+    await findRow().getByRole("button", { name: "Edit" }).click();
+    await page.getByLabel("Publish on homepage").check();
+    const editResult = page.waitForResponse(r => /\/api\/admin-app\/banners\/[^/]+$/.test(new URL(r.url()).pathname) && r.request().method() === "PATCH");
+    await page.getByRole("button", { name: "Save banner" }).click();
+    assert.equal((await editResult).status(), 200);
+    let rows = await api(ctx, "/api/admin-app/banners");
+    assert.equal(rows.find(x => x.title === bannerTitle)?.published, true);
+    page.once("dialog", d => void d.accept());
+    const archiveResult = page.waitForResponse(r => /\/api\/admin-app\/banners\/[^/]+$/.test(new URL(r.url()).pathname) && r.request().method() === "PATCH");
+    await findRow().getByRole("button", { name: "Archive" }).click();
+    assert.equal((await archiveResult).status(), 200);
+    rows = await api(ctx, "/api/admin-app/banners");
+    assert.equal(rows.find(x => x.title === bannerTitle)?.archived, true);
+    assert.equal(rows.find(x => x.title === bannerTitle)?.published, false);
+    page.once("dialog", d => void d.accept());
+    const restoreResult = page.waitForResponse(r => /\/api\/admin-app\/banners\/[^/]+$/.test(new URL(r.url()).pathname) && r.request().method() === "PATCH");
+    await findRow().getByRole("button", { name: "Restore" }).click();
+    assert.equal((await restoreResult).status(), 200);
+    rows = await api(ctx, "/api/admin-app/banners");
+    assert.equal(rows.find(x => x.title === bannerTitle)?.archived, false);
+    assert.equal(rows.find(x => x.title === bannerTitle)?.published, false, "Restored banner must remain Draft");
   });
 
   await ctx.close();
