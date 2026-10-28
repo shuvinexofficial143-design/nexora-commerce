@@ -117,6 +117,9 @@ try {
         await page.getByRole("heading", { name: /FIND YOUR NEXT THING/i }).waitFor();
         await page.getByRole("heading", { name: "Fresh from the collection." }).waitFor();
         await page.getByRole("status").filter({ hasText: /DEMO PREVIEW ONLY/ }).waitFor();
+        assert.equal(await page.getByText(/Sale up to 60%/).count(), 0);
+        assert.equal(await page.getByText(/Free delivery over/).count(), 0);
+        assert.equal(await page.locator('a[href*="sort=discount"]').count(), 0);
         assert.equal(await page.getByText("10k+", { exact: true }).count(), 0);
         assert.equal(await page.getByText("4.8/5", { exact: true }).count(), 0);
         assert.equal(await page.getByText("24/7", { exact: true }).count(), 0);

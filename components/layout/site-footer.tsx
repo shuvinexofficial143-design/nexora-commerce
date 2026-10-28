@@ -7,8 +7,8 @@ const footerGroups = [
     links: [
       ["Shop all", "/shop"],
       ["New arrivals", "/shop?sort=newest"],
-      ["Best sellers", "/shop?sort=rating"],
-      ["Deals", "/shop?sort=discount"],
+      ["Top rated", "/shop?sort=rating"],
+      ["Shop by category", "/shop"],
     ],
   },
   {

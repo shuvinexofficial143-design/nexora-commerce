@@ -10,8 +10,8 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 border-b border-black/10 bg-[#f8f8f6]/95 backdrop-blur-xl">
       <div className="bg-[#171714] text-white">
         <Container className="flex h-6 items-center justify-between text-[9px] font-semibold tracking-wide sm:h-7 sm:text-[10px]">
-          <p>Free delivery over ₹999</p>
-          <p className="hidden text-white/60 sm:block">Secure checkout · Easy returns</p>
+          <p>Explore products across categories</p>
+          <p className="hidden text-white/60 sm:block">Review prices · Check availability</p>
           <Link href="/ai-assistant" className="text-[#d7ff47] hover:underline">Ask AI ✦</Link>
         </Container>
       </div>
