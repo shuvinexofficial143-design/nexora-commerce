@@ -17,7 +17,8 @@ function ensureIsolatedDatabase(){
 ensureIsolatedDatabase();
 const db=getPrisma();
 const tag=randomUUID().replaceAll("-","").slice(0,12);
-let adminId="",productId="",firstPoster="https://images.unsplash.com/photo-111";
+let adminId="",productId="";
+const firstPoster="https://images.unsplash.com/photo-111";
 const nextPoster="https://images.unsplash.com/photo-222";
 const gallery="https://images.unsplash.com/photo-333";
 const video="https://youtu.be/abcdefghijk";
