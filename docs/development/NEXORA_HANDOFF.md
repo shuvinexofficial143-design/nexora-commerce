@@ -2,24 +2,30 @@
 
 **Date:** 2026-10-28
 **Repository:** `shuvinexofficial143-design/nexora-commerce`
-**WRITE ONLY:** `feature/nexora-gift-store`
-**CI-verified functional HEAD:** `a6c444cb622eeec4f33d2cdfb9300e8cf10e420c`
-**CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40701325492 — 4/4 PASS.
-**Owner Chromium + disposable PostgreSQL:** 19 PASS / 0 FAIL.
-The documentation-only commit containing this handoff is newer than the tested functional SHA. On every `next`, verify actual remote HEAD and exact CI again.
+**AUTHORIZED WRITE BRANCH ONLY:** `feature/nexora-gift-store`
+**Exact CI-verified functional commit:** `50e695c0cd584a1aefc02817f689f87979f25491`
+**GitHub Actions:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40703912543 — **4/4 PASS**.
+**Real Owner Chromium:** **20 PASS / 0 FAIL**.
+The docs-only commit follows this functional commit; read the actual latest remote SHA and CI before a new increment.
 
-## Verified milestone — Single Product atomic audit and real Cancel/Retry
+## Current verified milestone
 
-1. `lib/admin/audit.ts`: `logAdmin(input, executor?)` can use a supplied Prisma transaction client. Existing other audit usages preserve standalone behavior.
-2. `lib/admin/product-admin.ts`: `createProduct(input, adminUserId?)` and `updateProduct(id, input, adminUserId?)` perform Product + associated ProductImage media + `PRODUCT_CREATE` or `PRODUCT_UPDATE` Audit writes inside the *same Prisma transaction*. If audit insert fails, entire Product/media mutation rolls back. Optional Owner ID only preserves direct QA usage; Owner routes always supply authenticated ID.
-3. `app/api/admin-app/products/manage/route.ts`, `app/api/admin-app/products/[productId]/route.ts`: Owner routes now pass `s.user.id` and do **not** call standalone `logAdmin` after persistence. Existing safe 400 Product Publish error remains.
-4. `scripts/qa/admin-browser-e2e.mjs`: PostgreSQL disposable-only audit trigger deliberately rejects both single PRODUCT_CREATE and PRODUCT_UPDATE. Confirms 500 generic server response, original Product revision/description/poster unchanged, no created Product row, unchanged audit count. Trigger/function removed in finally.
-5. Browser CMS media test intercepts all Cloudinary/sign requests, starts an in-flight XHR, cancels via actual UI, checks cancellation alert + unchanged Banner URL, retries and accepts signed approved mock URL without database persistence. **19/19 PASS**. All previous 17 Browser tests still pass.
-6. Exact functional CI run `40701325492` four jobs green including disposable Postgres and full Build; no production usage.
+- `lib/home-banners.ts`: `BannerValidationError` typed only for expected invalid Banner inputs (Title/CTA length, approved HTTPS image URL, internal CTA, integer display order, category slug, invalid object).
+- `app/api/admin-app/banners/route.ts`: POST sends actionable HTTP **400** for invalid input and malformed JSON. GET and unknown server errors retain safe generic 500.
+- `app/api/admin-app/banners/[bannerId]/route.ts`: PATCH same typed input HTTP 400, no partial invalid write.
+- `scripts/qa/admin-browser-e2e.mjs`: Owner Chromium verifies invalid media/CTA/JSON/ordering returns 400 without mutation; total **20/20 PASS**.
+- `tests/home-banner-validation.test.ts`: typed validation test.
+- Last full functional 4/4 CI success for SHA `50e695c0cd584a1aefc02817f689f87979f25491`, Run `40703912543`; earlier Product Single/Bulk atomic audit, cancel/retry Upload, Homepage ordering, Category/Brand and Storefront regressions remain green.
 
-## Remaining, restrictions and NEXT
+## Pending next `next`
 
-- Production catalog, homepage and audit/notification raw SQL reviewed migrations are **not applied**; never deploy or run production migrations without explicit owner approval and backups.
-- No actual Cloudinary upload provider success has been tested. No live Cashfree/refunds, customer orders, inventory adjustments or production Vercel deployment.
-- On next `next`: review other Admin lifecycle actions for atomic audit, owner-friendly typed validation responses, and optional signing-abort Browser QA without third-party calls. Prioritize meaningful code+tests, update these docs, verify final exact-head 4/4 CI.
-- Never touch `feature/nexora-gpt-customer-ops` (Nexora 3) or `feature/nexora-qa-automation`, do not merge branches without instructions.
+1. Always verify latest branch SHA and final exact-head 4/4 CI.
+2. **Inventory adjustment audit transaction is NOT fixed.** GitHub write for proposed inventory change was blocked and no inventory commit happened. Reassess that source and safety approval rather than assuming the attempted code exists. Avoid production inventory manipulation.
+3. Other Admin mutations (Warehouse Transfer, Seller Onboard, Order Status) have separate audit side effects; audit and prioritize risk, build isolated QA regressions. Do not claim atomicity until exact-head CI verifies.
+4. Improve safe validation and real mocked signer-abort QA when valuable; update docs and verify CI.
+5. No production Vercel deploy, live SQL migrations, Cashfree/refund or Cloudinary calls; never edit `feature/nexora-gpt-customer-ops` or `feature/nexora-qa-automation`.
+
+## Production boundary
+
+- Reviewed `prisma/reviewed-migrations/20261028_admin_observability.sql` and other Homepage/catalog migrations have NOT been applied to production. Controlled approval, backup and migration rehearsal required before real Admin Owner operations.
+- All present QA verification uses localhost disposable `nexora_qa`, Owner `@example.invalid` credentials, and intercepts third-party upload paths. No live customer/inventory/payment effects.

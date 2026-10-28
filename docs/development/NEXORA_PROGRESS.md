@@ -1,5 +1,27 @@
 # NEXORA 4 — Admin Development Progress
 
+## 28 October 2026 — Homepage Banner Validation API and Owner Browser Regression
+
+**AUTHORIZED BRANCH:** `feature/nexora-gift-store`  
+**Verified functional HEAD:** `50e695c0cd584a1aefc02817f689f87979f25491`  
+**Exact-head CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40703912543 — **4/4 PASS**  
+**Owner Chromium, QA PostgreSQL:** **20 PASS / 0 FAIL**.
+
+### Delivered
+- `lib/home-banners.ts` defines `BannerValidationError`; only expected Homepage Banner input validation receives the typed error. Other DB errors remain internal.
+- `app/api/admin-app/banners/route.ts` POST and `app/api/admin-app/banners/[bannerId]/route.ts` PATCH return explicit HTTP 400 + safe useful validation message for bad input; existing owner-gating persists. GET retains generic database error handler.
+- `scripts/qa/admin-browser-e2e.mjs` adds a verified Owner Browser test for invalid image URL, external CTA, malformed JSON, invalid update sort order, and no unintended DB mutation.
+- `tests/home-banner-validation.test.ts` adds strict typed-error assertion.
+- Functional CI passed Node/TS/ESLint/security/build, disposable PostgreSQL checkout/replay, desktop/mobile localhost browser, and Owner authenticated real Chromium PostgreSQL E2E.
+
+### Pending scope and limitations
+- **Inventory stock-adjustment audit atomicity and concurrent update handling NOT implemented.** A proposed connector GitHub write was rejected; no inventory files changed. Must audit/implement/test in a separate authorized increment.
+- Other Admin stock/transfer/order status/seller actions require audit transactional review, and might involve real business risk. No real inventory changes, transactions, payments, or live server activity have been performed.
+- External Cloudinary provider success not verified. Production schema migrations (catalog/banner/admin-observability) remain unapplied and need owner approval/backups.
+- No production Vercel deploy or code changes to Nexora 3 and QA branches.
+
+## Earlier Milestones
+
 ## 28 October 2026 — Atomic Single Product Audit & In-flight Upload Cancellation
 
 **Authorized branch only:** `feature/nexora-gift-store`  
