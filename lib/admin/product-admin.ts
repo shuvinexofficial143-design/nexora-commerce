@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
+import { assertProductPublishable } from "@/lib/admin/product-publish";
 import { requireAssignableBrand, requireAssignableCategory, validateProductAttributes } from "@/lib/admin/catalog-admin";
 import type { Prisma } from "@/generated/prisma/client";
 import {
@@ -218,6 +219,8 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
     const product = Object.keys(data).length
       ? await tx.product.update({ where: { id }, data: data as Prisma.ProductUncheckedUpdateInput })
       : await tx.product.findUniqueOrThrow({ where: { id } });
+
+    if (product.status === "ACTIVE") await assertProductPublishable(tx, product);
 
     if (mediaUpdateRequested) {
       const existing = await tx.productImage.findMany({

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
+import { assertProductPublishable } from "@/lib/admin/product-publish";
 
 export type BulkProductAction = "PUBLISH" | "MOVE_TO_DRAFT" | "FEATURE" | "UNFEATURE";
 export type BulkProductSelection = { id: string; updatedAt: string };
@@ -56,7 +57,7 @@ export async function applyBulkProductAction(input: BulkProductRequest, adminUse
   return prisma.$transaction(async (tx) => {
     const rows = await tx.product.findMany({
       where: { id: { in: products.map((item) => item.id) } },
-      select: { id: true, name: true, status: true, featured: true, updatedAt: true },
+      select: { id: true, name: true, status: true, featured: true, updatedAt: true, categoryId: true, brandId: true, attributes: true },
     });
     const byId = new Map(rows.map((row) => [row.id, row]));
     if (rows.length !== products.length) throw new BulkProductConflict();
@@ -83,6 +84,7 @@ export async function applyBulkProductAction(input: BulkProductRequest, adminUse
         unchangedIds.push(selected.id);
         continue;
       }
+      if (action === "PUBLISH") await assertProductPublishable(tx, row);
       const result = await tx.product.updateMany({
         where: { id: selected.id, updatedAt: row.updatedAt, status: { not: "ARCHIVED" } },
         data: changes,

@@ -4,6 +4,7 @@ import { after, before, test } from "node:test";
 import { getPrisma } from "../../lib/db/prisma";
 import { saveCategory, saveBrand, saveAttributeDefinition } from "../../lib/admin/catalog-admin";
 import { createProduct, updateProduct } from "../../lib/admin/product-admin";
+import { applyBulkProductAction } from "../../lib/admin/product-bulk";
 import { getProductBySlug, listProducts } from "../../lib/db/products";
 
 // CI database contract: never run these tests against a non-disposable database.
@@ -121,4 +122,44 @@ test("Admin rejects invalid product attributes and inactive assignment without p
     attributes: { "storage-gb": 64, "case-color": "Black" },
   }), /active brand/);
   assert.equal(await db.product.count({ where: { sku: "QA-INVALID-" + f.key } }), 0);
+});
+
+
+test("Single and bulk publish fail closed on newly required attributes or inactive classifications", async () => {
+  const f = await catalogFixture();
+  const row = await createProduct({
+    name: "QA Publish Guard " + f.key, sku: "QA-PUBLISH-" + f.key,
+    price: 449, categorySlug: f.category.slug, brandSlug: f.brand.slug,
+    attributes: { "storage-gb": 64, "case-color": "Silver" },
+  });
+  productIds.push(row.id);
+  await saveAttributeDefinition(undefined, {
+    categoryId: f.category.id, name: "Warranty Months", type: "NUMBER", required: true,
+  });
+  await assert.rejects(updateProduct(row.id, { status: "ACTIVE" }), /Warranty Months is required/);
+  await assert.rejects(applyBulkProductAction({
+    action: "PUBLISH",
+    products: [{ id: row.id, updatedAt: row.updatedAt.toISOString() }],
+  }, "qa-owner-placeholder"), /Warranty Months is required/);
+  assert.equal((await db.product.findUniqueOrThrow({ where: { id: row.id } })).status, "DRAFT");
+
+  await updateProduct(row.id, {
+    attributes: { "storage-gb": 64, "case-color": "Silver", "warranty-months": 12 },
+  });
+  await saveBrand(f.brand.id, { active: false });
+  await assert.rejects(updateProduct(row.id, { status: "ACTIVE" }), /active brand/);
+  const current = await db.product.findUniqueOrThrow({ where: { id: row.id } });
+  await assert.rejects(applyBulkProductAction({
+    action: "PUBLISH", products: [{ id: row.id, updatedAt: current.updatedAt.toISOString() }],
+  }, "qa-owner-placeholder"), /active brand/);
+  await saveBrand(f.brand.id, { active: true });
+  await saveCategory(f.category.id, { visible: false });
+  await assert.rejects(updateProduct(row.id, { status: "ACTIVE" }), /active, visible category/);
+  await assert.rejects(applyBulkProductAction({
+    action: "PUBLISH", products: [{ id: row.id, updatedAt: current.updatedAt.toISOString() }],
+  }, "qa-owner-placeholder"), /active, visible category/);
+  await saveCategory(f.category.id, { visible: true });
+  const active = await updateProduct(row.id, { status: "ACTIVE" });
+  assert.equal(active.status, "ACTIVE", "Valid product must still publish after classification restoration");
+  await updateProduct(row.id, { status: "DRAFT" });
 });
