@@ -21,8 +21,15 @@ export async function getPublishedHomepageBanners(): Promise<HomepageBannerData[
   }
 }
 
+export class BannerValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BannerValidationError";
+  }
+}
+
 export function validateBanner(input: Record<string, unknown>) {
-  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Invalid homepage banner.");
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new BannerValidationError("Invalid homepage banner.");
   const title = String(input.title ?? "").trim();
   const imageUrl = String(input.imageUrl ?? "").trim();
   const mobileImageUrl = String(input.mobileImageUrl ?? "").trim();
@@ -31,16 +38,16 @@ export function validateBanner(input: Record<string, unknown>) {
   const description = String(input.description ?? "").trim();
   const categorySlug = String(input.categorySlug ?? "").trim().toLowerCase();
   if (title.length < 2 || title.length > 150 || ctaText.length < 2 || ctaText.length > 60 || description.length > 1000)
-    throw new Error("Banner title or CTA text length is invalid.");
+    throw new BannerValidationError("Banner title or CTA text length is invalid.");
   if (!isSupportedPosterUrl(imageUrl) || (mobileImageUrl && !isSupportedPosterUrl(mobileImageUrl)))
-    throw new Error("Banner image must use approved HTTPS media URLs.");
+    throw new BannerValidationError("Banner image must use approved HTTPS media URLs.");
   if (!/^\/(?!\/)/.test(ctaHref) || /[\\\r\n\t]/.test(ctaHref) || ctaHref.length > 400)
-    throw new Error("Use a valid internal CTA link.");
+    throw new BannerValidationError("Use a valid internal CTA link.");
   const order = input.sortOrder === undefined ? 0 : input.sortOrder;
   if (typeof order !== "number" || !Number.isInteger(order) || order < 0 || order > 100000)
-    throw new Error("Display order must be an integer from 0 to 100000.");
+    throw new BannerValidationError("Display order must be an integer from 0 to 100000.");
   if (categorySlug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(categorySlug))
-    throw new Error("Category slug format is invalid.");
+    throw new BannerValidationError("Category slug format is invalid.");
   const archived = input.archived === true;
   return {
     title, imageUrl, ctaText, ctaHref,
