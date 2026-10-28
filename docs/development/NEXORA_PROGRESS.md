@@ -1,5 +1,28 @@
 # NEXORA 4 — Admin Development Progress
 
+## 28 October 2026 — Atomic Inventory Stock Adjustment and Concurrency Guard
+
+**Authorized branch:** `feature/nexora-gift-store`  
+**Exact functional CI-verified SHA:** `f8e0107d8224d89cf75488f2835670f8dc96a456`  
+**GitHub Actions:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40705333053 — **4/4 PASS**  
+**Owner Chromium with disposable PostgreSQL:** **21 PASS / 0 FAIL**.
+
+### Delivered
+- `lib/admin/inventory-admin.ts` now accepts authenticated Owner ID when called from API, and inserts `INVENTORY_ADJUSTMENT` Audit using the same Prisma transaction as the InventoryItem balance update and InventoryMovement insert. If any mutation or the audit insert fails, the transaction rolls back completely.
+- Input is strictly validated: Inventory row must exist, adjustment must be a nonzero safe integer within ±100000, note must contain 3–500 characters, ending stock cannot be negative, lower than reserved, or exceed signed 32-bit stock storage.
+- Compare-and-swap `updateMany` requires the originally observed `onHand` and `reserved` balance; stale concurrent changes fail with explicit conflict instead of blindly overwriting.
+- `app/api/admin-app/inventory/adjust/route.ts` validates JSON, enforces Owner login, passes authenticated user ID to the atomic service; expected invalid requests return HTTP **400**, stock conflicts **409**, and unexpected DB/audit failure a generic **500** with no internal SQL leak.
+- `scripts/qa/admin-browser-e2e.mjs`: new *disposable localhost QA-only* PostgreSQL/Owner Browser test creates an isolated Warehouse+Inventory row. It checks authentication, invalid adjustments, rejection trigger on audit insert, zero stock/movement updates after failure, valid adjustment with one movement + audit, two concurrent owner requests with no lost stock update, and cleans up the fixture/trigger.
+- Existing 20 Admin Browser tests and all Storefront/PostgreSQL/TypeScript/Build CI gates remain PASS.
+
+### Verified safety and limitations
+- Exact functional SHA `f8e0107d8224d89cf75488f2835670f8dc96a456` confirmed 4/4 green, 21/21 Owner browser tests green. No production Vercel deploy, real inventory adjustment or live DB migration occurred.
+- **Warehouse Transfer remains UNCHANGED.** It still performs inventory changes inside one transfer transaction but writes a separate Audit after commit in the route; source stock validation and a suspicious quoted status literal in raw Transfer SQL need read-only inspection and QA tests before changes.
+- Seller onboarding and Order Status also have audit/side-effect paths requiring individual review before production. Never assume every admin action is audit-atomic.
+- Actual Cloudinary provider success, Cashfree live flows and reviewed production migrations are unverified/unapplied.
+
+## Earlier Milestones
+
 ## 28 October 2026 — Homepage Banner Validation API and Owner Browser Regression
 
 **AUTHORIZED BRANCH:** `feature/nexora-gift-store`  
