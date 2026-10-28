@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
+import { logAdmin } from "@/lib/admin/audit";
 import { assertProductPublishable } from "@/lib/admin/product-publish";
 import { requireAssignableBrand, requireAssignableCategory, validateProductAttributes } from "@/lib/admin/catalog-admin";
 import type { Prisma } from "@/generated/prisma/client";
@@ -38,7 +39,8 @@ const slug = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
-export async function createProduct(input: Record<string, unknown>) {
+export async function createProduct(input: Record<string, unknown>, adminUserId?: string) {
+  if (adminUserId !== undefined && (!adminUserId || adminUserId.length > 128)) throw new Error("Invalid admin identity.");
   const name = String(input.name ?? "").trim();
   const sku = String(input.sku ?? "").trim().toUpperCase();
   const price = Number(input.price);
@@ -112,11 +114,16 @@ export async function createProduct(input: Record<string, unknown>) {
       await tx.productImage.createMany({ data: productMedia });
     }
 
+    if (adminUserId) await logAdmin({
+      adminUserId, action: "PRODUCT_CREATE", entityType: "PRODUCT",
+      entityId: product.id, summary: `Created ${product.name}`,
+    }, tx);
     return product;
   });
 }
 
-export async function updateProduct(id: string, input: Record<string, unknown>) {
+export async function updateProduct(id: string, input: Record<string, unknown>, adminUserId?: string) {
+  if (adminUserId !== undefined && (!adminUserId || adminUserId.length > 128)) throw new Error("Invalid admin identity.");
   const data: {
     name?: string;
     priceMinor?: number;
@@ -285,6 +292,10 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
       }
     }
 
+    if (adminUserId) await logAdmin({
+      adminUserId, action: "PRODUCT_UPDATE", entityType: "PRODUCT",
+      entityId: product.id, summary: `Updated ${product.name}`,
+    }, tx);
     return product;
   });
 }
