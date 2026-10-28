@@ -1,5 +1,33 @@
 # NEXORA 4 — Admin Development Progress
 
+## 28 October 2026 — Typed Product Publish Errors and CMS Upload Recovery
+
+**Repository:** `shuvinexofficial143-design/nexora-commerce`  
+**Authorized branch:** `feature/nexora-gift-store`  
+**CI-verified functional commit:** `ee7d0883aaeb0fd7054225fbb8e16b6b387d257e`  
+**CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40698685959 — **4/4 SUCCESS**, Owner Chromium **17 PASS / 0 FAIL**.
+
+### Actual changes
+- `lib/admin/product-publish.ts`: explicit `ProductPublishValidationError` wraps only expected, business-level validation failures for assigned Category/Brand and current Required Attributes. Database exceptions are never converted into externally exposed validation messages.
+- `app/api/admin-app/products/[productId]/route.ts` and `app/api/admin-app/products/bulk/route.ts`: expected Product Publish Validation returns **HTTP 400** with the actionable safe error text. A real DB/audit failure remains generic HTTP 500; stale bulk selections continue using HTTP 409.
+- `scripts/qa/admin-browser-e2e.mjs`: direct Single/Bulk Publish after newly added Required Attribute now expects HTTP 400 with field-specific reason and verifies no Product status mutation.
+- `components/admin/admin-media-upload.tsx`: added explicit Cancel Upload for in-flight signature/XHR, AbortController cleanup, safe cancel error, and `role="alert"` for accessible errors.
+- New Browser test for Banner Desktop mocked signed Cloudinary upload success (accepted approved HTTPS media URL), revoked/invalid provider response on Mobile (untrusted domain rejected), preview image failure fallback, and no unsaved Banner persistence. All third-party routes intercepted locally, **no real Cloudinary uploads**.
+
+### Exact verification
+- Existing QA unit/security, TypeScript, ESLint, production build — PASS.
+- Disposable PostgreSQL checkout transaction/stock regressions — PASS.
+- Local HTTP storefront Chromium desktop/mobile — PASS.
+- Authenticated Owner Admin Chromium + QA PostgreSQL — **17 PASS / 0 FAIL**.
+- Exact functional SHA `ee7d0883aaeb0fd7054225fbb8e16b6b387d257e`, Run `40698685959`, no production deployment or migration.
+
+### Follow-up
+- Extend upload Cancellation Browser E2E with a deliberately slow, fully mocked request; current cancel control compiles and provider-failure paths pass but direct Cancel click is not yet Browser E2E verified.
+- Review Admin Product save audit atomicity (single Product update + separate audit write) before production usage; separate from already verified atomic Bulk Action audit.
+- Production DB's reviewed catalog/banner/observability migrations remain unapproved/unapplied. Real Cloudinary upload SUCCESS against provider remains unverified.
+
+## Earlier Milestones
+
 ## 28 October 2026 — Publish Eligibility Guard and Atomic Homepage Banner Sorting
 
 **WRITE BRANCH ONLY:** `feature/nexora-gift-store`
