@@ -16,6 +16,13 @@ await client.connect();
 try {
   const sql = await readFile(new URL("../../prisma/reviewed-migrations/20261028_admin_observability.sql", import.meta.url), "utf8");
   await client.query(sql);
+  // Disposable database only: add reviewed transfer history tables for owner E2E.
+  const transferSql = await readFile(new URL("../../prisma/reviewed-migrations/20261028_warehouse_transfer.sql", import.meta.url), "utf8");
+  await client.query(transferSql);
+  const transfer = await client.query(
+    'SELECT to_regclass(\'"WarehouseTransfer"\') AS header, to_regclass(\'"WarehouseTransferItem"\') AS lines'
+  );
+  if (!transfer.rows[0].header || !transfer.rows[0].lines) throw new Error("QA Warehouse Transfer history schema missing.");
   const result = await client.query(
     'SELECT to_regclass(\'"AdminActivityLog"\') AS audit, to_regclass(\'"AdminNotification"\') AS notifications'
   );
