@@ -1,26 +1,27 @@
 # NEXORA 4 — Admin Development Handoff
 
-Date: 2026-10-28
-Repo: `shuvinexofficial143-design/nexora-commerce`
-AUTHORIZED write branch: `feature/nexora-gift-store`
-Functional SHA: `bf17045e2156b1a1c1c69e4d786f1e9d2bb0456f`
-CI: https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40707138238 — 4/4 SUCCESS
-Owner Chromium (local disposable PostgreSQL): 22 PASS / 0 FAIL
+**Date:** 2026-10-28  
+**Repo:** `shuvinexofficial143-design/nexora-commerce`  
+**ONLY writable branch:** `feature/nexora-gift-store`  
+**CI-verified functional SHA:** `847c3b47890ff7ea0732d1abf321f2962ae43b33`  
+**CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40711986884 — **4/4 PASS**.  
+**Owner Chromium, disposable PostgreSQL:** **23 PASS / 0 FAIL**.
 
-## Completed — Warehouse Transfer
-- `lib/admin/warehouse-transfer.ts`: validated distinct active warehouses, typed integer quantity 1–100000, reserve floor and destination limit, CAS against stale source/destination balances.
-- Warehouse source debit + destination credit, Transfer history header and item, two InventoryMovement entries and single Admin audit insert are in one Prisma transaction. Audit failure rolls back all writes.
-- Corrected raw SQL `"COMPLETED"` identifier to a bound status text value.
-- `app/api/admin-app/warehouses/transfer/route.ts`: owner authentication, HTTP 201 success; expected 400 validation, 409 conflict, generic 500 database error; removed duplicate post-commit audit.
-- NEW `prisma/reviewed-migrations/20261028_warehouse_transfer.sql`: additive raw history tables and constraints; only `scripts/qa/setup-admin-observability.mjs` applies it in disposable localhost `nexora_qa`. NOT applied in production.
-- `scripts/qa/admin-browser-e2e.mjs`: verified no unauthorized transfer, unsafe quantity or reserved-stock overdraw; SQL trigger rejects audit write and verifies rollback of stock, transfer history and movements; valid posting and concurrent transfer test pass.
+## Newly verified: Order Status + Audit + Stock atomicity
 
-## Next `next`
-1. Read latest actual branch SHA + exact-head CI. Do not confuse docs-only SHA with functional SHA.
-2. Review Seller Onboarding and Order Status post-write audit paths separately. Avoid changing real orders/payment notifications without appropriate isolated testing.
-3. `components/admin/warehouse-transfer-panel.tsx` remains **demo-only**; no production Warehouse Transfer UI posting is enabled.
-4. Run isolated code + tests in `feature/nexora-gift-store` only; update Progress/Handoff and verify 4/4 exact-head CI.
-5. Production Vercel, Cloudinary provider, live payments/refunds and migrations NOT authorized; no production data touched.
-6. Do not edit `feature/nexora-gpt-customer-ops` or `feature/nexora-qa-automation`.
+- `app/api/admin-app/orders/[orderId]/status/route.ts`: replaces unguarded Order status write with compare-and-swap against previously read status and `updatedAt`. Stale revision returns HTTP **409**, not a partial stock update.
+- Updating status, executing `reconcileOrder(tx,...)` for DELIVERED/CANCELLED and writing `ORDER_STATUS_UPDATE` Audit now happen in the **same Prisma transaction**. Any audit/stock failure rolls back everything.
+- Post-commit `sendOrderEmailSafe` and terminal status notifications still run after transaction commit, never before. They use `Promise.allSettled`; delivery retry/outbox guarantees are **not** yet implemented. Do not mistake commit success for guaranteed email delivery.
+- `scripts/qa/admin-browser-e2e.mjs`: new Owner E2E on **localhost disposable QA DB** creates isolated fake customer, order, OrderItem and reservation. A rejected Audit trigger proves status stays PENDING, Reserved Stock unchanged and no RELEASE/notification; after removing trigger, CANCELLED releases stock once, writes one audit and repeated CANCELLED request is idempotent. QA guard rejects configured Resend email credentials.
+- Exact functional CI `40711986884`: **4/4 PASS** and **23/23 Owner Browser PASS**. Other Product, Catalog, Inventory, Warehouse Transfer, Homepage and Storefront checks remain green.
 
-Production readiness still requires reviewed schema migrations, backup, staging rehearsal and owner approval.
+## NEXT milestone and outstanding risks
+
+1. **Seller Onboarding is NOT fixed.** `lib/admin/seller-onboarding.ts` currently sets a hard-coded fallback password, writes raw `"PENDING"` / `"HOLD"` as SQL identifiers, and its API logs Audit in a separate post-commit call. A reviewed `SellerProfile` DDL source has not yet been identified in the repo. Do not enable real onboarding until safely reviewed, migrated and tested. Prioritize explicit secure password, validated Commission BPS and atomic Seller+Profile+Audit with isolated QA.
+2. Order Status version guard was verified by code and terminal-state tests, but a dedicated deterministic *concurrent two-Owner status transition* regression and reliable email/notification outbox are still pending.
+3. Warehouse Transfer UI `components/admin/warehouse-transfer-panel.tsx` remains Demo-only. Reviewed Warehouse Transfer/Category/Homepage/Audit migrations are NOT applied in production.
+4. Next `next`: fetch latest branch SHA and exact CI, preserve tests, code only `feature/nexora-gift-store`, use local disposable QA, update docs, and verify final exact-head 4/4 CI.
+5. No Production Vercel deployment, real Cloudinary success verification, Live Cashfree/refunds, real order modifications or migrations. Never touch Nexora 3 `feature/nexora-gpt-customer-ops` or QA `feature/nexora-qa-automation`.
+
+## Production boundary
+Require owner approval, backups, migration staging and provider verification before production use. No live customers or emails were affected by QA.
