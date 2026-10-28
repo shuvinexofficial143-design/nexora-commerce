@@ -15,6 +15,8 @@ if (!isLocal(base) || base.pathname !== "/" || base.username || base.password ||
   ![db,direct].every(v => isLocal(v) && v.pathname === "/nexora_qa" && v.username === "nexora_qa") ||
   process.env.NEXORA_QA_ALLOW_DB_INTEGRATION !== "true" ||
   process.env.NEXT_PUBLIC_CASHFREE_ENABLED !== "false" ||
+  // Never allow this QA suite to reach a live email provider.
+  process.env.RESEND_API_KEY || process.env.ORDER_EMAIL_FROM ||
   !process.env.NEXORA_QA_PLAYWRIGHT_DIR ||
   !process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD ||
   !process.env.ADMIN_OWNER_EMAIL?.endsWith("@example.invalid")) {
@@ -885,6 +887,94 @@ try {
       await client.query('DELETE FROM "WarehouseTransfer" WHERE "fromWarehouseId" = $1 OR "toWarehouseId" = $1', [from]);
       await client.query('DELETE FROM "InventoryItem" WHERE "id" IN ($1,$2)', [sourceId,destId]);
       await client.query('DELETE FROM "Warehouse" WHERE "id" IN ($1,$2)', [from,to]);
+      await client.end();
+    }
+  });
+
+
+  await verify("order-status-audit-failure-rolls-back-reservation-and-no-repeat-side-effects", async () => {
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+    const qaProduct = await product(ctx);
+    const customerId = "qa-order-user-" + suffix;
+    const warehouseId = "qa-order-warehouse-" + suffix;
+    const inventoryId = "qa-order-stock-" + suffix;
+    const orderId = "qa-status-order-" + suffix;
+    const orderNumber = "QA-STATUS-" + suffix.toUpperCase();
+    const url = new URL("/api/admin-app/orders/" + orderId + "/status", base).href;
+    let triggerOn = false;
+    try {
+      await client.query(
+        'INSERT INTO "User" ("id","email","name","passwordHash","role","status","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,now(),now())',
+        [customerId, "qa-order-" + suffix + "@example.invalid", "QA Customer", "qa-unusable-hash", "CUSTOMER", "ACTIVE"],
+      );
+      await client.query(
+        'INSERT INTO "Warehouse" ("id","code","name","city","state","active","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,true,now(),now())',
+        [warehouseId, orderNumber, "QA Order Warehouse", "QA", "QA"],
+      );
+      await client.query(
+        'INSERT INTO "InventoryItem" ("id","productId","warehouseId","onHand","reserved","reorderLevel","updatedAt") VALUES ($1,$2,$3,15,3,5,now())',
+        [inventoryId, qaProduct.id, warehouseId],
+      );
+      await client.query(
+        'INSERT INTO "Order" ("id","orderNumber","userId","status","paymentStatus","currency","subtotalMinor","totalMinor","paymentMethod","shippingAddress","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,now(),now())',
+        [orderId, orderNumber, customerId, "PENDING", "PENDING", "INR", 200, 200, "cod", JSON.stringify({ city: "QA" })],
+      );
+      await client.query(
+        'INSERT INTO "OrderItem" ("id","orderId","productId","productName","sku","quantity","unitPriceMinor","totalMinor") VALUES ($1,$2,$3,$4,$5,3,100,300)',
+        ["qa-status-item-" + suffix, orderId, qaProduct.id, qaProduct.name, qaProduct.sku],
+      );
+      await client.query(
+        'INSERT INTO "InventoryMovement" ("id","warehouseId","productId","type","quantity","reference","note","createdAt") VALUES ($1,$2,$3,$4,3,$5,$6,now())',
+        ["qa-status-reserve-" + suffix, warehouseId, qaProduct.id, "RESERVE", orderNumber, "QA reserved stock"],
+      );
+      const guest = await browser.newContext();
+      try {
+        assert.equal((await guest.request.patch(url, { data: { status: "CANCELLED" } })).status(), 401);
+      } finally { await guest.close(); }
+      const invalid = await ctx.request.patch(url, { data: { status: "COMPLETE" } });
+      assert.equal(invalid.status(), 400);
+
+      await client.query("CREATE FUNCTION qa_reject_order_status_audit() RETURNS trigger AS $q_order$ BEGIN RAISE EXCEPTION 'QA order audit rejected'; END; $q_order$ LANGUAGE plpgsql");
+      await client.query('CREATE TRIGGER qa_reject_order_status_audit_trg BEFORE INSERT ON "AdminActivityLog" FOR EACH ROW WHEN (NEW."action" = \'ORDER_STATUS_UPDATE\') EXECUTE FUNCTION qa_reject_order_status_audit()');
+      triggerOn = true;
+      const failed = await ctx.request.patch(url, { data: { status: "CANCELLED" } });
+      assert.equal(failed.status(), 500, "Rejected audit must roll back the status and reservation");
+      assert.equal((await failed.json()).error, "Unexpected admin server error.");
+      const unchangedOrder = await client.query('SELECT "status" FROM "Order" WHERE "id" = $1', [orderId]);
+      assert.equal(unchangedOrder.rows[0].status, "PENDING");
+      const unchangedStock = await client.query('SELECT "onHand","reserved" FROM "InventoryItem" WHERE "id" = $1', [inventoryId]);
+      assert.equal(unchangedStock.rows[0].onHand, 15);
+      assert.equal(unchangedStock.rows[0].reserved, 3);
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "InventoryMovement" WHERE "reference" = $1 AND "type" = $2', [orderNumber, "RELEASE"])).rows[0].n, 0);
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "AdminNotification" WHERE "entityId" = $1', [orderId])).rows[0].n, 0, "No post-commit notification on rejected audit");
+
+      await client.query('DROP TRIGGER qa_reject_order_status_audit_trg ON "AdminActivityLog"');
+      await client.query("DROP FUNCTION qa_reject_order_status_audit()");
+      triggerOn = false;
+      const completed = await api(ctx, "/api/admin-app/orders/" + orderId + "/status", "PATCH", { status: "CANCELLED" });
+      assert.equal(completed.status, "CANCELLED");
+      const finalStock = await client.query('SELECT "onHand","reserved" FROM "InventoryItem" WHERE "id" = $1', [inventoryId]);
+      assert.equal(finalStock.rows[0].onHand, 15);
+      assert.equal(finalStock.rows[0].reserved, 0);
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "InventoryMovement" WHERE "reference" = $1 AND "type" = $2', [orderNumber, "RELEASE"])).rows[0].n, 1);
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "AdminActivityLog" WHERE "entityId" = $1 AND "action" = $2', [orderId, "ORDER_STATUS_UPDATE"])).rows[0].n, 1);
+      const again = await api(ctx, "/api/admin-app/orders/" + orderId + "/status", "PATCH", { status: "CANCELLED" });
+      assert.equal(again.unchanged, true, "Identical repeat is idempotent and must not create extra audit");
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "AdminActivityLog" WHERE "entityId" = $1 AND "action" = $2', [orderId, "ORDER_STATUS_UPDATE"])).rows[0].n, 1);
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "InventoryMovement" WHERE "reference" = $1 AND "type" = $2', [orderNumber, "RELEASE"])).rows[0].n, 1);
+      assert.equal((await ctx.request.patch(url, { data: { status: "PROCESSING" } })).status(), 409, "Terminal cancelled order cannot restart");
+    } finally {
+      if (triggerOn) await client.query('DROP TRIGGER IF EXISTS qa_reject_order_status_audit_trg ON "AdminActivityLog"');
+      await client.query("DROP FUNCTION IF EXISTS qa_reject_order_status_audit()");
+      await client.query('DELETE FROM "AdminNotification" WHERE "entityId" = $1', [orderId]);
+      await client.query('DELETE FROM "AdminActivityLog" WHERE "entityId" = $1 AND "action" = $2', [orderId, "ORDER_STATUS_UPDATE"]);
+      await client.query('DELETE FROM "InventoryMovement" WHERE "reference" = $1', [orderNumber]);
+      await client.query('DELETE FROM "OrderItem" WHERE "orderId" = $1', [orderId]);
+      await client.query('DELETE FROM "Order" WHERE "id" = $1', [orderId]);
+      await client.query('DELETE FROM "InventoryItem" WHERE "id" = $1', [inventoryId]);
+      await client.query('DELETE FROM "Warehouse" WHERE "id" = $1', [warehouseId]);
+      await client.query('DELETE FROM "User" WHERE "id" = $1', [customerId]);
       await client.end();
     }
   });
