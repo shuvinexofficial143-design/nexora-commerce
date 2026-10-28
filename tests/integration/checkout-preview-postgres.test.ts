@@ -32,7 +32,7 @@ async function fixture(onHand = 5) {
   const inventory = await db.inventoryItem.create({
     data: { productId: product.id, warehouseId: warehouse.id, onHand, reserved: 0 },
   });
-  return { user, product, inventory };
+  return { user, product, warehouse, inventory };
 }
 before(async () => { await db.$connect(); });
 after(async () => { await db.$disconnect(); });
@@ -129,6 +129,59 @@ test("stock can change after preview and subsequent preflight blocks oversell", 
   const changed = await createCheckoutPreview(input);
   assert.equal(changed.valid, false);
   assert.equal(changed.lines[0].availableStock, 0);
+});
+
+
+test("inactive warehouse stock never appears in preview or fulfills COD checkout", async () => {
+  const f = await fixture(2);
+  const input = validateCheckoutPreview({
+    items: [{ slug: f.product.slug, quantity: 1, clientPriceMinor: 80000 }],
+  });
+  assert.equal((await createCheckoutPreview(input)).valid, true);
+  // The warehouse can be disabled after a customer has viewed a valid quote.
+  await db.warehouse.update({ where: { id: f.warehouse.id }, data: { active: false } });
+  const unavailable = await createCheckoutPreview(input);
+  assert.equal(unavailable.valid, false);
+  assert.equal(unavailable.lines[0].state, "insufficient_stock");
+  assert.equal(unavailable.lines[0].availableStock, 0);
+  const payload = validateOrder({
+    items: [{ productId: f.product.id, quantity: 1, expectedUnitPriceMinor: 80000 }],
+    shippingAddress: { fullName: "QA Customer", phone: "9876543210",
+      line1: "Test Street", city: "Indore", state: "MP", postalCode: "452001" },
+    contactEmail: f.user.email, paymentMethod: "cod", deliveryMethod: "standard",
+  });
+  await assert.rejects(createOrder(f.user.id, payload, "inactive-qa-" + uid()), /enough stock|stock changed/i);
+  assert.equal(await db.order.count({ where: { userId: f.user.id } }), 0);
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({ where: { id: f.inventory.id } })).reserved, 0);
+  await db.warehouse.update({ where: { id: f.warehouse.id }, data: { active: true } });
+  assert.equal((await createCheckoutPreview(input)).lines[0].availableStock, 2);
+  await createOrder(f.user.id, payload, "reactivated-qa-" + uid());
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({ where: { id: f.inventory.id } })).reserved, 1);
+});
+
+test("stock in a disabled warehouse cannot mask shortage at active locations", async () => {
+  const f = await fixture(2);
+  const other = await db.warehouse.create({ data: {
+    code: "DISABLED-" + uid(), name: "Offline QA", city: "Indore", state: "MP", active: false,
+  } });
+  const hiddenInventory = await db.inventoryItem.create({ data: {
+    productId: f.product.id, warehouseId: other.id, onHand: 30, reserved: 0,
+  } });
+  const quote = await createCheckoutPreview(validateCheckoutPreview({
+    items: [{ slug: f.product.slug, quantity: 3, clientPriceMinor: 80000 }],
+  }));
+  assert.equal(quote.lines[0].availableStock, 2);
+  assert.equal(quote.valid, false);
+  const orderInput = (quantity: number) => validateOrder({
+    items: [{ productId: f.product.id, quantity, expectedUnitPriceMinor: 80000 }],
+    shippingAddress: { fullName: "QA Customer", phone: "9876543210",
+      line1: "Test Street", city: "Indore", state: "MP", postalCode: "452001" },
+    contactEmail: f.user.email, paymentMethod: "cod", deliveryMethod: "standard",
+  });
+  await assert.rejects(createOrder(f.user.id, orderInput(3), "offline-qa-" + uid()), /enough stock/i);
+  await createOrder(f.user.id, orderInput(2), "active-qa-" + uid());
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({ where: { id: f.inventory.id } })).reserved, 2);
+  assert.equal((await db.inventoryItem.findUniqueOrThrow({ where: { id: hiddenInventory.id } })).reserved, 0);
 });
 
 test("stored admin choices appear in checkout preview and reject fabricated combinations", async () => {

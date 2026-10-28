@@ -75,7 +75,8 @@ export async function createCheckoutPreview(input: CheckoutPreviewInput): Promis
     where: { slug: { in: uniqueSlugs }, status: "ACTIVE", AND: [visibility] },
     select: {
       id: true, slug: true, sku: true, name: true, priceMinor: true, currency: true,
-      inventory: { select: { onHand: true, reserved: true } },
+      // Disabled fulfillment locations must not advertise purchasable stock.
+      inventory: { where: { warehouse: { active: true } }, select: { onHand: true, reserved: true } },
       choiceGroups: { select: { key: true, label: true, required: true, sortOrder: true, values: true } },
       variants: { select: { id: true, sku: true, signature: true, priceMinor: true,
         onHand: true, reserved: true, active: true } },

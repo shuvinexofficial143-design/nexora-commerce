@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import { getPrisma } from "../../lib/db/prisma";
 import { createOrder, createOrderWithOutcome } from "../../lib/db/orders";
+import { adjustStock } from "../../lib/admin/inventory-admin";
 import { recoverCompletedCheckoutAttempt } from "../../lib/commerce/checkout-attempt-recovery";
 import { POST as recoverRoute } from "../../app/api/backend/orders/recover/route";
 import { resolveCoupon, recordCouponRedemption } from "../../lib/commerce/coupon-engine";
@@ -82,6 +83,46 @@ test("DB rollback: injected reservation failure rolls back order and reserved st
     await db.$executeRawUnsafe('DROP TRIGGER IF EXISTS qa_abort_reserve_trigger ON "InventoryMovement"');
     await db.$executeRawUnsafe("DROP FUNCTION IF EXISTS qa_abort_reserve()");
   }
+});
+
+
+test("admin decrement cannot consume reserved stock or write a false movement", async () => {
+  const f = await fixture(1);
+  await createOrder(f.user.id, f.payload, "qa-stock-hold-" + suffix());
+  await assert.rejects(adjustStock({
+    inventoryId: f.inventory.id, delta: -1, note: "QA reserved item test",
+  }), /reserved quantity/i);
+  assert.equal((await stock(f.inventory.id)).onHand, 1);
+  assert.equal((await stock(f.inventory.id)).reserved, 1);
+  assert.equal(await db.inventoryMovement.count({
+    where: { productId: f.product.id, type: "ADJUSTMENT" },
+  }), 0);
+});
+
+test("parallel warehouse adjustments use atomic increments with no lost update", async () => {
+  const f = await fixture(5);
+  await Promise.all([
+    adjustStock({ inventoryId: f.inventory.id, delta: 2, note: "QA adjustment A" }),
+    adjustStock({ inventoryId: f.inventory.id, delta: 3, note: "QA adjustment B" }),
+  ]);
+  assert.equal((await stock(f.inventory.id)).onHand, 10);
+  assert.equal(await db.inventoryMovement.count({
+    where: { productId: f.product.id, type: "ADJUSTMENT" },
+  }), 2);
+});
+
+test("checkout and concurrent admin stock reduction cannot oversell the last unit", async () => {
+  const f = await fixture(1);
+  const results = await Promise.allSettled([
+    createOrder(f.user.id, f.payload, "qa-admin-race-" + suffix()),
+    adjustStock({ inventoryId: f.inventory.id, delta: -1, note: "QA simultaneous reduction" }),
+  ]);
+  assert.equal(results.filter(x => x.status === "fulfilled").length, 1);
+  const current = await stock(f.inventory.id);
+  const orderCount = await db.order.count({ where: { userId: f.user.id } });
+  assert.ok(current.onHand >= current.reserved);
+  assert.equal(orderCount, current.reserved);
+  assert.equal(current.onHand, orderCount);
 });
 
 test("RISK-01: same keyed checkout replay returns one persisted order", async () => {

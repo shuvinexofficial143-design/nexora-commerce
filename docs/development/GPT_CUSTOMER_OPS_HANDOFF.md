@@ -243,3 +243,12 @@ Owner requested coding only; **NO VERCEL deployment** and no Production/staging 
 - Existing CI's prior Unit/TypeScript/ESLint/Build, PostgreSQL and 32 Browser regressions remain. The independent authenticated-admin job now tests both admin and real checkout paths, and keeps QA artifacts.
 - Source code of checkout/payment unchanged: this increment is a missing high-value **regression coverage gate**, not a claim Cashfree live payments were tested.
 - Must verify exact-HEAD CI 4/4 jobs success; follow up on any failures. Remaining: actual staging schema/runbook, third-party Cashfree sandbox, overall Cline/QA branch integration, final Vercel only after owner directive.
+
+
+## 28 October 2026 — Checkout Fulfillment Warehouse and Concurrent Admin Stock Safety (CI pending)
+- Only `feature/nexora-gpt-customer-ops`; no Vercel deploy, production data or payment action, cross-branch change or schema migration.
+- Checkout preview now counts `InventoryItem` stock only when its `Warehouse.active` is true. The order transaction uses the same warehouse filter; its final guarded stock UPDATE also rechecks Warehouse.active so deactivation between quote and reservation fails closed.
+- Admin stock adjustments now use one conditional SQL UPDATE against the **current** onHand/reserved values rather than an unprotected read followed by an absolute write. This prevents lost increments, negative/overflow quantities and stock reductions below concurrently reserved units. Movement recording stays inside the same transaction.
+- Disposable PostgreSQL regressions added: inactive-only warehouse after a valid quote; mixed active/offline warehouses; reactivation; rejection with no order/movement; two concurrent stock adjustments; reserved-stock guard; simultaneous checkout and stock reduction.
+- Existing priced SKU variants keep their independent variant stock path; no parent-stock double reservation.
+- Exact new HEAD CI remains mandatory; do not treat this as production-ready until migration/schema and end-to-end staging checks are separately approved.

@@ -107,7 +107,8 @@ export async function createOrderWithOutcome(
     const visibility = await publicProductWhere(tx);
     const products = await tx.product.findMany({
       where: { id: { in: ids }, status: "ACTIVE", AND: [visibility] },
-      include: { inventory: true, choiceGroups: true, variants: true },
+      // Exclude deactivated warehouses from the source stock buckets.
+      include: { inventory: { where: { warehouse: { active: true } } }, choiceGroups: true, variants: true },
     });
     if (products.length !== ids.length) {
       throw new ValidationError("One or more products are unavailable.");
@@ -212,6 +213,10 @@ export async function createOrderWithOutcome(
           UPDATE "InventoryItem"
           SET "reserved" = "reserved" + ${quantity}, "updatedAt" = NOW()
           WHERE "id" = ${stock.id}
+            AND EXISTS (
+              SELECT 1 FROM "Warehouse" w
+              WHERE w."id" = "InventoryItem"."warehouseId" AND w."active" = TRUE
+            )
             AND "onHand" >= 0 AND "reserved" >= 0
             AND "onHand" - "reserved" >= ${quantity}
         `;
