@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ApiClientError } from "@/lib/api/http";
+import type { CreateOrderPayload } from "@/types/backend";
+import type { CheckoutRecoveryResult } from "@/lib/commerce/checkout-attempt-recovery";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/cart/cart-provider";
@@ -14,7 +17,7 @@ import { OrderReview } from "@/components/checkout/order-review";
 import { CheckoutSummary } from "@/components/checkout/checkout-summary";
 import { CheckoutEmpty } from "@/components/checkout/checkout-empty";
 import { deliveryOptions, paymentMethods } from "@/lib/checkout-data";
-import { clearCheckoutAttempt, submitBackendOrder, readPendingOnlineOrder, rememberPendingOnlineOrder, clearPendingOnlineOrder } from "@/lib/api/orders-client";
+import { clearCheckoutAttempt, submitBackendOrder, readPendingOnlineOrder, rememberPendingOnlineOrder, clearPendingOnlineOrder, readCheckoutAttempt, fetchCheckoutAttemptRecovery } from "@/lib/api/orders-client";
 import { checkoutIntentSignature, checkoutIntentDigest, verifiedCheckoutOrderItems, type PendingOnlineOrder } from "@/lib/commerce/checkout-submission";
 import { createCashfreeSession, openCashfreeCheckout } from "@/lib/api/payments-client";
 import { checkoutPreviewRequest, checkoutPreviewSignature, fetchCheckoutPreview } from "@/lib/api/checkout-preview-client";
@@ -34,6 +37,35 @@ export function CheckoutPageClient() {
   const [submitError, setSubmitError] = useState("");
   const [pendingOnlineOrder, setPendingOnlineOrder] = useState<PendingOnlineOrder | null>(null);
   const placingRef = useRef(false);
+  const submittedRef = useRef<{
+    payload: CreateOrderPayload;
+    intent: string; digest: string; email: string;
+    paymentId: PaymentMethodId; deliveryLabel: string; itemCount: number;
+  } | null>(null);
+  const [attemptExists, setAttemptExists] = useState(false);
+  const [attemptChecking, setAttemptChecking] = useState(false);
+  const [attemptError, setAttemptError] = useState("");
+  const [recoveredOrder, setRecoveredOrder] = useState<CheckoutRecoveryResult | null>(null);
+  const checkPreviousAttempt = useCallback(async () => {
+    const attempt = readCheckoutAttempt();
+    if (!attempt) { setAttemptExists(false); setAttemptError(""); return; }
+    setAttemptExists(true);
+    setAttemptChecking(true);
+    setAttemptError("");
+    try {
+      setRecoveredOrder(await fetchCheckoutAttemptRecovery(attempt));
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 404) {
+        setAttemptError("No completed order is visible yet. It may still be processing. Check again before a separate purchase.");
+      } else {
+        setAttemptError("The previous checkout could not be verified. Check its status rather than placing another order.");
+      }
+    } finally { setAttemptChecking(false); }
+  }, []);
+  useEffect(() => {
+    if (!hydrated || !readCheckoutAttempt()) return;
+    void checkPreviousAttempt();
+  }, [hydrated, checkPreviousAttempt]);
   useEffect(() => {
     let active = true;
     queueMicrotask(() => { if (active) setPendingOnlineOrder(readPendingOnlineOrder()); });
@@ -90,15 +122,108 @@ export function CheckoutPageClient() {
       setPlacing(false);
     }
   }
+  async function resumeRecoveredPayment() {
+    const attempt = readCheckoutAttempt();
+    if (!attempt || !recoveredOrder || recoveredOrder.paymentMethod !== "cashfree" ||
+      recoveredOrder.paymentStatus === "PAID" || placingRef.current) return;
+    placingRef.current = true;
+    setPlacing(true);
+    setSubmitError("");
+    try {
+      const paymentSession = await createCashfreeSession(recoveredOrder.orderNumber, attempt.email);
+      await openCashfreeCheckout(paymentSession);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Could not resume payment.");
+    } finally {
+      placingRef.current = false;
+      setPlacing(false);
+    }
+  }
+  async function retryOriginalCheckout() {
+    const pending = submittedRef.current;
+    if (!pending || placingRef.current || recoveredOrder) return;
+    placingRef.current = true;
+    setPlacing(true);
+    setSubmitError("");
+    try {
+      // Replay the identical POST and identical persisted Idempotency-Key.
+      // The server returns the first committed order without new reservation.
+      const order = await submitBackendOrder(pending.payload);
+      submittedRef.current = null;
+      try {
+        sessionStorage.setItem("nexora-last-order", JSON.stringify({
+          orderId: order.orderNumber, email: pending.email,
+          deliveryLabel: pending.deliveryLabel, paymentId: pending.paymentId,
+          itemCount: pending.itemCount,
+        }));
+      } catch { /* Confirmation URL still carries the order reference. */ }
+      if (pending.paymentId === "cashfree") {
+        const record = { orderNumber: order.orderNumber, email: pending.email, digest: pending.digest };
+        rememberPendingOnlineOrder(record);
+        setPendingOnlineOrder(record);
+        const session = await createCashfreeSession(order.orderNumber, pending.email);
+        await openCashfreeCheckout(session);
+      } else {
+        clearCheckoutAttempt();
+        setAttemptExists(false);
+        if (latestIntent.current === pending.intent) clearCart();
+        router.push("/checkout/success?order=" + encodeURIComponent(order.orderNumber));
+      }
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Could not retry the original order.");
+      if (submittedRef.current) await checkPreviousAttempt();
+    } finally {
+      placingRef.current = false;
+      setPlacing(false);
+    }
+  }
   function beginSeparateCheckout() {
     if (placingRef.current) return;
     // This does not cancel or release the original order; only clears the
     // browser's recovery shortcut after explicit customer action.
     clearPendingOnlineOrder();
     clearCheckoutAttempt();
+    submittedRef.current = null;
+    setAttemptExists(false);
+    setRecoveredOrder(null);
+    setAttemptError("");
     setPendingOnlineOrder(null);
     setSubmitError("Previous online order remains in order tracking. This is a separate checkout.");
   }
+  const attemptNotice = attemptExists ? (
+    <section role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm">
+      <p className="font-black">Existing checkout attempt detected</p>
+      {attemptChecking ? <p className="mt-2">Checking whether the earlier order was created…</p> : null}
+      {recoveredOrder ? <>
+        <p className="mt-2 font-bold">Order {recoveredOrder.orderNumber} · {recoveredOrder.status} · Payment {recoveredOrder.paymentStatus}</p>
+        <p className="mt-1">This order already exists. Do not place it again.</p>
+        <div className="mt-3 flex flex-wrap gap-3">
+          {recoveredOrder.paymentMethod === "cashfree" && recoveredOrder.paymentStatus !== "PAID" ?
+            <button type="button" disabled={placing} onClick={() => void resumeRecoveredPayment()}
+              className="rounded-full bg-black px-4 py-2 font-black text-white disabled:opacity-50">Resume payment</button> : null}
+          <Link href={recoveredOrder.paymentMethod === "cod" ?
+            "/checkout/success?order=" + encodeURIComponent(recoveredOrder.orderNumber) : "/track-order"}
+            className="font-bold underline underline-offset-2">View existing order</Link>
+        </div>
+      </> : <>
+        {attemptError ? <p className="mt-2 font-semibold text-red-800">{attemptError}</p> : null}
+        <div className="mt-3 flex flex-wrap gap-3">
+          <button type="button" disabled={placing || attemptChecking} onClick={() => void checkPreviousAttempt()}
+            className="rounded-full bg-black px-4 py-2 font-black text-white disabled:opacity-50">Check previous attempt</button>
+          {submittedRef.current ? <button type="button" disabled={placing || attemptChecking}
+            onClick={() => void retryOriginalCheckout()} className="rounded-full border border-black/20 px-4 py-2 font-black disabled:opacity-50">
+            Retry exact same order safely
+          </button> : null}
+          <Link href="/track-order" className="font-bold underline underline-offset-2">Email OTP order tracking</Link>
+          <button type="button" disabled={placing || attemptChecking} onClick={beginSeparateCheckout}
+            className="rounded-full border border-red-300 px-4 py-2 font-bold text-red-800 disabled:opacity-50">
+            Start separate checkout
+          </button>
+        </div>
+      </>}
+    </section>
+  ) : null;
+
   const pendingNotice = pendingOnlineOrder ? (
     <section role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm">
       <p className="font-black">An online order already exists: {pendingOnlineOrder.orderNumber}</p>
@@ -123,6 +248,7 @@ export function CheckoutPageClient() {
 
   if (!lines.length) return <div className="mx-auto max-w-7xl space-y-4 px-4 pt-8">
     {pendingNotice}
+    {attemptNotice}
     <CheckoutEmpty />
     {submitError ? <p role="alert" className="text-sm font-bold text-red-700">{submitError}</p> : null}
   </div>;
@@ -136,6 +262,11 @@ export function CheckoutPageClient() {
   const placeOrder = async () => {
     // React setState is async; ref blocks two clicks within the same frame.
     if (placingRef.current) return;
+    if (readCheckoutAttempt()) {
+      setAttemptExists(true);
+      setSubmitError("Previous checkout may have created an order. Recover it or explicitly start a separate checkout.");
+      return;
+    }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
       setSubmitError("Enter a valid email address for order updates.");
       return;
@@ -200,7 +331,7 @@ export function CheckoutPageClient() {
       const items = verifiedCheckoutOrderItems(linesAtClick, refreshed);
       isUnchanged();
 
-      const order = await submitBackendOrder({
+      const payload: CreateOrderPayload = {
         items,
         shippingAddress: {
           fullName: addressAtClick.fullName,
@@ -216,7 +347,16 @@ export function CheckoutPageClient() {
         contactEmail: emailAtClick,
         coupon: couponAtClick || undefined,
         notes: emailAtClick ? `Checkout contact: ${emailAtClick}` : undefined,
-      });
+      };
+      // Keep the original full payload ONLY in tab memory. If the HTTP reply
+      // is lost after a DB commit, the exact same idempotency key may be replayed.
+      submittedRef.current = {
+        payload, intent: intentAtClick, digest, email: emailAtClick,
+        paymentId: paymentAtClick, deliveryLabel: deliveryAtClick.label,
+        itemCount: linesAtClick.reduce((sum, line) => sum + line.quantity, 0),
+      };
+      const order = await submitBackendOrder(payload);
+      submittedRef.current = null;
 
       // The DB order now exists. Never mask success because sessionStorage is
       // blocked, nor destroy items that the customer added meanwhile.
@@ -243,6 +383,16 @@ export function CheckoutPageClient() {
       router.push(`/checkout/success?order=${encodeURIComponent(order.orderNumber)}`);
     } catch (caught) {
       setSubmitError(caught instanceof Error ? caught.message : "Could not create your order.");
+      if (submittedRef.current) {
+        const uncertain = caught instanceof ApiClientError &&
+          (caught.status === 0 || caught.status >= 500 || caught.status === 409);
+        if (uncertain) await checkPreviousAttempt();
+        else {
+          // A definite validation failure does not represent an unknown order.
+          submittedRef.current = null;
+          clearCheckoutAttempt();
+        }
+      }
     } finally {
       placingRef.current = false;
       setPlacing(false);
@@ -252,6 +402,7 @@ export function CheckoutPageClient() {
       <CheckoutShell>
         <CheckoutSteps step={step} onStep={setStep} />
         {pendingNotice}
+        {attemptNotice}
 
         <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_390px] lg:items-start">
           <div className="space-y-5">
@@ -301,6 +452,7 @@ export function CheckoutPageClient() {
 
           <CheckoutSummary
             quote={preview}
+            blocked={attemptExists || attemptChecking || Boolean(recoveredOrder)}
             delivery={delivery}
             paymentId={paymentId}
             placing={placing}

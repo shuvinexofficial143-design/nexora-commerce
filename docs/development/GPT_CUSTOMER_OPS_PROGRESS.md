@@ -291,3 +291,11 @@ Continue actual customer-visible website capability and QA; preserve Cline's ind
 - Checkout renders pending order reference and tracking link, and freezes contact/address/payment inputs while a submission runs. Successful COD redirects to its persisted order confirmation. Cart is only cleared if it stayed unchanged during the request.
 - Unit coverage: changed intent dimensions, tampered recovery record, SKU mapping/misalignment and price/stock preflight. Disposable PostgreSQL regression: multi-SKU quote maps to exact order items, retry uses one idempotency key and reserves each SKU exactly once even after price updates.
 - Production Cashfree sessions, real orders, refunds, emails, deployment, migration and branch integration NOT exercised. Cline/QA/main preserved. Returns/Refunds remain deferred.
+
+## 28 Oct 2026 — Customer Checkout Network Outcome Recovery (Nexora 4)
+**Implementation committed on isolated GPT branch; exact HEAD CI required before claiming PASS.**
+- New read-only POST /api/backend/orders/recover, bound to a high-entropy Idempotency-Key AND normalized checkout email, rate limited, no-store. Returns only existing order reference and lifecycle/payment status, with no address or items; full order details still require email OTP tracking.
+- Client stores a minimal session-scope key, order-request fingerprint and email (no cart/address). Checkout automatically checks previous attempt on reload and after ambiguous POST/network failure. Prevents new submission while the old attempt is unresolved; explicit separate-checkout action is required before choosing a different order.
+- Same-tab retry sends the EXACT preserved original payload with SAME key, including after original stock was reserved. Server uniqueness and existing transaction replay avoid duplicate order and stock reservations. Recovery can resume existing Cashfree payment by order reference without calling Create Order.
+- Added pure request validation and disposable PostgreSQL tests for positive lookup, no side effects, wrong key/email, unknown user, HTTP no-store and true same-key replay.
+- Read-only Cline schema/Admin compatibility review: docs/development/NEXORA_GPT_CLINE_READ_ONLY_INTEGRATION_20261028.md. No cross-branch edits, merges, schema change, migrations, payments or production deployment.

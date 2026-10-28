@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import { getPrisma } from "../../lib/db/prisma";
-import { createOrder } from "../../lib/db/orders";
+import { createOrder, createOrderWithOutcome } from "../../lib/db/orders";
+import { recoverCompletedCheckoutAttempt } from "../../lib/commerce/checkout-attempt-recovery";
+import { POST as recoverRoute } from "../../app/api/backend/orders/recover/route";
 import { resolveCoupon, recordCouponRedemption } from "../../lib/commerce/coupon-engine";
 import { validateOrder } from "../../lib/server/backend";
 import type { CreateOrderPayload } from "../../types/backend";
@@ -209,4 +211,63 @@ test("intentional separate purchases with different keys remain allowed", async 
   const b = await createOrder(f.user.id, f.payload, "qa-purchase-" + suffix());
   assert.notEqual(a.id, b.id);
   assert.equal((await stock(f.inventory.id)).reserved, 2);
+});
+
+test("lost checkout response recovery is read-only, email-scoped and prevents duplicate reservations", async () => {
+  const f = await fixture(2);
+  const key = "qa-recover-" + suffix();
+  const created = await createOrderWithOutcome(f.user.id, f.payload, key);
+  assert.equal(created.created, true);
+  const beforeReserved = (await stock(f.inventory.id)).reserved;
+  const beforeMovements = await db.inventoryMovement.count({
+    where: { productId: f.product.id, type: "RESERVE" },
+  });
+  const recovered = await recoverCompletedCheckoutAttempt({ key, email: f.user.email.toUpperCase() });
+  assert.equal(recovered.orderNumber, created.order.orderNumber);
+  assert.deepEqual(Object.keys(recovered).sort(),
+    ["orderNumber", "paymentMethod", "paymentStatus", "status"].sort());
+  await assert.rejects(
+    recoverCompletedCheckoutAttempt({ key: "qa-wrong-" + suffix(), email: f.user.email }),
+    /No completed order matches/,
+  );
+  await assert.rejects(
+    recoverCompletedCheckoutAttempt({ key, email: "wrong-" + suffix() + "@example.invalid" }),
+    /No completed order matches/,
+  );
+  const http = await recoverRoute(new Request("http://127.0.0.1:3137/api/backend/orders/recover", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, email: f.user.email }),
+  }));
+  assert.equal(http.status, 200);
+  assert.equal(http.headers.get("Cache-Control"), "private, no-store");
+  const body = await http.json() as { ok: boolean; data: Record<string, unknown> };
+  assert.equal(body.ok, true);
+  assert.equal(body.data.orderNumber, created.order.orderNumber);
+  assert.equal(JSON.stringify(body).includes(f.payload.shippingAddress.line1), false);
+  assert.equal(JSON.stringify(body).includes(f.user.email), false);
+  const replay = await createOrderWithOutcome(f.user.id, f.payload, key);
+  assert.equal(replay.created, false);
+  assert.equal(replay.order.id, created.order.id);
+  assert.equal(await db.order.count({ where: { userId: f.user.id } }), 1);
+  assert.equal((await stock(f.inventory.id)).reserved, beforeReserved);
+  assert.equal(await db.inventoryMovement.count({
+    where: { productId: f.product.id, type: "RESERVE" },
+  }), beforeMovements);
+});
+
+test("unknown checkout key recovery does not create a customer, order or stock reservation", async () => {
+  const email = "missing-recovery-" + suffix() + "@example.invalid";
+  const before = await db.user.count({ where: { email } });
+  await assert.rejects(
+    recoverCompletedCheckoutAttempt({ email, key: "qa-no-order-" + suffix() }),
+    /No completed order matches/,
+  );
+  assert.equal(await db.user.count({ where: { email } }), before);
+  const http = await recoverRoute(new Request("http://127.0.0.1:3137/api/backend/orders/recover", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, key: "qa-no-order-" + suffix() }),
+  }));
+  assert.equal(http.status, 404);
+  assert.equal(http.headers.get("Cache-Control"), "private, no-store");
+  assert.equal(await db.user.count({ where: { email } }), before);
 });

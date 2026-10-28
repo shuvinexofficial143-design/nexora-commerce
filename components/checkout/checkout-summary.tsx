@@ -8,11 +8,12 @@ import type { CheckoutPreview } from "@/lib/commerce/checkout-preview";
 import type { DeliveryOption, PaymentMethodId } from "@/types/checkout";
 
 export function CheckoutSummary({
-  delivery, paymentId, placing, onPlaceOrder, onReview, quote,
+  delivery, paymentId, placing, blocked = false, onPlaceOrder, onReview, quote,
 }: {
   delivery: DeliveryOption;
   paymentId: PaymentMethodId;
   placing: boolean;
+  blocked?: boolean;
   onPlaceOrder: () => void;
   onReview: () => void;
   quote: CheckoutPreview | null;
@@ -39,9 +40,9 @@ export function CheckoutSummary({
           ? "Prices and stock were checked against the store database. Final availability is confirmed when the order is created."
           : "Order cannot be placed until the store verifies current prices, stock and any coupon."}
       </p>
-      <button type="button" onClick={() => { onReview(); onPlaceOrder(); }} disabled={placing}
+      <button type="button" onClick={() => { onReview(); onPlaceOrder(); }} disabled={placing || blocked}
         className="mt-5 w-full rounded-full bg-[#D7FF47] px-5 py-4 text-sm font-black text-black transition hover:bg-[#D7FF47]/80 disabled:cursor-wait disabled:opacity-55">
-        {placing ? paymentId === "cashfree" ? "Opening Cashfree…" : "Verifying and placing…" :
+        {placing ? paymentId === "cashfree" ? "Opening Cashfree…" : "Verifying and placing…" : blocked ? "Resolve previous checkout first" :
           (paymentId === "cashfree" ? "Continue to Cashfree" : "Place COD order") +
             (quote?.valid && !quote.changedPrice ? " · " + format(quote.totalMinor) : " · Verify first")}
       </button>
