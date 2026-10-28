@@ -8,6 +8,7 @@ import { AdminProductChoicesEditor } from "@/components/admin/admin-product-choi
 import { AdminProductVariantsEditor } from "@/components/admin/admin-product-variants-editor";
 import { HomepageBannersPanel } from "@/components/admin/homepage-banners-panel";
 import { CatalogVisibilityControls } from "@/components/admin/catalog-visibility-controls";
+import { AttributeDefinitionManager, ProductAttributeFields } from "@/components/admin/product-attribute-controls";
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -66,6 +67,7 @@ type ProductRow = {
   category: string | null;
   categorySlug?: string | null;
   description?: string;
+  attributes?: Record<string,unknown>;
   onHand: number;
   reserved: number;
   videoUrl: string | null;
@@ -401,6 +403,7 @@ function Products() {
         <p className="mt-3 text-xs text-black/50">{options.categories.length} categories · {options.brands.length} brands saved</p>
       </Panel>
       <CatalogVisibilityControls onChanged={loadOptions} />
+      <AttributeDefinitionManager categories={options.categories} />
       <Panel title="Add product" description="Create a draft product with optional product video">
         <form onSubmit={create} className="grid gap-3 md:grid-cols-2">
           {[
@@ -534,6 +537,7 @@ function ProductEditForm({ product, options, onSave }: {
   const [description, setDescription] = useState(product.description ?? "");
   const [categorySlug, setCategorySlug] = useState(product.categorySlug ?? "");
   const [brandSlug, setBrandSlug] = useState(product.brandSlug ?? "");
+  const [attributes, setAttributes] = useState<Record<string,unknown>>(product.attributes ?? {});
   const [videoUrl, setVideoUrl] = useState(product.videoUrl || "");
   const [posterUrl, setPosterUrl] = useState(product.posterUrl || "");
   const [busy, setBusy] = useState(false);
@@ -543,7 +547,7 @@ function ProductEditForm({ product, options, onSave }: {
     setBusy(true);
     try {
       await onSave({ name, price: Number(price), description:description.trim() || undefined,
-        categorySlug:categorySlug || null,brandSlug:brandSlug || null,videoUrl,posterUrl });
+        categorySlug:categorySlug || null,brandSlug:brandSlug || null,videoUrl,posterUrl,attributes });
     } finally {
       setBusy(false);
     }
@@ -555,7 +559,7 @@ function ProductEditForm({ product, options, onSave }: {
       <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" min="0" step="0.01"
         aria-label="Product price" className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
       <label className="text-xs font-black">Category
-        <select value={categorySlug} onChange={e=>setCategorySlug(e.target.value)}
+        <select value={categorySlug} onChange={e=>{setCategorySlug(e.target.value);setAttributes({});}}
           className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5">
           <option value="">No category</option>
           {options.categories.map(o=><option key={o.id} value={o.slug}>{o.name}</option>)}
@@ -568,6 +572,8 @@ function ProductEditForm({ product, options, onSave }: {
           {options.brands.map(o=><option key={o.id} value={o.slug}>{o.name}</option>)}
         </select>
       </label>
+      <ProductAttributeFields categoryId={options.categories.find(c=>c.slug===categorySlug)?.id??""}
+        value={attributes} onChange={setAttributes}/>
       <label className="text-xs font-black md:col-span-2">Description
         <textarea rows={3} value={description} onChange={e=>setDescription(e.target.value)}
           className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5"/>

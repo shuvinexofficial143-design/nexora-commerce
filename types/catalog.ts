@@ -9,6 +9,7 @@ export type CatalogProduct = Product & {
   liveDescription?: string;
   liveShortDescription?: string | null;
   liveSku?: string;
+  liveSpecifications?: Array<{label:string;value:string}>;
   liveImages?: Array<{ src: string; alt: string }>;
   liveChoiceGroups?: import("@/lib/commerce/product-choices").ProductChoiceGroup[];
   hasPricedVariants?: boolean;

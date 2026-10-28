@@ -4,6 +4,7 @@ export type AdminListProduct = {
   id: string; slug: string; sku: string; name: string; description: string;
   priceMinor: number; compareAtMinor: number | null;
   status: string; featured: boolean; updatedAt: Date;
+  attributes?: unknown;
   category: { name: string; slug: string } | null;
   brand: { name: string; slug: string } | null;
   inventory: Array<{ onHand: number; reserved: number }>;
@@ -36,6 +37,7 @@ export function serializeAdminProductListRow(product: AdminListProduct) {
   return {
     id:product.id, slug:product.slug, sku:product.sku, name:product.name,
     description:product.description,
+    attributes:product.attributes ?? {},
     priceMinor:product.priceMinor, compareAtMinor:product.compareAtMinor,
     status:product.status, featured:product.featured,
     brand:product.brand?.name ?? null, brandSlug:product.brand?.slug ?? null,

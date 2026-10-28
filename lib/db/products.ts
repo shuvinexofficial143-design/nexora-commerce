@@ -2,6 +2,7 @@ import { getPrisma } from "@/lib/db/prisma";
 import type { BackendProduct } from "@/types/backend";
 import { deserializeProductChoiceGroups } from "@/lib/commerce/product-choices";
 import { publicVariant } from "@/lib/commerce/product-variants";
+import { publicSpecifications } from "@/lib/admin/product-attributes";
 import { eligiblePublicCategoryIds, publicProductVisibilityWhere } from "@/lib/commerce/catalog-visibility";
 import { findCatalogPricePage, type CatalogStockFilter } from "@/lib/db/catalog-price-query";
 import type { Prisma } from "@/generated/prisma/client";
@@ -19,7 +20,8 @@ export function serializeProduct(product: {
   rating: number;
   reviewCount: number;
   brand: { name: string; slug: string } | null;
-  category: { name: string; slug: string } | null;
+  category: { name: string; slug: string; attributes?: Array<{slug:string;name:string;type:import("@/generated/prisma/client").AttributeType;required:boolean;active:boolean;options:unknown;sortOrder:number}> } | null;
+  attributes?: unknown;
   images: Array<{ url: string; alt: string }>;
   inventory: Array<{ onHand: number; reserved: number }>;
   choiceGroups: Array<{ key: string; label: string; required: boolean; sortOrder: number; values: unknown }>;
@@ -28,6 +30,8 @@ export function serializeProduct(product: {
 }): BackendProduct {
   return {
     ...product,
+    category: product.category ? {name:product.category.name,slug:product.category.slug}:null,
+    specifications: publicSpecifications(product.category?.attributes ?? [],product.attributes),
     images: product.images,
     choiceGroups: deserializeProductChoiceGroups(product.choiceGroups),
     hasPricedVariants: product.variants.length > 0,
@@ -43,7 +47,7 @@ export function serializeProduct(product: {
 
 const include = {
   brand: { select: { name: true, slug: true } },
-  category: { select: { name: true, slug: true } },
+  category: { select: { name: true, slug: true, attributes: { select: {slug:true,name:true,type:true,required:true,active:true,options:true,sortOrder:true} } } },
   images: { orderBy: { sortOrder: "asc" as const }, select: { url: true, alt: true } },
   inventory: { select: { onHand: true, reserved: true } },
   choiceGroups: { orderBy: { sortOrder: "asc" as const }, select: { key: true, label: true, required: true, sortOrder: true, values: true } },

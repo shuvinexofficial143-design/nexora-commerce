@@ -49,6 +49,7 @@ export function mapBackendProductToCatalog(product: BackendProduct): CatalogProd
     liveDescription: product.description,
     liveShortDescription: product.shortDescription,
     liveSku: product.sku,
+    liveSpecifications: product.specifications ?? [],
     liveChoiceGroups: product.choiceGroups ?? [],
     hasPricedVariants: product.hasPricedVariants ?? false,
     liveVariants: variants,

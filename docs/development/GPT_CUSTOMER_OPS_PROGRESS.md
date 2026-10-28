@@ -361,3 +361,14 @@ This milestone intentionally makes **NO VERCEL deployment**. User explicitly dir
 - Added Unit/auth and isolated PostgreSQL regression tests covering deep hierarchy, ancestor visibility, archived children, inactive/featured brands, all catalog/price SQL/facets/detail, quote rejection, order rejection + no reservation, idempotent replay, cycle prevention and banner visibility. Existing CMS integration fixture now creates a real category for its promotion.
 - Remaining Cline schema features **not yet merged**: AttributeDefinition/Product.attributes, hierarchy attributes/editor, category images/metadata editors. Final integration branch and staging checkout/payment verification still need owner-approved separate milestones.
 - Do not claim exact-HEAD CI success until the fresh workflow passes.
+
+
+## 28 October 2026 — Product Attributes/SKU-safe Specifications CMS (GPT branch only)
+
+- **NO VERCEL DEPLOYMENT.** User requests coding, tests, and GitHub commits only until final integrated launch. No production DB migrations, real payments or unapproved integration branch writes.
+- Read latest Cline AttributeDefinition model and attributes API; preserved Cline's exact `AttributeType` enum, `AttributeDefinition` fields/unique/index, `Category.attributes` relation and `Product.attributes Json?` contract on GPT branch. Additive reviewed SQL in `prisma/reviewed-migrations/20261028_product_attributes_compatible.sql` **not run in production**.
+- Owner-only `GET/POST/PATCH /api/admin-app/catalog/attributes`: list/create definitions and active state, bounded field/type/option validation, unique per category and audit; no unauthenticated access.
+- New Admin Product section for category-specific attribute definitions with all eight Cline types; Admin Product Editor renders typed options and sends saved attribute values. Draft Products can have missing required values; Publishing or editing an ACTIVE Product validates all active required specs. Category change clears incompatible specs atomically; malformed/unknown values or invalid options cannot update price or state.
+- Public product serialization now presents only definitions explicitly ACTIVE, with stored valid attribute values as Specification rows. No guessed material, RAM, color, warranty or delivery claims. Normal SKU price/stock selection and order reservation logic unchanged.
+- Added pure validation tests, anonymous-owner API tests, and isolated PostgreSQL transactional integration: add definitions, required activation checks, safe read display, invalid update rollback, category-switch cleanup, deactivate without database loss.
+- Cline/QA/main branches remain untouched. **A final explicit integration review is still needed** for Cline admin catalog editor, new Product Attributes, SKU/priced variant schema, categories and banners. This milestone requires exact-head CI verification; do not declare it verified before successful run.

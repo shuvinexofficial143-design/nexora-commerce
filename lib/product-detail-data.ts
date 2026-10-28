@@ -75,6 +75,7 @@ export function buildProductDetail(product: CatalogProduct): ProductDetail {
           { label: "Category", value: product.category.replace(/(^.|-.)/g, (part) => part.toUpperCase()) },
           { label: "SKU", value: product.liveSku || product.id },
           { label: "Availability", value: stockLabel },
+          ...(product.liveSpecifications ?? []),
         ],
       }],
       reviewsList: [],

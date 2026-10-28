@@ -18,6 +18,7 @@ import type { ProductChoiceGroup } from "@/lib/commerce/product-choices";
 
 export type BackendProduct = {
   choiceGroups?: ProductChoiceGroup[];
+  specifications?: Array<{label:string;value:string}>;
   hasPricedVariants?: boolean;
   variants?: Array<{ id: string; choices: Record<string,string>; signature: string; sku: string; priceMinor: number; availableStock: number; active: boolean }>;
   id: string;

@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ValidationError } from "@/lib/db/errors";
+import { Prisma } from "@/generated/prisma/client";
+import { attributesForCategory,validateProductAttributes } from "@/lib/admin/product-attributes";
 import { parseTaxonomySelection } from "@/lib/admin/product-taxonomy";
 import { getPrisma } from "@/lib/db/prisma";
 import {
@@ -46,6 +48,11 @@ export async function createProduct(input: Record<string, unknown>) {
     }) : null;
     if (taxonomy.categorySlug && !category) throw new ValidationError("Category no longer exists.");
     if (taxonomy.brandSlug && !brand) throw new ValidationError("Brand no longer exists.");
+    if (!category && input.attributes !== undefined && Object.keys(input.attributes ?? {}).length)
+      throw new ValidationError("Choose a category before adding specifications.");
+    const definitions=category?await attributesForCategory(tx,category.id):[];
+    const attributes=validateProductAttributes(definitions,input.attributes??{},
+      input.status==="ACTIVE");
     const product = await tx.product.create({
       data: {
         id: randomUUID(),
@@ -57,6 +64,7 @@ export async function createProduct(input: Record<string, unknown>) {
         status: input.status === "ACTIVE" ? "ACTIVE" : "DRAFT",
         categoryId: category?.id ?? null,
         brandId: brand?.id ?? null,
+        attributes: attributes as Prisma.InputJsonValue,
       },
     });
 
@@ -94,6 +102,7 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
     priceMinor?: number;
     categoryId?: string | null;
     brandId?: string | null;
+    attributes?: Prisma.InputJsonValue;
     status?: "DRAFT" | "ACTIVE" | "ARCHIVED";
     featured?: boolean;
   } = {};
@@ -146,13 +155,17 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
 
   const taxonomy = parseTaxonomySelection(input);
   if (!Object.keys(data).length && !mediaUpdateRequested &&
-      taxonomy.categorySlug === undefined && taxonomy.brandSlug === undefined) {
+      taxonomy.categorySlug === undefined && taxonomy.brandSlug === undefined &&
+      input.attributes === undefined) {
     throw new Error("No product changes were provided.");
   }
 
   const prisma = getPrisma();
 
   return prisma.$transaction(async (tx) => {
+    const previous=await tx.product.findUniqueOrThrow({where:{id},select:{
+      categoryId:true,attributes:true,status:true,
+    }});
     if (taxonomy.categorySlug !== undefined) {
       if (!taxonomy.categorySlug) data.categoryId = null;
       else {
@@ -173,6 +186,20 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
         data.brandId = brand.id;
       }
     }
+    const nextCategoryId = data.categoryId === undefined ? previous.categoryId : data.categoryId;
+    const nextStatus = data.status ?? previous.status;
+    if (!nextCategoryId && input.attributes !== undefined &&
+      Object.keys(input.attributes ?? {}).length)
+      throw new ValidationError("Choose a category before adding specifications.");
+    const switched = nextCategoryId!==previous.categoryId;
+    // Category change invalidates old category-specific values. Never copy
+    // unrelated values into new category definitions silently.
+    const supplied = input.attributes !== undefined ? input.attributes :
+      switched ? {} : previous.attributes ?? {};
+    const definitions=nextCategoryId?await attributesForCategory(tx,nextCategoryId):[];
+    const attributes=validateProductAttributes(definitions,supplied,
+      nextStatus==="ACTIVE");
+    data.attributes=attributes as Prisma.InputJsonValue;
     const product = Object.keys(data).length
       ? await tx.product.update({ where: { id }, data })
       : await tx.product.findUniqueOrThrow({ where: { id } });

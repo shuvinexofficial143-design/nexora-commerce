@@ -125,6 +125,7 @@ model Category {
   parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children    Category[] @relation("CategoryHierarchy")
   products    Product[]
+  attributes  AttributeDefinition[]
 
   @@index([parentId, visible, archived, sortOrder])
 }
@@ -140,6 +141,35 @@ model Brand {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   products    Product[]
+}
+
+enum AttributeType {
+  TEXT
+  NUMBER
+  SELECT
+  MULTI_SELECT
+  BOOLEAN
+  COLOR
+  DATE
+  IMAGE_REQUEST
+}
+
+model AttributeDefinition {
+  id           String        @id @default(cuid())
+  categoryId   String
+  name         String
+  slug         String
+  type         AttributeType @default(TEXT)
+  required     Boolean       @default(false)
+  options      Json?
+  sortOrder    Int           @default(0)
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  category     Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, slug])
+  @@index([categoryId, active, sortOrder])
 }
 
 model Product {
@@ -158,6 +188,7 @@ model Product {
   featured       Boolean         @default(false)
   categoryId     String?
   brandId        String?
+  attributes     Json?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
