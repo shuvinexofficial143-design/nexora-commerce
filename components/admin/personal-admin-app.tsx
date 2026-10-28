@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 import { ProductGalleryEditor } from "@/components/admin/product-gallery-editor";
+import { ProductPreviewPanel } from "@/components/admin/product-preview";
 import type { BulkProductAction } from "@/lib/admin/product-bulk";
 import { CmsHeroEditor } from "@/components/admin/cms-hero-editor";
 import { CatalogManagement } from "@/components/admin/catalog-management";
@@ -511,6 +512,7 @@ function Products() {
               className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none focus:border-black"
             />
           </label>
+          <ProductPreviewPanel name={form.name} price={form.price} compareAtPrice={form.compareAtPrice} description={form.description} posterUrl={form.posterUrl} gallery={draftGallery} videoUrl={form.videoUrl} status="DRAFT" />
           <button disabled={busy || attributesLoading || Boolean(attributeError)} className="rounded-full bg-black px-5 py-3 text-sm font-black text-white md:col-span-2 disabled:opacity-50">
             {busy ? "Creating…" : "Create draft product"}
           </button>
@@ -652,6 +654,7 @@ function ProductEditForm({ product, options, definitions, attributesLoading, att
         <AdminMediaUpload resourceType="image" label="Upload new poster" onUploaded={setPosterUrl} />
       </label>
       <ProductGalleryEditor value={gallery} onChange={setGallery} disabled={busy} />
+      <ProductPreviewPanel name={name} price={price} compareAtPrice={compareAtPrice} description={description} posterUrl={posterUrl} gallery={gallery} videoUrl={videoUrl} status={status} />
       <div className="flex flex-wrap gap-2 md:col-span-2">
         <button disabled={busy || attributesLoading || Boolean(attributeError)} className="rounded-full bg-black px-4 py-2 text-xs font-black text-white">{busy ? "Saving…" : "Save changes"}</button>
         {["DRAFT", "ACTIVE", "ARCHIVED"].map((nextStatus) => (

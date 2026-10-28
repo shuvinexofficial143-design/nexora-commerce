@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
+import { AdminPreviewImage } from "@/components/admin/product-preview";
 import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 import { isSupportedPosterUrl } from "@/lib/product-media";
 
@@ -40,6 +40,7 @@ export function ProductGalleryEditor({ value, onChange, disabled = false }: Prop
     if (other < 0 || other >= next.length) return;
     [next[index], next[other]] = [next[other], next[index]];
     onChange(next);
+    setError("");
   }
 
   return (
@@ -70,14 +71,14 @@ export function ProductGalleryEditor({ value, onChange, disabled = false }: Prop
       <div className="grid gap-2 sm:grid-cols-2">
         {value.map((item, i) => (
           <div key={item} className="flex items-center gap-3 rounded-xl border border-black/10 bg-white p-2">
-            <Image src={item} alt={"Product gallery image " + (i + 1)} width={64} height={64} unoptimized className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+            <AdminPreviewImage url={item} alt={"Product gallery image " + (i + 1)} compact />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold">Image {i + 1}</p>
               <p className="truncate text-[10px] text-black/45" title={item}>{item}</p>
               <div className="mt-1 flex flex-wrap gap-2">
                 <button type="button" aria-label={"Move image " + (i + 1) + " up"} disabled={disabled || i === 0} onClick={() => move(i, -1)} className="text-xs font-black disabled:opacity-25">↑</button>
                 <button type="button" aria-label={"Move image " + (i + 1) + " down"} disabled={disabled || i === value.length - 1} onClick={() => move(i, 1)} className="text-xs font-black disabled:opacity-25">↓</button>
-                <button type="button" aria-label={"Remove image " + (i + 1)} disabled={disabled} onClick={() => onChange(value.filter((v) => v !== item))} className="text-xs font-black text-red-700">Remove</button>
+                <button type="button" aria-label={"Remove image " + (i + 1)} disabled={disabled} onClick={() => { onChange(value.filter((v) => v !== item)); setError(""); }} className="text-xs font-black text-red-700">Remove</button>
               </div>
             </div>
           </div>

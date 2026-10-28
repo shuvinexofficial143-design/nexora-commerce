@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { isSupportedPosterUrl, isSupportedProductVideoUrl } from "@/lib/product-media";
 
 type UploadSignature = {
   cloudName: string;
@@ -31,6 +32,8 @@ export function AdminMediaUpload({
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  useEffect(() => () => { xhrRef.current?.abort(); }, []);
 
   async function getSignature() {
     const response = await fetch("/api/admin-app/media/sign", {
@@ -61,6 +64,10 @@ export function AdminMediaUpload({
       form.append("signature", signature.signature);
 
       const xhr = new XMLHttpRequest();
+      xhrRef.current = xhr;
+      xhr.timeout = 120_000;
+      xhr.ontimeout = () => reject(new Error("Upload timed out. Please try again."));
+      xhr.onabort = () => reject(new Error("Upload was cancelled."));
       xhr.open(
         "POST",
         `https://api.cloudinary.com/v1_1/${encodeURIComponent(
@@ -100,6 +107,10 @@ export function AdminMediaUpload({
           return;
         }
 
+        if (signature.resourceType === "image" ? !isSupportedPosterUrl(payload.secure_url) : !isSupportedProductVideoUrl(payload.secure_url)) {
+          reject(new Error("Upload response returned an unsupported media URL."));
+          return;
+        }
         resolve(payload.secure_url);
       };
 
@@ -127,6 +138,7 @@ export function AdminMediaUpload({
       return;
     }
 
+    if (file.size === 0) { setError("Empty files cannot be uploaded."); return; }
     if (file.size > limits[resourceType]) {
       setError(
         resourceType === "video"
@@ -148,6 +160,7 @@ export function AdminMediaUpload({
       );
     } finally {
       setBusy(false);
+      xhrRef.current = null;
       if (inputRef.current) inputRef.current.value = "";
     }
   }
