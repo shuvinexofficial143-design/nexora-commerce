@@ -1,43 +1,61 @@
-# NEXORA progress
+# NEXORA development progress
 
-## Current milestone
+## Latest verified functional checkpoint — Nexora 4 (28 October 2026)
 
-Admin product management and the dynamic multi-category homepage/CMS vertical slice on `feature/nexora-gift-store`.
+- Repository: `shuvinexofficial143-design/nexora-commerce`
+- Authorized branch: `feature/nexora-gift-store`
+- Last **CI-verified functional** HEAD: `7041e4c729ce38a3a6c5918ef90a7a1438bd7879`
+- Exact-HEAD GitHub Actions: https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40661384662 — **SUCCESS (3/3 jobs)**.
+- This document update will create a later documentation-only HEAD; always fetch the current remote branch SHA before writing.
 
-## Completed in this checkpoint
+### Delivered in this milestone
 
-- Extended the existing authenticated Admin Products screen with compare-at price, descriptions, featured selection, status controls, media, category/brand-aware creation, search, and status filtering.
-- Extended product persistence validation and updates without changing cart identifiers or checkout pricing behavior.
-- Added the additive `HomepageBanner` Prisma model and reviewed SQL at `prisma/reviewed-migrations/20261021_homepage_banner.sql`.
-- Added authenticated banner list/create/update APIs with internal-link validation and archive support.
-- Connected the public homepage hero to published CMS banners, with a safe hardcoded multi-category fallback when the database or migration is unavailable.
-- Added an owner Homepage navigation entry and persistent CMS editor with create, edit, publish/unpublish, display order, image URL, CTA, category, and archive controls.
-- Preserved checkout-safety merge commit `edbd0ee` and regenerated Prisma types for `CheckoutAttempt` and `HomepageBanner`.
-- Completed the safe multi-image product-gallery persistence slice: approved HTTPS gallery URLs are validated, ordered, replaceable in one transaction, exposed by the Admin Products API, and editable from the authenticated Product Admin form.
-- Completed live product publishing controls in the editor: category, brand, draft/active/archived status, featured selection, pricing, description, poster, video, and gallery changes persist through the real Prisma-backed Admin API.
+1. Fixed blocking production dependency audit. Next.js and eslint-config-next 16.3.8 → 16.4.3; fast-uri 3.1.8 → 3.1.9. Updated package manifest and only the 14 corresponding lockfile package entries (including the root). No forced npm audit and no blind cross-branch lockfile replacement.
+2. Fixed Playwright 1.56.1 Chromium runner compatibility by pinning the browser test job to Ubuntu 24.04 instead of ubuntu-latest (which had moved to Ubuntu 26.04).
+3. Added database-backed category create/edit, description, image URL, parent, display order, storefront visibility, search, guarded archive and restore controls. UI is wired to existing authenticated catalog APIs.
+4. Added database-backed brand create/edit, description, logo URL, featured/active status, search, deactivate and activate controls. Preserved the existing owner auth.
+5. Fixed category/brand PATCH handling to retain omitted fields. Added category move guard for existing child categories and prevented direct archive bypass via generic PATCH.
+6. Enforced required category attributes even when the product attributes payload is omitted or null, and validated safe integer display order.
+7. Filtered archived/hidden categories and inactive brands from product assignment dropdowns. Product creation and updates also reject such assignments server-side.
+8. Product create now validates category attributes even if they are omitted; changing category no longer silently carries attributes from an unrelated category.
+9. Added unit regression checks for required attributes, display order, and allowed category/brand assignment.
 
-## Tests passed
+### Verified checks
 
-- `npm run type-check`
-- `npm run lint -- --no-cache`
-- Focused Node test run: 9 passed, 0 failed (`catalog-admin-validation`, `checkout-media`). The earlier checkpoint also recorded 28 passed, 0 failed across checkout-safety/backend/catalog suites.
+At functional HEAD `7041e4c7`, workflow `40661384662`:
+- Unit regression suite, npm production dependency security audit, TypeScript, ESLint and production build: PASS.
+- Disposable PostgreSQL checkout/stock/coupon concurrency and replay: PASS.
+- Isolated localhost HTTP and real Chromium desktop/mobile browser checks: PASS.
+- No production deploy or production DB migration was performed.
 
-## Git
+### Source files in this milestone
 
-- Existing preserved commits: `19445c3`, `7235f48`, `cb29ef2`, `edbd0ee`.
-- This implementation checkpoint is pending final build, review, commit, and push.
+- `package.json`
+- `package-lock.json`
+- `.github/workflows/checkout-safety.yml`
+- `components/admin/catalog-management.tsx`
+- `lib/admin/catalog-admin.ts`
+- `lib/admin/product-admin.ts`
+- `app/api/admin-app/catalog/options/route.ts`
+- `tests/catalog-admin-validation.test.ts`
 
-## Known limitations / next safe steps
+### Preserved earlier work
 
-- The homepage banner SQL is prepared but intentionally not applied to any production database. Apply it through the normal reviewed migration process before using CMS persistence against a database.
-- Added reviewed catalog-management schema/API foundations: nested categories with soft archive and counts, active/featured brands, category-scoped universal attribute definitions, and server-side product attribute validation/storage. Apply `prisma/reviewed-migrations/20261021_catalog_management.sql` before enabling these database-backed endpoints.
-- Variant-level pricing/stock and cart-line identity remain intentionally pending: current checkout authoritatively reserves product-level inventory, so variants must be introduced together with the transaction and order-item contract.
-- The CMS currently accepts approved remote image URLs and existing Admin media-upload URLs; direct multipart storage is not introduced.
-- Product variants remain intentionally gated: variant-level price/stock, cart-line identity, and order-item snapshots must be designed and migrated together before variant editing can be safely enabled.
+- Admin Product create/edit, draft/publish/archive, featured status, category/brand assignment, price/compare-at, descriptions, video/poster and multi-image gallery with approved remote HTTPS media.
+- Category/subcategory APIs, attribute-definition APIs, HomepageBanner CMS APIs/editor and published homepage display with fallback.
+- Checkout safety, inventory transaction, order replay and coupon logic.
+- Reviewed additive SQL at `prisma/reviewed-migrations/20261021_homepage_banner.sql` and `prisma/reviewed-migrations/20261021_catalog_management.sql`.
 
-## Handoff for the next `next`
+### Not complete / environment boundaries
 
-1. Apply the reviewed catalog SQL through the normal non-production migration process in the target environment, then exercise category, brand, attribute, product publishing, and gallery APIs against a real database.
-2. Add database-backed regression coverage for product create/update/gallery replacement and storefront visibility after the database fixture strategy is selected.
-3. Design the variant contract before coding: `ProductVariant` SKU/price/stock/media, cart line identity, inventory reservation, and `OrderItem.variant` snapshot must change atomically.
-4. After variants, add attribute editor controls to Product Admin; the server-side category attribute validation/storage foundation is already present.
+- Reviewed SQL has NOT been applied to production. Real **Admin CRUD on a migrated isolated PostgreSQL fixture with authenticated browser save/reload and storefront publishing** is not yet verified; isolated checkout PostgreSQL and browser smoke jobs cover different scopes. The CI successes above do not establish full Admin production readiness.
+- Category-specific attribute editing controls are not yet present in the Product Admin editor. A required attribute can now correctly block product creation until the editor supplies it.
+- Variant SKU/stock/pricing/cart/order identity contract remains owned by Nexora 3. Do not introduce a conflicting Admin variant model.
+- Product bulk operations, end-to-end owner media upload/preview, and full catalog publish-to-storefront regression remain unfinished.
+- Production Vercel and customer branch remain unchanged.
+
+### Next `next`
+
+Continue first with a real authenticated Product Admin attribute editor and category-aware validation; add database-backed tests for catalog/product CRUD and storefront visibility using disposable PostgreSQL. Then progress to fuller Category/Brand management, Product bulk operations and Homepage CMS preview as needed. Read the concurrent Nexora 3 contracts, but do not edit or merge that branch.
+
+Follow source code and exact remote HEAD over any stale notes.
