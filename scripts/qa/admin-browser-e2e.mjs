@@ -534,13 +534,19 @@ try {
     });
     const url = new URL("/api/admin-app/products/" + original.id, base).href;
     const invalidSingle = await ctx.request.patch(url, { data: { status: "ACTIVE" } });
-    assert.equal(invalidSingle.status(), 500, "Existing product must not bypass a newly required field");
+    assert.equal(invalidSingle.status(), 400, "Existing product publish validation must give actionable HTTP 400");
+    const singleFailure = await invalidSingle.json();
+    assert.match(singleFailure.error, /Warranty Months is required/);
+    assert.equal(singleFailure.ok, false);
     const before = (await api(ctx, "/api/admin-app/products")).find(x => x.id === original.id);
     assert.equal(before.status, "DRAFT");
     const invalidBulk = await ctx.request.post(new URL("/api/admin-app/products/bulk", base).href, {
       data: { action: "PUBLISH", products: [{ id: original.id, updatedAt: before.updatedAt }] },
     });
-    assert.equal(invalidBulk.status(), 500, "Bulk publish must reject invalid persisted attributes");
+    assert.equal(invalidBulk.status(), 400, "Bulk publish validation must give actionable HTTP 400");
+    const bulkFailure = await invalidBulk.json();
+    assert.match(bulkFailure.error, /Warranty Months is required/);
+    assert.equal(bulkFailure.ok, false);
     assert.equal((await api(ctx, "/api/admin-app/products")).find(x => x.id === original.id).status, "DRAFT");
     await api(ctx, "/api/admin-app/products/" + original.id, "PATCH", {
       attributes: { "storage-gb": 32, "case-color": "Black", "warranty-months": 24 },

@@ -1,4 +1,5 @@
 import { applyBulkProductAction, BulkProductConflict, parseBulkProductRequest } from "@/lib/admin/product-bulk";
+import { ProductPublishValidationError } from "@/lib/admin/product-publish";
 import { adminFailure, adminJson, adminOptions, adminUnexpected, requireAdmin } from "@/lib/admin/admin-api";
 
 export const runtime = "nodejs";
@@ -13,6 +14,7 @@ export async function POST(request: Request) {
     return adminJson(request, result);
   } catch (error) {
     if (error instanceof BulkProductConflict) return adminFailure(request, error.message, 409);
+    if (error instanceof ProductPublishValidationError) return adminFailure(request, error.message, 400);
     if (error instanceof Error && (/^Unsupported bulk|^Bulk product request|^Select between|^Invalid product selection|^Duplicate products|^Archived products/.test(error.message))) {
       return adminFailure(request, error.message, 400);
     }
