@@ -1,5 +1,26 @@
 # NEXORA 4 — Admin Development Progress
 
+## 28 October 2026 — Atomic Owner Order Status Audit + Reserved Stock Rollback
+
+**Authorized branch:** `feature/nexora-gift-store`  
+**Functional verified HEAD:** `847c3b47890ff7ea0732d1abf321f2962ae43b33`  
+**Exact CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40711986884 — **4/4 PASS**  
+**Owner Chromium + disposable PostgreSQL:** **23 PASS / 0 FAIL**.
+
+### Delivered
+- Status mutation now uses optimistic current `status` + `updatedAt` compare-and-swap; stale writes return Owner-friendly HTTP 409. Terminal/cancelled rules remain enforced.
+- Status update, cancel/deliver reservation reconciliation and Admin Activity Audit all execute within a single Prisma database transaction. Audit failure rolls back status, reserved stock and inventory movements.
+- Customer email/terminal notifications are scheduled **after** successful commit, never before. Existing best-effort delivery remains; persistent outbox/retry not yet implemented.
+- New isolated Owner Chromium regression with QA fake Order, Customer and Reserved Stock injects Audit failure and verifies no partial settlement/notification, then verifies successful CANCELLED releases reservation exactly once, Audit exactly once, repeat unchanged and terminal-state 409.
+- QA refuses configured live email provider credentials. All prior 22 Owner Browser tests and four independent CI jobs stay green.
+
+### Remaining
+- Seller Onboarding contains default password, raw SQL status quoting and non-atomic post-commit Audit; **NOT fixed**. Missing seller profile schema migration source must be reviewed before real seller onboarding.
+- Deterministic concurrent Owner status E2E and durable external email/notification outbox still pending.
+- No production migrations, Vercel deployment, live provider calls or production order changes.
+
+## Earlier Milestones
+
 ## 28 October 2026 — Warehouse Transfer Atomic Audit and Concurrency
 
 **Functional SHA:** `bf17045e2156b1a1c1c69e4d786f1e9d2bb0456f`  
