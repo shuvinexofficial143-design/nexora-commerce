@@ -58,6 +58,7 @@ type ProductRow = {
   sku: string;
   name: string;
   priceMinor: number;
+  compareAtMinor:number|null;
   effectivePriceMinor?: number | null;
   availableStock?: number;
   stockSource?: "sku" | "warehouse";
@@ -306,7 +307,7 @@ function Products() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
-    name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "", categorySlug:"", brandSlug:"",images:[] as string[],
+    name: "", sku: "", price: "", compareAtPrice:"", description: "", videoUrl: "", posterUrl: "", categorySlug:"", brandSlug:"",images:[] as string[],
   });
 
   const load = useCallback(() => {
@@ -345,10 +346,11 @@ function Products() {
         body: JSON.stringify({
           ...form,
           price: Number(form.price),
+          compareAtPrice:form.compareAtPrice?Number(form.compareAtPrice):null,
           status: "DRAFT",
         }),
       });
-      setForm({ name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "", categorySlug:"",brandSlug:"",images:[] });
+      setForm({ name: "", sku: "", price: "", compareAtPrice:"", description: "", videoUrl: "", posterUrl: "", categorySlug:"",brandSlug:"",images:[] });
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create product.");
@@ -427,6 +429,14 @@ function Products() {
             </label>
           ))}
 
+          <label>
+            <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">Original price (₹, optional)</span>
+            <input type="number" min={0} step="0.01"
+              value={form.compareAtPrice}
+              onChange={e=>setForm(current=>({...current,compareAtPrice:e.target.value}))}
+              placeholder="Leave empty for no compare-at price"
+              className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold"/>
+          </label>
           <label className="text-xs font-black">Category
             <select value={form.categorySlug} onChange={e=>setForm(current=>({...current,categorySlug:e.target.value}))}
               className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-3">
@@ -541,6 +551,7 @@ function ProductEditForm({ product, options, onSave }: {
 }) {
   const [name, setName] = useState(product.name);
   const [price, setPrice] = useState(String(product.priceMinor / 100));
+  const [compareAtPrice,setCompareAtPrice]=useState(product.compareAtMinor===null?"":String(product.compareAtMinor/100));
   const [description, setDescription] = useState(product.description ?? "");
   const [categorySlug, setCategorySlug] = useState(product.categorySlug ?? "");
   const [brandSlug, setBrandSlug] = useState(product.brandSlug ?? "");
@@ -554,7 +565,7 @@ function ProductEditForm({ product, options, onSave }: {
     event.preventDefault();
     setBusy(true);
     try {
-      await onSave({ name, price: Number(price), description:description.trim() || undefined,
+      await onSave({ name, price: Number(price),compareAtPrice:compareAtPrice===""?null:Number(compareAtPrice), description:description.trim() || undefined,
         categorySlug:categorySlug || null,brandSlug:brandSlug || null,videoUrl,posterUrl,attributes,
         ...(JSON.stringify(galleryImages)!==JSON.stringify(product.galleryImages??[])?{images:galleryImages}:{}) });
     } finally {
@@ -565,6 +576,13 @@ function ProductEditForm({ product, options, onSave }: {
   return (
     <form onSubmit={save} className="mt-4 grid gap-3 border-t border-black/8 pt-4 md:grid-cols-2">
       <input value={name} onChange={(e) => setName(e.target.value)} className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
+      <label className="flex flex-col gap-1 text-xs font-black">
+        Original price (₹, optional)
+        <input type="number" min={0} step="0.01" value={compareAtPrice}
+          onChange={e=>setCompareAtPrice(e.target.value)}
+          aria-label="Original price in rupees"
+          className="rounded-xl border border-black/10 bg-white px-3 py-2.5"/>
+      </label>
       <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" min="0" step="0.01"
         aria-label="Product price" className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
       <label className="text-xs font-black">Category

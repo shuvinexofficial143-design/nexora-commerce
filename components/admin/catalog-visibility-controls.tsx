@@ -1,11 +1,13 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 
 type Category = {
   id:string;slug:string;name:string;parentId:string|null;
   visible:boolean;archived:boolean;sortOrder:number;
+  description:string|null;imageUrl:string|null;
 };
-type Brand={id:string;slug:string;name:string;active:boolean;featured:boolean};
+type Brand={id:string;slug:string;name:string;active:boolean;featured:boolean;description:string|null;logoUrl:string|null};
 type Catalog={categories:Category[];brands:Brand[]};
 type Response<T>={ok:boolean;data?:T;error?:string};
 
@@ -20,6 +22,37 @@ async function request<T>(method:"GET"|"PATCH",value?:unknown):Promise<T>{
     throw new Error(payload?.error??"Could not update catalog settings.");
   return payload.data;
 }
+
+function CatalogMediaEditor({kind,slug,description,imageUrl,busy,onSave}:{
+  kind:"category"|"brand";slug:string;description:string|null;imageUrl:string|null;
+  busy:boolean;onSave:(kind:"category"|"brand",slug:string,changes:Record<string,unknown>)=>Promise<void>;
+}){
+  const [draft,setDraft]=useState({description:description??"",imageUrl:imageUrl??""});
+  const imageKey=kind==="category"?"imageUrl":"logoUrl";
+  return <div className="space-y-2 rounded-lg bg-black/[.025] p-3 sm:col-span-3">
+    <p className="text-xs font-black">Display details · {kind}</p>
+    <label className="block text-xs font-bold">Description (optional)
+      <textarea rows={2} maxLength={500} value={draft.description}
+        onChange={e=>setDraft(v=>({...v,description:e.target.value}))}
+        className="mt-1 w-full rounded-lg border border-black/15 bg-white p-2.5"/>
+    </label>
+    <label className="block text-xs font-bold">{kind==="category"?"Category image":"Brand logo"} (optional)
+      <input value={draft.imageUrl} type="url"
+        onChange={e=>setDraft(v=>({...v,imageUrl:e.target.value}))}
+        className="mt-1 w-full rounded-lg border border-black/15 bg-white p-2.5"
+        placeholder="Approved HTTPS image URL"/>
+    </label>
+    <AdminMediaUpload resourceType="image" label={"Upload "+(kind==="category"?"category image":"brand logo")}
+      onUploaded={url=>setDraft(v=>({...v,imageUrl:url}))}/>
+    <button type="button" disabled={busy} className="rounded-full bg-black px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+      onClick={()=>{void onSave(kind,slug,{
+        description:draft.description.trim()||null,[imageKey]:draft.imageUrl.trim()||null,
+      });}}>
+      Save display details
+    </button>
+  </div>;
+}
+
 export function CatalogVisibilityControls({onChanged}:{onChanged:()=>void}){
   const [data,setData]=useState<Catalog>({categories:[],brands:[]});
   const [error,setError]=useState("");
@@ -82,6 +115,8 @@ export function CatalogVisibilityControls({onChanged}:{onChanged:()=>void}){
                 onBlur={()=>void save("category",cat.slug,{sortOrder:cat.sortOrder})}
                 className="w-28 rounded-lg border border-black/15 px-3 py-2"/>
             </label>
+            <CatalogMediaEditor kind="category" slug={cat.slug} description={cat.description}
+              imageUrl={cat.imageUrl} busy={busy!==null} onSave={save}/>
           </div>)}
           {!data.categories.length?<p className="text-sm text-black/50">Create a category above first.</p>:null}
         </div>
@@ -102,6 +137,8 @@ export function CatalogVisibilityControls({onChanged}:{onChanged:()=>void}){
                   onChange={e=>void save("brand",brand.slug,{featured:e.target.checked})}/> Featured
               </label>
             </div>
+            <CatalogMediaEditor kind="brand" slug={brand.slug} description={brand.description}
+              imageUrl={brand.logoUrl} busy={busy!==null} onSave={save}/>
           </div>)}
           {!data.brands.length?<p className="text-sm text-black/50">Create a brand above first.</p>:null}
         </div>

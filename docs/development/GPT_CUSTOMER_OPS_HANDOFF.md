@@ -179,3 +179,14 @@ Owner requested coding only; **NO VERCEL deployment** and no Production/staging 
 - Added pure input validation, unauthenticated API, isolated PostgreSQL rollback/required field, hidden-category/inactive-brand, revision conflict, featured/draft, idempotent no-op and audit tests. No production payments or data changed.
 - Cline Gallery port from prior milestone remains; Cline's remaining Catalog UX, compare-at editor and Final Branch Integration are still separate tasks.
 - Do not claim exact HEAD CI success until GitHub run completes.
+
+
+## 28 Oct 2026 — Remaining Catalog Admin Integration: Original Price + Category/Brand Display CMS
+- GPT branch only; **NO VERCEL deployment**, no production database writes, no Cline/QA/main merge.
+- Verified Cline catalog metadata and compare-at field names; GPT Prisma models already had `compareAtMinor`, `Category.description/imageUrl`, `Brand.description/logoUrl`: no schema migration needed.
+- New strict `lib/admin/catalog-pricing.ts` normalizes INR original price into integer paise, rejects nonnumeric/negative/oversized values, rejects original price below the final selling price. Parent original price is deliberately suppressed for independently priced SKU variants in the existing public mapper.
+- Owner create/edit product forms now accept optional original price and support explicit clear. Both price and original price are validated together inside existing Prisma transaction, so invalid edits cannot change description or selling price.
+- Category and Brand admin listing and PATCH now manage optional descriptions and approved HTTPS category images/brand logos via shared `lib/admin/catalog-metadata.ts`, including explicit removal. New Admin editor uses existing image uploader, without inventing image URLs or mutating gallery.
+- Live homepage category metadata is derived only from eligible visible categories with published products; approved owner-provided images and display order override fallback product imagery. Unapproved or stale media URLs are ignored, hidden categories are never inserted into public categories. QA demo continues using its own sample categories.
+- Tests: pure price/metadata validation and homepage category fallback, plus disposable PostgreSQL create/edit rollback, comparison price display, CMS persistence, invalid media rollback, hidden category exclusion. Exact-head GitHub CI required before considering verified.
+- Remaining: Cline nonconflicting editor details, final integration branch review, staging configuration, real Cashfree/checkout and full production readiness QA.

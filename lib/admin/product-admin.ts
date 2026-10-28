@@ -3,6 +3,7 @@ import { ValidationError } from "@/lib/db/errors";
 import { Prisma } from "@/generated/prisma/client";
 import { attributesForCategory,validateProductAttributes } from "@/lib/admin/product-attributes";
 import { parseTaxonomySelection } from "@/lib/admin/product-taxonomy";
+import { resolveCompareAtMinor } from "@/lib/admin/catalog-pricing";
 import { normalizeProductGallery,GALLERY_START,GALLERY_MAX } from "@/lib/admin/product-gallery";
 import { getPrisma } from "@/lib/db/prisma";
 import {
@@ -33,6 +34,8 @@ export async function createProduct(input: Record<string, unknown>) {
     throw new ValidationError("Invalid product details, price or description.");
   }
 
+  const compareAtMinor=resolveCompareAtMinor(Object.hasOwn(input,"compareAtPrice"),
+    input.compareAtPrice,Math.round(price*100),null);
   const gallery=normalizeProductGallery(input.images??[],name);
   const media = resolveProductMedia({
     videoUrl: typeof input.videoUrl === "string" ? input.videoUrl : undefined,
@@ -63,6 +66,7 @@ export async function createProduct(input: Record<string, unknown>) {
         name,
         description: description || `${name} on NEXORA`,
         priceMinor: Math.round(price * 100),
+        compareAtMinor,
         status: input.status === "ACTIVE" ? "ACTIVE" : "DRAFT",
         categoryId: category?.id ?? null,
         brandId: brand?.id ?? null,
@@ -103,6 +107,7 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
     name?: string;
     description?: string;
     priceMinor?: number;
+    compareAtMinor?:number|null;
     categoryId?: string | null;
     brandId?: string | null;
     attributes?: Prisma.InputJsonValue;
@@ -162,7 +167,7 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
   const taxonomy = parseTaxonomySelection(input);
   if (!Object.keys(data).length && !mediaUpdateRequested &&
       taxonomy.categorySlug === undefined && taxonomy.brandSlug === undefined &&
-      input.attributes === undefined) {
+      input.attributes === undefined && input.compareAtPrice === undefined) {
     throw new Error("No product changes were provided.");
   }
 
@@ -170,8 +175,14 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
 
   return prisma.$transaction(async (tx) => {
     const previous=await tx.product.findUniqueOrThrow({where:{id},select:{
-      categoryId:true,attributes:true,status:true,
+      categoryId:true,attributes:true,status:true,priceMinor:true,compareAtMinor:true,
     }});
+    // Compare-at applies to parent/base price only. Never infer discount from
+    // an independent SKU variant price. Check final values atomically.
+    if(input.compareAtPrice!==undefined||data.priceMinor!==undefined){
+      data.compareAtMinor=resolveCompareAtMinor(Object.hasOwn(input,"compareAtPrice"),
+        input.compareAtPrice,data.priceMinor??previous.priceMinor,previous.compareAtMinor);
+    }
     if (taxonomy.categorySlug !== undefined) {
       if (!taxonomy.categorySlug) data.categoryId = null;
       else {

@@ -5,6 +5,7 @@ import { demoCatalogEnabled } from "@/lib/storefront/catalog-query";
 import { buildHomepageCollection } from "@/lib/storefront/homepage-collection";
 import { LiveStorefrontHome } from "@/components/home/live-storefront-home";
 import { getPublishedHomepageBanners } from "@/lib/home-banners";
+import { applyHomepageCategoryDisplay,listHomepageCategoryDisplay } from "@/lib/storefront/homepage-category-display";
 import type { CatalogProduct } from "@/types/catalog";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,15 @@ export default async function HomePage() {
     }
   }
   const banners = !demo && !unavailable ? await getPublishedHomepageBanners() : [];
-  return <LiveStorefrontHome collection={buildHomepageCollection(products)}
+  let collection=buildHomepageCollection(products);
+  if(!demo && !unavailable){
+    try{
+      collection=applyHomepageCategoryDisplay(collection,await listHomepageCategoryDisplay());
+    }catch(error){
+      console.error("NEXORA homepage category display unavailable",
+        error instanceof Error?error.name:"Unknown error");
+    }
+  }
+  return <LiveStorefrontHome collection={collection}
     demo={demo} unavailable={unavailable} banners={banners} />;
 }

@@ -1,5 +1,6 @@
 import { ConflictError, ValidationError } from "@/lib/db/errors";
 import { getPrisma } from "@/lib/db/prisma";
+import { parseCatalogMetadata } from "@/lib/admin/catalog-metadata";
 
 export type TaxonomyKind = "category" | "brand";
 export type ProductTaxonomySelection = {
@@ -40,13 +41,16 @@ export function parseTaxonomyCreation(raw: unknown) {
   const parentSlug = body.parentSlug === undefined || body.parentSlug === "" || body.parentSlug === null
     ? null : validTaxonomySlug(body.parentSlug);
   if (body.kind === "brand" && parentSlug) throw new ValidationError("Brands cannot have a parent category.");
-  return { kind: body.kind as TaxonomyKind, name, slug, ...(parentSlug ? {parentSlug} : {}) };
+  return { kind: body.kind as TaxonomyKind, name, slug,
+    ...(parentSlug ? {parentSlug} : {}),
+    ...parseCatalogMetadata(body.kind as TaxonomyKind,body),
+  };
 }
 export async function listProductTaxonomy() {
   const prisma = getPrisma();
   const [categories, brands] = await Promise.all([
-    prisma.category.findMany({ select: { id:true, name:true, slug:true, parentId:true, visible:true, archived:true, sortOrder:true }, orderBy:[{sortOrder:"asc"},{name:"asc"}], take:500 }),
-    prisma.brand.findMany({ select: { id:true, name:true, slug:true, active:true, featured:true }, orderBy:{name:"asc"}, take:500 }),
+    prisma.category.findMany({ select: { id:true, name:true, slug:true, description:true,imageUrl:true, parentId:true, visible:true, archived:true, sortOrder:true }, orderBy:[{sortOrder:"asc"},{name:"asc"}], take:500 }),
+    prisma.brand.findMany({ select: { id:true, name:true, slug:true, description:true,logoUrl:true, active:true, featured:true }, orderBy:{name:"asc"}, take:500 }),
   ]);
   return { categories, brands };
 }
@@ -61,10 +65,15 @@ export async function createProductTaxonomy(raw: unknown) {
       if (data.parentSlug && !parent) throw new ValidationError("Parent category does not exist.");
       const record = await prisma.category.create({ data: {
         name:data.name, slug:data.slug, parentId:parent?.id ?? null,
+        ...(data.description!==undefined?{description:data.description}:{}),
+        ...(data.imageUrl!==undefined?{imageUrl:data.imageUrl}:{}),
       } });
       return { kind: data.kind, id:record.id, name:record.name, slug:record.slug };
     }
-    const record = await prisma.brand.create({ data: { name:data.name, slug:data.slug } });
+    const record = await prisma.brand.create({ data: { name:data.name, slug:data.slug,
+      ...(data.description!==undefined?{description:data.description}:{}),
+      ...(data.logoUrl!==undefined?{logoUrl:data.logoUrl}:{}),
+    } });
     return { kind: data.kind, id:record.id, name:record.name, slug:record.slug };
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "P2002")
@@ -87,11 +96,11 @@ export function parseTaxonomyUpdate(raw: unknown) {
   const slug=validTaxonomySlug(x.slug);
   const kind=x.kind as TaxonomyKind;
   const allowed=kind==="category" ?
-    ["kind","slug","visible","archived","sortOrder","parentSlug"]:
-    ["kind","slug","active","featured"];
+    ["kind","slug","visible","archived","sortOrder","parentSlug","description","imageUrl"]:
+    ["kind","slug","active","featured","description","logoUrl"];
   if(Object.keys(x).some(key=>!allowed.includes(key)) || Object.keys(x).length < 3)
     throw new ValidationError("Unsupported or empty catalog update.");
-  const patch:Record<string, unknown>={};
+  const patch:Record<string, unknown>={...parseCatalogMetadata(kind,x)};
   for(const key of kind==="category"?["visible","archived"]:["active","featured"]) {
     if(key in x)patch[key]=booleanField(x[key],key);
   }
@@ -114,10 +123,12 @@ export async function updateProductTaxonomy(raw: unknown){
     if(kind==="brand"){
       const current=await tx.brand.findUnique({where:{slug},select:{id:true}});
       if(!current)throw new ValidationError("Brand does not exist.");
-      const {active,featured}=patch as {active?:boolean;featured?:boolean};
+      const {active,featured,description,logoUrl}=patch as {active?:boolean;featured?:boolean;description?:string|null;logoUrl?:string|null};
       return tx.brand.update({where:{id:current.id},data:{
         ...(active===undefined?{}:{active}),
         ...(featured===undefined?{}:{featured}),
+        ...(description===undefined?{}:{description}),
+        ...(logoUrl===undefined?{}:{logoUrl}),
       }});
     }
     const category=await tx.category.findUnique({where:{slug},select:{id:true,parentId:true}});
@@ -144,13 +155,16 @@ export async function updateProductTaxonomy(raw: unknown){
         }
       }else parentId=null;
     }
-    const {visible,archived,sortOrder}=patch as {
+    const {visible,archived,sortOrder,description,imageUrl}=patch as {
       visible?:boolean;archived?:boolean;sortOrder?:number;
+      description?:string|null;imageUrl?:string|null;
     };
     return tx.category.update({where:{id:category.id},data:{
       ...(visible===undefined?{}:{visible}),
       ...(archived===undefined?{}:{archived}),
       ...(sortOrder===undefined?{}:{sortOrder}),
+      ...(description===undefined?{}:{description}),
+      ...(imageUrl===undefined?{}:{imageUrl}),
       ...(parentId===undefined?{}:{parentId}),
     }});
   });
