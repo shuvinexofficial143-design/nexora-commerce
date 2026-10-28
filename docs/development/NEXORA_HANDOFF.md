@@ -2,32 +2,32 @@
 
 **Date:** 2026-10-28
 **Repository:** `shuvinexofficial143-design/nexora-commerce`
-**WRITE BRANCH ONLY:** `feature/nexora-gift-store`
-**CI-verified functional HEAD:** `5359f951033c8ee57ae18332613ec78915a5ae3f`
-**CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40679888720 — 4/4 PASS.
-**Owner Chromium E2E:** **14 PASS / 0 FAIL**. Documentation-only HEAD postdates the tested functional commit; check latest remote HEAD + exact CI before next changes.
+**AUTHORIZED WRITE BRANCH ONLY:** `feature/nexora-gift-store`
+**CI-verified functional commit:** `443be5ec2edee780e0c9f5d658f1e1366f91e70e`
+**GitHub Actions:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40682281288 — **4/4 PASS**, Owner Chromium **16 PASS / 0 FAIL**.
+This doc-only commit follows the tested functional commit. On every new `next` read latest remote SHA + CI again.
 
-## Current milestone
+## Milestone 2026-10-28 — Homepage Order and Publish Validation
 
-- Homepage CMS: `components/admin/banner-preview.tsx` (Desktop/Mobile live unsaved preview), `components/admin/cms-hero-editor.tsx` (create/edit, error handling, Archive/Restore as Draft, confirm and busy guards), `lib/home-banners.ts` (image HTTPS allowlist, internal CTA validation, integer ordering and forced unpublished if archived); `tests/home-banner-validation.test.ts` for strict backend checks.
-- `scripts/qa/admin-browser-e2e.mjs` added 4 verified steps:
-  1. Explicit **QA-only** PostgreSQL trigger on `AdminActivityLog` rejects inserted PRODUCT_BULK_FEATURE record, API gives 500 and product mutation is rolled back; trigger function removed on cleanup.
-  2. Two simultaneous bulk operations using one selected Product revision: exactly one 200 and one 409; only one product state field changes.
-  3. Media Sign API with no Cloudinary configuration -> 503, Browser displays error. Fake signature and fully Playwright-intercepted Cloudinary HTTP error -> UI error, no added image. **No real provider calls.**
-  4. Real Owner Browser Homepage Banner draft preview (no persistence), create, publish, archive and restore; Restore remains Draft.
-- Prior Admin Owner Product CRUD, dynamic attributes, gallery, category/brand full lifecycle, bulk UI, checkout, front-end storefront tests all preserved. **14 PASS / 0 FAIL** at `5359f951033c8ee57ae18332613ec78915a5ae3f`.
-- Exact-HEAD GitHub workflow 4/4 green including Security/TypeScript/ESLint/build and disposable Postgres.
+- `lib/admin/product-publish.ts`: `assertProductPublishable` validates currently assigned active/visible Category, active Brand and current Category Required Attributes *from persisted Product state* inside Prisma transaction. Uncategorized products remain possible per existing catalog semantics.
+- `lib/admin/product-admin.ts`: on resultant `ACTIVE` status, call `assertProductPublishable` inside update transaction. Even status-only PATCH now enforces current required attributes and classifications. No mutation if validation fails.
+- `lib/admin/product-bulk.ts`: identical eligibility for Bulk `PUBLISH` inside existing atomic update/audit transaction; unchanged operations still no-op.
+- `tests/integration/admin-catalog-postgres.test.ts`: disposable-DB added required Attribute after Product creation, then Single/Bulk Publish denied until fixed; Brand deactivation and Category hiding separately deny publish; after restoring values status transition succeeds.
+- `lib/admin/banner-order.ts` + `app/api/admin-app/banners/reorder/route.ts`: POST owner only; 2–100 complete active list of unique IDs with current ISO `updatedAt` revisions. Transaction validates every revision and archives, updates all rank indexes 0..N-1 atomically. Stale returns 409, invalid 400, unauthorized 401. Never resort archived banners.
+- `components/admin/cms-hero-editor.tsx`: Arrow reorder controls, loading guard, actual response and recovery, signed image upload UI for Desktop and Mobile. If more than 100 unarchived banners, controls fail closed.
+- `tests/banner-reorder.test.ts`: validates strict request parser. `scripts/qa/admin-browser-e2e.mjs`: 2 new tests for real CMS sort/revision/rejection/Upload error and new Required Attribute Publish Single/Bulk validation.
+- CI exact functional commit `443be5ec2edee780e0c9f5d658f1e1366f91e70e` 4/4 green with 16 passing Owner browser tests. Previous Category/Brand, Product CRUD, Bulk, QA rollback, checkout/stock, Homepage CRUD remain PASS.
 
-## Mandatory limits
-- Only `feature/nexora-gift-store`; do not modify, merge, deploy Nexora 3 `feature/nexora-gpt-customer-ops` or QA `feature/nexora-qa-automation`.
-- No production Vercel deployment, live DB migrations, Cashfree/refund actions, real Cloudinary uploads, inventory edits or checkout reservation contract changes without express authorization.
-- `prisma/reviewed-migrations/20261028_admin_observability.sql` is reviewed but **not deployed to production**; Admin raw audit/notifications schema must be applied with approved process, backup and checks before real Owner Product writes.
-- Other catalog/banner schema migrations also not applied to production.
-- Never hide failed audit writes, never fake browser/provider verification, maintain fail-closed `nexora_qa` isolation and GitHub CI exact-HEAD green.
+## Known limitations / blockers
 
-## Next `next`
+- Single/Bulk eligibility rejection is currently safe against data change but surfaced to browser as existing generic HTTP 500 (not user-friendly typed HTTP 400); consider error classification with tests on next increment.
+- External Cloudinary upload SUCCESS has NOT been exercised; failed/missing-credential paths alone tested in isolated QA.
+- Reviewed migration SQL: `prisma/reviewed-migrations/20261028_admin_observability.sql` and previous HomepageBanner/catalog structures are NOT deployed to production. Do not run production Prisma db push/migrations automatically. Real Admin Owner writes require owner-approved backups and migration runbook.
 
-1. Verify latest branch SHA, CI jobs and this handoff.
-2. Continue Admin Homepage CMS content management including sorting and banner preview/failed media states, or strengthen Product Admin required-attribute publish path, transactional audit and controlled test evidence.
-3. Add meaningful real code, Owner browser/API regressions and update Progress/Handoff; CI PASS before claiming.
-4. No production deploy or real secret-consuming provider checks without explicit authorization.
+## Rules for next NEXT
+
+1. Fetch latest exact HEAD, CI status and this handoff.
+2. Prioritize typed Owner API validation errors for Product publish (400 vs generic 500), re-check audit contract, add real Browser/API regression for correct error without leaking data.
+3. Consider Home CMS media uploads preview validation and further optimistic concurrency, and accessible sorting states.
+4. Commit meaningful real code+tests only to `feature/nexora-gift-store`, update both progress/handoff, verify exact-head GitHub CI.
+5. No production deploy, no live database migration, no real Cloudinary or payments/refunds, no changes to Nexora 3 or QA branches.

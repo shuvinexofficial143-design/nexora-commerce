@@ -1,5 +1,37 @@
 # NEXORA 4 — Admin Development Progress
 
+## 28 October 2026 — Publish Eligibility Guard and Atomic Homepage Banner Sorting
+
+**WRITE BRANCH ONLY:** `feature/nexora-gift-store`
+**CI-VERIFIED functional HEAD:** `443be5ec2edee780e0c9f5d658f1e1366f91e70e`
+**GitHub Actions:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40682281288 — **4/4 jobs SUCCESS**.
+**Real Owner Chromium + disposable PostgreSQL:** **16 PASS / 0 FAIL**.
+
+### Delivered code
+- `lib/admin/product-publish.ts` (NEW): verify an assigned Category is active/visible, an assigned Brand is active, and persisted effective Category attributes satisfy all *currently active* required definitions before publishing.
+- `lib/admin/product-admin.ts`: applies eligibility inside the same PostgreSQL Product update transaction on resulting ACTIVE status, so direct single-item PATCH cannot skip it.
+- `lib/admin/product-bulk.ts`: enforces the same validation inside transactional Bulk PUBLISH. Failed eligibility rolls back every selected Product change and its audit.
+- `tests/integration/admin-catalog-postgres.test.ts`: new isolated PostgreSQL regression for newly required attributes, inactive Brand, hidden Category, failed Single/Bulk Publish with no writes, and successful publishing after correction. Existing uncategorized-product contract remains supported.
+- `lib/admin/banner-order.ts` and `app/api/admin-app/banners/reorder/route.ts` (NEW): strict owner-only atomic reorder of the complete active banner set, 2–100 unique revision-locked IDs, conflict returns HTTP 409, bad request HTTP 400, unauthenticated HTTP 401; archives excluded, rank normalized to a dense integer order.
+- `components/admin/cms-hero-editor.tsx`: reorder Up/Down UI with busy/error/success states, disabled first/last/too-many controls, Owner signed Image Upload buttons for Desktop and Mobile, no Cloudinary secret exposure in the browser.
+- `tests/banner-reorder.test.ts`: malicious fields, duplicate IDs, invalid revision and bounds regression.
+- `scripts/qa/admin-browser-e2e.mjs`: two more verified real Chromium cases: Homepage sorting, stale revision conflict, guest rejection, Banner Upload missing-Cloudinary failure; Single/Bulk Publish rejects a previously valid product after a new required Category attribute is added, then succeeds once fixed.
+
+### Verified
+- Unit, security, TypeScript, ESLint and production build without deploy: PASS.
+- Disposable PostgreSQL transaction/checkout and new Admin catalog integration: PASS.
+- Local HTTP desktop/mobile Storefront Chromium: PASS.
+- Owner-authenticated Admin Chromium and disposable PostgreSQL: **16 PASS / 0 FAIL**.
+- No production deployment, no live migrations, no live provider upload or Cashfree activity. Nexora 3 and QA branches untouched.
+
+### Remaining restrictions and next steps
+- Admin Product validation failures currently return generic HTTP 500 through existing `adminUnexpected`; statuses remain safe, but targeted Owner-friendly 400 errors need explicit API error typing in a future milestone.
+- Production reviewed HomepageBanner/catalog schema and raw AdminActivityLog/AdminNotification migrations remain **not applied**. Real Owner writes require controlled migration approval/backups.
+- External Cloudinary success path unverified; this turn used the fail-closed missing-credentials path only.
+- Add audit-safe publish errors and in-flight media upload handling; verify public Homepage ordering and invalid CMS media fallback more deeply before final deployment approval.
+
+## Earlier Milestones
+
 ## 28 October 2026 — CMS Hero Preview, Audit Rollback and Concurrent Bulk Safety
 
 **Write branch:** `feature/nexora-gift-store`
