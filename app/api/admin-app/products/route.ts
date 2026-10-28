@@ -1,5 +1,5 @@
 import { getPrisma } from "@/lib/db/prisma";
-import { getYouTubeVideoId, isDirectVideoUrl } from "@/lib/product-media";
+import { serializeAdminProductListRow } from "@/lib/admin/product-list-row";
 import {
   adminFailure,
   adminJson,
@@ -23,11 +23,12 @@ export async function GET(request: Request) {
       orderBy: { updatedAt: "desc" },
       take: 100,
       include: {
-        brand: { select: { name: true } },
-        category: { select: { name: true } },
+        brand: { select: { name: true, slug: true } },
+        category: { select: { name: true, slug: true } },
         inventory: {
           select: { onHand: true, reserved: true },
         },
+        variants: { select: { priceMinor: true, onHand: true, reserved: true, active: true } },
         images: {
           orderBy: { sortOrder: "asc" },
           select: { url: true, alt: true, sortOrder: true },
@@ -35,34 +36,7 @@ export async function GET(request: Request) {
       },
     });
 
-    return adminJson(
-      request,
-      products.map((product) => {
-        const video = product.images.find(
-          (item) => isDirectVideoUrl(item.url) || Boolean(getYouTubeVideoId(item.url)),
-        );
-        const poster = product.images.find(
-          (item) => !isDirectVideoUrl(item.url) && !getYouTubeVideoId(item.url),
-        );
-
-        return {
-        id: product.id,
-        slug: product.slug,
-        sku: product.sku,
-        name: product.name,
-        priceMinor: product.priceMinor,
-        status: product.status,
-        brand: product.brand?.name ?? null,
-        category: product.category?.name ?? null,
-        onHand: product.inventory.reduce((sum, item) => sum + item.onHand, 0),
-        reserved: product.inventory.reduce((sum, item) => sum + item.reserved, 0),
-        videoUrl: video?.url ?? null,
-        posterUrl: poster?.url ?? null,
-        media: product.images,
-        updatedAt: product.updatedAt.toISOString(),
-      };
-      }),
-    );
+    return adminJson(request, products.map(serializeAdminProductListRow));
   } catch (error) {
     return adminUnexpected(request, error);
   }

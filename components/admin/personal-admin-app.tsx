@@ -53,6 +53,11 @@ type ProductRow = {
   sku: string;
   name: string;
   priceMinor: number;
+  effectivePriceMinor?: number | null;
+  availableStock?: number;
+  stockSource?: "sku" | "warehouse";
+  activeVariantCount?: number;
+  totalVariantCount?: number;
   status: string;
   brand: string | null;
   category: string | null;
@@ -420,7 +425,22 @@ function Products() {
                   <div className="flex items-center gap-2">
                     {product.videoUrl ? <span className="rounded-full bg-[#d7ff47] px-2.5 py-1 text-[10px] font-black">VIDEO</span> : null}
                     <span className="rounded-full bg-black/5 px-2.5 py-1 text-[10px] font-black">{product.status}</span>
-                    <span className="font-black">{money(product.priceMinor)}</span>
+                    {product.stockSource === "sku" ? (
+                      <span className="text-right text-xs font-black">
+                        {product.effectivePriceMinor === null ? "No active SKU" :
+                          "From " + money(product.effectivePriceMinor ?? product.priceMinor)}
+                        <span className="block text-[10px] text-black/45">
+                          SKU stock {product.availableStock ?? 0} · Active {product.activeVariantCount ?? 0}/{product.totalVariantCount ?? 0}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-right text-xs font-black">
+                        {money(product.priceMinor)}
+                        <span className="block text-[10px] text-black/45">
+                          Available {product.availableStock ?? Math.max(0, product.onHand - product.reserved)}
+                        </span>
+                      </span>
+                    )}
                   </div>
                 </div>
               </summary>

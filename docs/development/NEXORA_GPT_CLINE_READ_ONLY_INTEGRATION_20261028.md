@@ -50,3 +50,6 @@ These are not equivalent products. A merged schema must retain both sets; otherw
 
 On GPT branch alone, introducing a read-only checkout-attempt recovery route. Input is an existing high-entropy Idempotency-Key and exact checkout email; result exposes ONLY order number/status/payment method/status, not customer address or items. This is a bearer-capability-style recovery shortcut; full details still require separate email OTP tracking. This route never creates users, orders, reservations or payment sessions.
 No Cline code was changed or copied here. Return/refund work remains paused.
+
+## Addendum — GPT-side compatibility improvements (28 Oct)
+The GPT-only Admin Products response now also supplies the Cline-readable description, compareAtMinor, featured, brandSlug and categorySlug fields using the existing GPT Prisma relations. It adds SKU-aware stockSource/availableStock/activeVariantCount/totalVariantCount/effectivePriceMinor while retaining legacy onHand/reserved and base price for admin editing. This narrows API response divergence, NOT Prisma model divergence: Cline hierarchical Category, Brand flags, AttributeDefinition and HomepageBanner remain absent on GPT. Neither branch has been merged or written by the other. Do not infer staging or merged correctness from branch-local contract tests.

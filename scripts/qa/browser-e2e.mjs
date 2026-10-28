@@ -114,6 +114,100 @@ try {
         await page.getByText("Enter a valid email address for order updates.").waitFor();
         assert.equal(new URL(page.url()).pathname, "/checkout");
       });
+
+      // Mock ONLY the recovery lookup. All real order-create/payment endpoints
+      // remain untouched and MUST NOT be called by these read-only test flows.
+      const attempt = { fingerprint: "a".repeat(64),
+        key: "4d55ebaa-530e-4e57-a3b2-007ab9b43311", email: "recovery@example.invalid" };
+      const storageKey = "nexora-checkout-attempt-v1";
+      async function setAttempt(value) {
+        await page.goto(new URL("/checkout", base).href, { waitUntil: "domcontentloaded" });
+        await page.evaluate(([key, val]) => {
+          if (val === null) sessionStorage.removeItem(key);
+          else sessionStorage.setItem(key, JSON.stringify(val));
+        }, [storageKey, value]);
+      }
+      await verify(name + " recovered cancelled order uses OTP tracking, not false success", page, async () => {
+        let recoveryReads = 0;
+        let orderPosts = 0;
+        await page.route("**/api/backend/orders/recover", async route => {
+          recoveryReads++;
+          assert.equal(route.request().method(), "POST");
+          assert.deepEqual(route.request().postDataJSON(), { key: attempt.key, email: attempt.email });
+          await route.fulfill({ status: 200, contentType: "application/json",
+            headers: { "cache-control": "private, no-store" }, body: JSON.stringify({
+              ok: true, data: { orderNumber: "NX-20261028-ABCD1234",
+                status: "CANCELLED", paymentMethod: "cod", paymentStatus: "FAILED" },
+            }) });
+        });
+        await page.route("**/api/backend/orders", route => {
+          if (route.request().method() === "POST") orderPosts++;
+          return route.abort();
+        });
+        await setAttempt(attempt);
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await page.getByText("Existing checkout attempt detected").waitFor();
+        await page.getByText(/Order NX-20261028-ABCD1234/).waitFor();
+        await page.getByText(/This order already exists/).waitFor();
+        const verifyLink = page.getByRole("link", { name: "Verify order status" });
+        assert.equal(await verifyLink.getAttribute("href"), "/track-order");
+        assert.equal(await page.getByRole("button", { name: /^Resume payment$/ }).count(), 0);
+        await page.getByRole("button", { name: /Resolve previous checkout first/ }).waitFor();
+        assert.equal(await page.getByRole("button", { name: /Resolve previous checkout first/ }).isDisabled(), true);
+        assert.ok(recoveryReads >= 1);
+        assert.equal(orderPosts, 0, "Recovery must not create a second order");
+        await page.unroute("**/api/backend/orders");
+        await page.unroute("**/api/backend/orders/recover");
+      });
+      await verify(name + " unknown checkout attempt remains blocked until explicit separation", page, async () => {
+        let recoveryReads = 0;
+        await page.route("**/api/backend/orders/recover", async route => {
+          recoveryReads++;
+          await route.fulfill({ status: 404, contentType: "application/json",
+            body: JSON.stringify({ ok: false, error: "No completed order matches this checkout attempt." }) });
+        });
+        await setAttempt(attempt);
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await page.getByText(/No completed order is visible yet/).waitFor();
+        assert.equal(await page.getByRole("button", { name: /Resolve previous checkout first/ }).isDisabled(), true);
+        assert.equal(await page.getByRole("button", { name: /Retry exact same order safely/ }).count(), 0);
+        await page.getByRole("button", { name: "Check previous attempt" }).click();
+        await page.getByText(/No completed order is visible yet/).waitFor();
+        assert.ok(recoveryReads >= 2, "Manual refresh must actually call server");
+        await page.getByRole("button", { name: "Start separate checkout" }).click();
+        const stored = await page.evaluate(key => sessionStorage.getItem(key), storageKey);
+        assert.equal(stored, null, "Explicit separate checkout must revoke old local key");
+        assert.equal(await page.getByRole("button", { name: /Resolve previous checkout first/ }).count(), 0);
+        await page.unroute("**/api/backend/orders/recover");
+      });
+      await verify(name + " recovery service failure fails closed with no new order", page, async () => {
+        await page.route("**/api/backend/orders/recover", route => route.fulfill({
+          status: 503, contentType: "application/json",
+          body: JSON.stringify({ ok: false, error: "Service unavailable." }),
+        }));
+        await setAttempt(attempt);
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await page.getByText(/previous checkout could not be verified/i).waitFor();
+        assert.equal(await page.getByRole("button", { name: /Resolve previous checkout first/ }).isDisabled(), true);
+        assert.equal(await page.getByRole("button", { name: /Retry exact same order safely/ }).count(), 0);
+        await page.unroute("**/api/backend/orders/recover");
+      });
+      await verify(name + " corrupted checkout attempt is discarded without recovery request", page, async () => {
+        let recoveryReads = 0;
+        await page.route("**/api/backend/orders/recover", async route => {
+          recoveryReads++;
+          await route.abort();
+        });
+        await setAttempt({ ...attempt, key: "../invalid" });
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await page.getByText("Live price & stock verification").waitFor();
+        await page.waitForTimeout(250);
+        assert.equal(recoveryReads, 0);
+        assert.equal(await page.getByText("Existing checkout attempt detected").count(), 0);
+        await page.evaluate(key => sessionStorage.removeItem(key), storageKey);
+        await page.unroute("**/api/backend/orders/recover");
+      });
+
     } finally {
       await context.close();
     }

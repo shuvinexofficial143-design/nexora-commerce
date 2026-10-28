@@ -204,9 +204,8 @@ export function CheckoutPageClient() {
           {recoveredOrder.paymentMethod === "cashfree" && recoveredOrder.paymentStatus !== "PAID" ?
             <button type="button" disabled={placing} onClick={() => void resumeRecoveredPayment()}
               className="rounded-full bg-black px-4 py-2 font-black text-white disabled:opacity-50">Resume payment</button> : null}
-          <Link href={recoveredOrder.paymentMethod === "cod" ?
-            "/checkout/success?order=" + encodeURIComponent(recoveredOrder.orderNumber) : "/track-order"}
-            className="font-bold underline underline-offset-2">View existing order</Link>
+          <Link href="/track-order"
+            className="font-bold underline underline-offset-2">Verify order status</Link>
         </div>
       </> : <>
         {attemptError ? <p className="mt-2 font-semibold text-red-800">{attemptError}</p> : null}

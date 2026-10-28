@@ -299,3 +299,12 @@ Continue actual customer-visible website capability and QA; preserve Cline's ind
 - Same-tab retry sends the EXACT preserved original payload with SAME key, including after original stock was reserved. Server uniqueness and existing transaction replay avoid duplicate order and stock reservations. Recovery can resume existing Cashfree payment by order reference without calling Create Order.
 - Added pure request validation and disposable PostgreSQL tests for positive lookup, no side effects, wrong key/email, unknown user, HTTP no-store and true same-key replay.
 - Read-only Cline schema/Admin compatibility review: docs/development/NEXORA_GPT_CLINE_READ_ONLY_INTEGRATION_20261028.md. No cross-branch edits, merges, schema change, migrations, payments or production deployment.
+
+## 28 October 2026 — Recovery Chromium Regression & Admin SKU/Cline Response Parity
+
+**Implementation on isolated GPT branch; verify exact HEAD CI before calling verified.**
+- Added four real localhost Chromium recovery checks on BOTH desktop and mobile: simulated cancelled existing COD order is never mislabeled as a fresh success; simulated unknown 404 remains blocked until explicit separate checkout; simulated 503 service failure fails closed; tampered session keys never trigger recovery fetch. No live order create, payment or external calls are made in the browser tests.
+- Changed recovered COD/status link to the existing email-OTP /track-order page, not an unverified /checkout/success claim; legacy hosted payment recovery remains separate.
+- Admin Products GET now includes Cline-overlap metadata supported by GPT schema (description, compareAtMinor, featured, categorySlug, brandSlug) without touching Cline branch. A typed serializer preserves legacy base product/warehouse fields for editing but explicitly reports SKU-sourced vs warehouse-sourced sellable stock, active/total variant counts and minimum active SKU effective price.
+- Admin Products list now shows SKU available count / active variants and saleable starting price (or No active SKU); it does not falsely present base warehouse stock as SKU availability. Added pure tests for SKU reservations, disabled variants, negative-bin clamping and Cline-compatible metadata.
+- Remaining: true end-to-end integrated Cline+GPT Prisma schema, Category/Brand visibility filtering, owner-approved staging with published products and live payments. No branch merge, schema migration, deploy, real order, refund or return.
