@@ -27,7 +27,7 @@ export async function reconcileOrder(
       baseDemand.set(item.productId, (baseDemand.get(item.productId) ?? 0) + item.quantity);
     }
   }
-  if (!oldMovement && baseDemand.size) {
+  // A partially settled order must never be silently accepted as completed.\n  // Transactional callers serialize on the Order row and can retry only\n  // unchanged terminal statuses (which do not call this function).\n  if (oldMovement && baseDemand.size) throw new Error("Order already has base stock settlement; manual reconciliation required.");\n  if (variantSettled && variantDemand.size) throw new Error("Order already has SKU settlement; manual reconciliation required.");\n  if (baseDemand.size) {
     const reserves = await tx.inventoryMovement.findMany({
       where: { reference: order.orderNumber, type: "RESERVE" },
       orderBy: [{ productId: "asc" }, { createdAt: "asc" }, { id: "asc" }],
@@ -64,7 +64,7 @@ export async function reconcileOrder(
     }
   }
 
-  if (!variantSettled && variantDemand.size) {
+  if (variantDemand.size) {
     const reserves = await tx.productVariantMovement.findMany({
       where: { reference: order.orderNumber, type: "RESERVE" },
     });

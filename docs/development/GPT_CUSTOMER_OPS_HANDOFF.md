@@ -253,3 +253,11 @@ Owner requested coding only; **NO VERCEL deployment** and no Production/staging 
 - Existing priced SKU variants keep their independent variant stock path; no parent-stock double reservation.
 - Exact new HEAD CI remains mandatory; do not treat this as production-ready until migration/schema and end-to-end staging checks are separately approved.
 - **Verification:** exact code commit `c9c7c6290fa2e637f07fb87d8fe2f6377444efb4`, GitHub Actions run [40713212969](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40713212969) completed **SUCCESS 4/4 jobs, 0 failures**: isolated PostgreSQL integration, Unit/TypeScript/ESLint/Build/Security, customer Chromium and authenticated Owner Admin + local COD Chromium. This is disposable QA evidence only, not live staging/production readiness.
+
+
+## 28 October 2026 — Admin Order Status Concurrency + Inventory Reconciliation Safety (CI pending)
+- All Admin Order status PATCH requests now share **one verified owner-authenticated transition handler**, including the detail endpoint that previously bypassed reservation reconciliation and directly changed status.
+- Centralized transaction obtains PostgreSQL `Order ... FOR UPDATE` row lock BEFORE reading current status or items. Order state checks, base/SKU settlement, status update and `ORDER_STATUS_UPDATE` audit insert commit/rollback together. Concurrent delivery/cancellation or double-click requests serialize; unchanged replays create no new movement, audit, email or notification.
+- Strict monotonic fulfillment statuses and Cashfree-paid gate remain enforced. Generic PATCH rejects `RETURN_REQUESTED`, `RETURNED`, `REFUNDED` until dedicated return/refund workflows exist. Legacy ambiguous partially settled orders fail closed for manual investigation rather than silently double-settling.
+- Added pure transition and same-handler contract tests, plus disposable PostgreSQL concurrent cancellation/delivery, double-delivery, mixed legacy+SKU stock, and forced audit rollback regressions. No schema migration or production/remote payments.
+- **CI PENDING**: mark this code verified only after exact code commit's four GitHub jobs pass. Keep admin/QA/main branches untouched; no Vercel deployment.
