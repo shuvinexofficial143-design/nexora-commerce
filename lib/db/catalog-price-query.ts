@@ -1,6 +1,7 @@
 import type { Prisma as PrismaType } from "@/generated/prisma/client";
 import { Prisma } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/db/prisma";
+import type { AttributeFilter } from "@/lib/storefront/attribute-filters";
 
 export type CatalogStockFilter = "available" | "low-stock" | "out-of-stock";
 
@@ -20,6 +21,7 @@ export async function findCatalogPricePage(input: {
   categories: string[];
   brands: string[];
   eligibleCategoryIds: string[];
+  attributeFilters?:AttributeFilter[];
   minPriceMinor?: number;
   maxPriceMinor?: number;
   minRating?: number;
@@ -60,6 +62,25 @@ export async function findCatalogPricePage(input: {
   }
   if (input.minRating !== undefined) {
     conditions.push(Prisma.sql`p."rating" >= ${input.minRating}`);
+  }
+  // Active typed definition + category-specific JSON values before paging.
+  for(const f of input.attributeFilters??[]){
+    const scalar=Prisma.sql`(p."attributes" ->> ${f.slug}) IN (${Prisma.join(f.values)})`;
+    const multi=Prisma.sql`EXISTS (
+      SELECT 1 FROM jsonb_array_elements_text(
+        CASE WHEN jsonb_typeof(p."attributes" -> ${f.slug}) = 'array'
+          THEN p."attributes" -> ${f.slug} ELSE '[]'::jsonb END
+      ) AS chosen(value) WHERE chosen.value IN (${Prisma.join(f.values)})
+    )`;
+    conditions.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM "AttributeDefinition" ad
+      WHERE ad."categoryId" = p."categoryId" AND c."slug" = ${f.category}
+        AND ad."slug" = ${f.slug} AND ad."active" = TRUE
+        AND (
+          (ad."type" IN ('TEXT','NUMBER','BOOLEAN','SELECT','COLOR') AND ${scalar})
+          OR (ad."type" = 'MULTI_SELECT' AND ${multi})
+        )
+    )`);
   }
   if (input.minPriceMinor !== undefined) {
     conditions.push(Prisma.sql`COALESCE(priced."minPrice", p."priceMinor") >= ${input.minPriceMinor}`);

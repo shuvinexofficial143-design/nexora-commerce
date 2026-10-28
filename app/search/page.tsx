@@ -70,6 +70,8 @@ export default async function SearchPage({
               className={`rounded-full border px-4 py-2 text-sm font-bold ${availableOnly ? "border-black bg-black text-white" : "border-black/15 bg-white text-black"}`}>
               {availableOnly ? "✓ Available only · Clear filter" : "Show available products only"}
             </Link>
+            {!demoSearchEnabled()?<Link href={"/shop?q="+encodeURIComponent(query)}
+              className="rounded-full border border-black/15 bg-white px-4 py-2 text-sm font-bold">Advanced specification filters →</Link>:null}
             {demoSearchEnabled() ? <span className="text-xs font-medium text-black/50">Preview results only — stock not live.</span> : null}
           </nav>
         ) : null}

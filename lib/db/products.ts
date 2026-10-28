@@ -5,6 +5,7 @@ import { publicVariant } from "@/lib/commerce/product-variants";
 import { publicSpecifications } from "@/lib/admin/product-attributes";
 import { eligiblePublicCategoryIds, publicProductVisibilityWhere } from "@/lib/commerce/catalog-visibility";
 import { findCatalogPricePage, type CatalogStockFilter } from "@/lib/db/catalog-price-query";
+import type { AttributeFilter,PublicAttributeFacet } from "@/lib/storefront/attribute-filters";
 import type { Prisma } from "@/generated/prisma/client";
 
 export function serializeProduct(product: {
@@ -60,6 +61,8 @@ export type ProductListQuery = {
   brand?: string;
   categories?: string[];
   brands?: string[];
+  attributeFilters?:AttributeFilter[];
+  invalidAttributes?:boolean;
   minPriceMinor?: number;
   maxPriceMinor?: number;
   minRating?: number;
@@ -70,6 +73,9 @@ export type ProductListQuery = {
 };
 
 export async function listProducts(input: ProductListQuery) {
+  if(input.invalidAttributes)return {items:[] as BackendProduct[],total:0,
+    limit:Math.min(Math.max(Math.floor(input.limit??24),1),100),
+    offset:Math.max(0,input.offset??0)};
   const prisma = getPrisma();
   const eligibleIds = await eligiblePublicCategoryIds(prisma);
   const visibility = publicProductVisibilityWhere(eligibleIds);
@@ -105,10 +111,11 @@ export async function listProducts(input: ProductListQuery) {
     [{ featured: "desc" }, { createdAt: "desc" }, { id: "asc" }];
 
   // Stock and effective SKU price predicates must be applied BEFORE LIMIT.
-  if (input.stock || input.minPriceMinor !== undefined || input.maxPriceMinor !== undefined ||
+  if (input.attributeFilters?.length || input.stock || input.minPriceMinor !== undefined || input.maxPriceMinor !== undefined ||
       input.sort === "price-low" || input.sort === "price-high") {
     const page = await findCatalogPricePage({
       query, categories, brands, eligibleCategoryIds: eligibleIds,
+      attributeFilters:input.attributeFilters,
       stock: input.stock,
       minPriceMinor: input.minPriceMinor,
       maxPriceMinor: input.maxPriceMinor,
@@ -159,4 +166,36 @@ export async function getProductBySlug(slug: string) {
   const product = await prisma.product.findFirst({ where: {
     slug, status: "ACTIVE", AND: [publicProductVisibilityWhere(visibleIds)] }, include });
   return product ? serializeProduct(product) : null;
+}
+
+
+/** Real owner-defined facets from eligible, published categories only.
+ * Avoid hardcoding RAM, color or material. Free text and numeric specifications
+ * allow exact-value filters; select values come from approved definitions.
+ */
+export async function listPublicAttributeFacets():Promise<PublicAttributeFacet[]>{
+  const prisma=getPrisma();
+  const visibleIds=await eligiblePublicCategoryIds(prisma);
+  if(!visibleIds.length)return [];
+  const definitions=await prisma.attributeDefinition.findMany({
+    where:{
+      categoryId:{in:visibleIds},active:true,
+      type:{in:["SELECT","MULTI_SELECT","COLOR","BOOLEAN","TEXT","NUMBER"]},
+      category:{products:{some:{
+        status:"ACTIVE",AND:[publicProductVisibilityWhere(visibleIds)],
+      }}},
+    },
+    select:{
+      slug:true,name:true,type:true,options:true,
+      category:{select:{slug:true}},
+    },
+    orderBy:[{categoryId:"asc"},{sortOrder:"asc"},{name:"asc"}],
+    take:100,
+  });
+  return definitions.map(d=>({
+    category:d.category.slug,slug:d.slug,label:d.name,
+    type:d.type as PublicAttributeFacet["type"],
+    options:d.type==="BOOLEAN"?["true","false"]:
+      Array.isArray(d.options)?d.options.filter((v):v is string=>typeof v==="string").slice(0,40):[],
+  }));
 }

@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   try {
     const params = new URL(request.url).searchParams;
     const entries: Record<string, string | string[]> = {};
-    for (const key of ["q", "category", "brand", "sort", "min", "max", "rating", "page"]) {
+    for (const key of ["q", "category", "brand", "sort", "min", "max", "rating", "page", "stock", "attr"]) {
       const all = params.getAll(key);
       if (all.length) entries[key] = all.length === 1 ? all[0] : all;
     }

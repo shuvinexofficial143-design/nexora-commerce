@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { ProductGrid } from "@/components/catalog/product-grid";
+import { AttributeFilterFields } from "@/components/catalog/attribute-filter-fields";
+import type { PublicAttributeFacet } from "@/lib/storefront/attribute-filters";
 import { mapBackendProductToCatalog } from "@/lib/catalog-backend";
 import { catalogPageHref, type LiveCatalogQuery } from "@/lib/storefront/catalog-query";
 import type { BackendProduct } from "@/types/backend";
@@ -10,7 +12,7 @@ export type LiveCatalogData = {
   total: number;
   limit: number;
   offset: number;
-  facets: { categories: Facet[]; brands: Facet[] };
+  facets: { categories: Facet[]; brands: Facet[]; attributes?:PublicAttributeFacet[] };
 };
 const money = (amount: number) => (amount / 100).toFixed(0);
 export function LiveCatalogView({
@@ -31,6 +33,7 @@ export function LiveCatalogView({
       <aside className="min-w-0 rounded-[24px] border border-black/10 bg-white p-5 lg:sticky lg:top-28 lg:self-start">
         <h2 className="text-lg font-black">Find your products</h2>
         <p className="mt-1 text-xs text-black/50">Filter products available in our live catalog.</p>
+        {query.invalidAttributes?<p role="alert" className="mt-2 text-xs font-bold text-red-700">Invalid specification filter. Reset to show products.</p>:null}
         <form method="get" action={path} className="mt-5 space-y-5">
           <label className="block text-xs font-black">Search products
             <input type="search" name="q" maxLength={100} defaultValue={query.query}
@@ -60,6 +63,8 @@ export function LiveCatalogView({
               {!data.facets.brands.length && <p className="text-xs text-black/40">No active brands yet.</p>}
             </div>
           </fieldset>
+          <AttributeFilterFields facets={data.facets.attributes??[]}
+            initial={query.attributeFilters} categories={query.categories}/>
           <fieldset>
             <legend className="text-xs font-black uppercase tracking-wide text-black/60">Price range (₹)</legend>
             <div className="mt-2 grid grid-cols-2 gap-2">

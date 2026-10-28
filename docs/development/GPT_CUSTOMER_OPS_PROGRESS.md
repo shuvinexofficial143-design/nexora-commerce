@@ -372,3 +372,16 @@ This milestone intentionally makes **NO VERCEL deployment**. User explicitly dir
 - Public product serialization now presents only definitions explicitly ACTIVE, with stored valid attribute values as Specification rows. No guessed material, RAM, color, warranty or delivery claims. Normal SKU price/stock selection and order reservation logic unchanged.
 - Added pure validation tests, anonymous-owner API tests, and isolated PostgreSQL transactional integration: add definitions, required activation checks, safe read display, invalid update rollback, category-switch cleanup, deactivate without database loss.
 - Cline/QA/main branches remain untouched. **A final explicit integration review is still needed** for Cline admin catalog editor, new Product Attributes, SKU/priced variant schema, categories and banners. This milestone requires exact-head CI verification; do not declare it verified before successful run.
+
+
+## 28 Oct 2026 — Advanced Attribute Filters and Product Search Facets (CI pending)
+
+Owner requested coding only; **NO VERCEL deployment** and no Production/staging DB writes. GPT branch only; Cline/QA/main unchanged.
+
+- Added strict repeated `attr=categorySlug.attributeSlug:value` URL contract with bounds (20 selections, 8 groups, 8 values per group), fail-closed malformed input and stable filter pagination.
+- SQL-based product filtering combines multiple values of same attribute with OR and different attribute groups with AND, scoped by exactly matching active `AttributeDefinition` and category slug. JSONB scalar typed values and MULTI_SELECT array membership support TEXT, NUMBER, BOOLEAN, SELECT, COLOR and MULTI_SELECT. The SQL filters before COUNT, SKU-effective-price, stock and LIMIT/OFFSET; no in-memory post-pagination count mismatch.
+- Live Shop adds owner-defined Attribute Filters (select/boolean multiple choice, exact TEXT/NUMBER), retains choices through URL; combines with Category, Brand, Stock, Price, Rating and Sorting.
+- Public attributes exposed only for eligible visible categories with active published products. Search Page links keyword queries to the Advanced Shop filters; public Products API now accepts the bounded `attr` and `stock` query parameters. Direct Search autocomplete/text search still uses its existing verified backend; attr filtering is exposed via /shop?q=... or /api/backend/products.
+- Pure parsing/URL roundtrip tests and isolated PostgreSQL fixtures test OR/AND matches, MULTI_SELECT, false BOOLEAN, exact material TEXT, filtered SQL price ordering/pagination, draft/hidden/brand and inactive-definition protections.
+- No production migration, Vercel deployment, real payment, unapproved Cline merge or branch change.
+- Confirm latest exact SHA TypeScript, ESLint, build, unit, DB and Chromium CI before declaring verified.

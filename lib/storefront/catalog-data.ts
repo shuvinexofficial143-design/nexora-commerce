@@ -1,4 +1,4 @@
-import { listProducts, listPublicCatalogFacets } from "@/lib/db/products";
+import { listProducts, listPublicCatalogFacets, listPublicAttributeFacets } from "@/lib/db/products";
 import { toProductListQuery, type LiveCatalogQuery } from "@/lib/storefront/catalog-query";
 
 export async function loadLiveCatalog(query: LiveCatalogQuery) {
@@ -10,6 +10,6 @@ export async function loadLiveCatalog(query: LiveCatalogQuery) {
     const finalPage = Math.max(1, Math.ceil(listing.total / listing.limit));
     listing = await listProducts({ ...input, offset: (finalPage - 1) * listing.limit });
   }
-  const facets = await listPublicCatalogFacets();
-  return { ...listing, facets };
+  const [facets,attributes] = await Promise.all([listPublicCatalogFacets(),listPublicAttributeFacets()]);
+  return { ...listing, facets:{...facets,attributes} };
 }

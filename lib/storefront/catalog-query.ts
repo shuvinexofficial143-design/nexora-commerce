@@ -1,4 +1,5 @@
 import type { ProductListQuery } from "@/lib/db/products";
+import { parseAttributeFilters,formatAttributeFilter,type AttributeFilter } from "@/lib/storefront/attribute-filters";
 
 const slugPattern = /^[a-z0-9][a-z0-9-]{0,63}$/;
 export type CatalogSearchParams = Record<string, string | string[] | undefined>;
@@ -12,6 +13,8 @@ export type LiveCatalogQuery = {
   stock: NonNullable<ProductListQuery["stock"]> | null;
   sort: NonNullable<ProductListQuery["sort"]>;
   page: number;
+  attributeFilters:AttributeFilter[];
+  invalidAttributes:boolean;
 };
 function all(params: CatalogSearchParams, name: string): string[] {
   const raw = params[name];
@@ -41,6 +44,8 @@ export function parseLiveCatalogQuery(params: CatalogSearchParams): LiveCatalogQ
   const maxPrice = money(params.max);
   const rawQ = Array.isArray(params.q) ? params.q[0] : params.q;
   const rawStock = Array.isArray(params.stock) ? params.stock[0] : params.stock;
+  const attrRaw=params.attr===undefined?[]:Array.isArray(params.attr)?params.attr:[params.attr];
+  const attrs=parseAttributeFilters(attrRaw);
   return {
     query: String(rawQ ?? "").trim().slice(0, 100),
     categories: [...new Set(all(params, "category"))],
@@ -51,11 +56,15 @@ export function parseLiveCatalogQuery(params: CatalogSearchParams): LiveCatalogQ
     stock: rawStock === "available" || rawStock === "low-stock" || rawStock === "out-of-stock" ? rawStock : null,
     sort: allowed.includes(rawSort ?? "") ? rawSort as LiveCatalogQuery["sort"] : "featured",
     page: rawPage && /^[1-9]\d{0,3}$/.test(rawPage) ? Math.min(Number(rawPage), 1000) : 1,
+    attributeFilters:attrs.filters,
+    invalidAttributes:attrs.invalid,
   };
 }
 export function toProductListQuery(query: LiveCatalogQuery, limit = 24): ProductListQuery {
   return {
     query: query.query || undefined,
+    attributeFilters:query.attributeFilters,
+    invalidAttributes:query.invalidAttributes,
     categories: query.categories,
     brands: query.brands,
     minPriceMinor: query.minPrice ?? undefined,
@@ -72,6 +81,8 @@ export function catalogPageHref(path: "/shop" | "/search", query: LiveCatalogQue
   if (query.query) params.set("q", query.query);
   for (const category of query.categories) params.append("category", category);
   for (const brand of query.brands) params.append("brand", brand);
+  for(const group of query.attributeFilters)for(const value of group.values)
+    params.append("attr",formatAttributeFilter(group,value));
   if (query.minPrice !== null) params.set("min", String(query.minPrice / 100));
   if (query.maxPrice !== null) params.set("max", String(query.maxPrice / 100));
   if (query.minRating !== null) params.set("rating", String(query.minRating));
