@@ -800,6 +800,95 @@ try {
     }
   });
 
+
+  await verify("warehouse-transfer-atomic-stock-history-audit-and-concurrent-reservations", async () => {
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+    const item = await product(ctx);
+    const from = "qa-xfer-from-" + suffix, to = "qa-xfer-to-" + suffix;
+    const sourceId = "qa-xfer-src-" + suffix, destId = "qa-xfer-dst-" + suffix;
+    const url = new URL("/api/admin-app/warehouses/transfer", base).href;
+    const send = (quantity) => ({ fromWarehouseId: from, toWarehouseId: to, productId: item.id,
+      quantity, note: "QA verified transfer" });
+    let triggerActive = false;
+    try {
+      for (const [id, code] of [[from, "QA-XFER-FROM-" + suffix.toUpperCase()], [to, "QA-XFER-TO-" + suffix.toUpperCase()]]) {
+        await client.query('INSERT INTO "Warehouse" ("id","code","name","city","state","active","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,true,now(),now())',
+          [id, code, "QA Transfer", "QA", "QA"]);
+      }
+      for (const [id, warehouse, onHand, reserved] of [
+        [sourceId, from, 12, 3], [destId, to, 5, 1],
+      ]) {
+        await client.query('INSERT INTO "InventoryItem" ("id","productId","warehouseId","onHand","reserved","reorderLevel","updatedAt") VALUES ($1,$2,$3,$4,$5,5,now())',
+          [id, item.id, warehouse, onHand, reserved]);
+      }
+      const guest = await browser.newContext();
+      try {
+        assert.equal((await guest.request.post(url, { data: send(3) })).status(), 401);
+      } finally { await guest.close(); }
+      for (const invalid of [
+        send("3"), send(0), send(1.2), send(100001), send(-1),
+        { ...send(2), toWarehouseId: from },
+        { ...send(2), fromWarehouseId: "missing" },
+      ]) {
+        const response = await ctx.request.post(url, { data: invalid });
+        assert.ok([400, 409].includes(response.status()), "Bad input or unavailable source must fail safely");
+      }
+      const tooMuch = await ctx.request.post(url, { data: send(10) });
+      assert.equal(tooMuch.status(), 409, "Reserved source stock is unavailable for transfer");
+
+      await client.query("CREATE FUNCTION qa_reject_transfer_audit() RETURNS trigger AS $qtransfer$ BEGIN RAISE EXCEPTION 'QA transfer audit rejected'; END; $qtransfer$ LANGUAGE plpgsql");
+      await client.query('CREATE TRIGGER qa_reject_transfer_audit_trg BEFORE INSERT ON "AdminActivityLog" FOR EACH ROW WHEN (NEW."action" = \'WAREHOUSE_TRANSFER\') EXECUTE FUNCTION qa_reject_transfer_audit()');
+      triggerActive = true;
+      const failed = await ctx.request.post(url, { data: send(4) });
+      assert.equal(failed.status(), 500, "Audit failure must roll back complete warehouse transfer");
+      assert.equal((await failed.json()).error, "Unexpected admin server error.", "Internal SQL error must stay private");
+      const stockAfterFail = await client.query('SELECT "warehouseId","onHand","reserved" FROM "InventoryItem" WHERE "id" IN ($1,$2)', [sourceId, destId]);
+      assert.equal(stockAfterFail.rows.find(r => r.warehouseId === from).onHand, 12);
+      assert.equal(stockAfterFail.rows.find(r => r.warehouseId === to).onHand, 5);
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "WarehouseTransfer" WHERE "fromWarehouseId" = $1', [from])).rows[0].n, 0);
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "InventoryMovement" WHERE "warehouseId" IN ($1,$2) AND "type" = $3', [from, to, "TRANSFER"])).rows[0].n, 0);
+      await client.query('DROP TRIGGER qa_reject_transfer_audit_trg ON "AdminActivityLog"');
+      await client.query("DROP FUNCTION qa_reject_transfer_audit()");
+      triggerActive = false;
+
+      const accepted = await api(ctx, "/api/admin-app/warehouses/transfer", "POST", send(4));
+      assert.ok(accepted.id, "Completed transfer ID must be returned");
+      const header = await client.query('SELECT "status","createdByUserId" FROM "WarehouseTransfer" WHERE "id" = $1', [accepted.id]);
+      assert.equal(header.rows[0].status, "COMPLETED", "Status must be a bound text value, not a quoted SQL identifier");
+      assert.ok(header.rows[0].createdByUserId);
+      assert.equal((await client.query('SELECT "quantity" FROM "WarehouseTransferItem" WHERE "transferId" = $1', [accepted.id])).rows[0].quantity, 4);
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "InventoryMovement" WHERE "reference" = $1', [accepted.id])).rows[0].n, 2);
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "AdminActivityLog" WHERE "action" = $1 AND "entityId" = $2', ["WAREHOUSE_TRANSFER", accepted.id])).rows[0].n, 1);
+
+      const concurrent = await Promise.all([ctx.request.post(url, { data: send(5) }), ctx.request.post(url, { data: send(5) })]);
+      const statuses = concurrent.map(x => x.status());
+      assert.ok(statuses.every(x => x === 201 || x === 409), "Concurrent transfers return success or stale-stock conflict");
+      assert.equal(statuses.filter(x => x === 201).length, 1, "Only one transfer can consume remaining unreserved stock");
+      const finalStock = await client.query('SELECT "warehouseId","onHand","reserved" FROM "InventoryItem" WHERE "id" IN ($1,$2)', [sourceId, destId]);
+      assert.equal(finalStock.rows.find(r => r.warehouseId === from).onHand, 3);
+      assert.equal(finalStock.rows.find(r => r.warehouseId === to).onHand, 14);
+      const transferRows = await client.query('SELECT "id" FROM "WarehouseTransfer" WHERE "fromWarehouseId" = $1 AND "toWarehouseId" = $2', [from,to]);
+      assert.equal(transferRows.rows.length, 2);
+      for (const row of transferRows.rows) {
+        assert.equal((await client.query('SELECT count(*)::int AS n FROM "AdminActivityLog" WHERE "entityId" = $1 AND "action" = $2', [row.id, "WAREHOUSE_TRANSFER"])).rows[0].n, 1);
+        assert.equal((await client.query('SELECT count(*)::int AS n FROM "InventoryMovement" WHERE "reference" = $1', [row.id])).rows[0].n, 2);
+      }
+    } finally {
+      if (triggerActive) await client.query('DROP TRIGGER IF EXISTS qa_reject_transfer_audit_trg ON "AdminActivityLog"');
+      await client.query("DROP FUNCTION IF EXISTS qa_reject_transfer_audit()");
+      const all = await client.query('SELECT "id" FROM "WarehouseTransfer" WHERE "fromWarehouseId" = $1 OR "toWarehouseId" = $1', [from]);
+      for (const row of all.rows) {
+        await client.query('DELETE FROM "InventoryMovement" WHERE "reference" = $1', [row.id]);
+        await client.query('DELETE FROM "AdminActivityLog" WHERE "action" = $1 AND "entityId" = $2', ["WAREHOUSE_TRANSFER", row.id]);
+      }
+      await client.query('DELETE FROM "WarehouseTransfer" WHERE "fromWarehouseId" = $1 OR "toWarehouseId" = $1', [from]);
+      await client.query('DELETE FROM "InventoryItem" WHERE "id" IN ($1,$2)', [sourceId,destId]);
+      await client.query('DELETE FROM "Warehouse" WHERE "id" IN ($1,$2)', [from,to]);
+      await client.end();
+    }
+  });
+
   await ctx.close();
 } finally {
   await browser.close();
