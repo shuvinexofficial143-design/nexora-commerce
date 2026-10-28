@@ -41,6 +41,29 @@ async function waitForLocalServer() {
   throw new Error("Local browser server did not become healthy within bounded polling time");
 }
 
+
+// Test rendered contrast, not just presence of Tailwind class attributes.
+// A global unlayered a{color:inherit} previously defeated text-white.
+async function assertButtonContrast(locator, minContrast = 7) {
+  const style = await locator.evaluate(element => {
+    const styles = getComputedStyle(element);
+    return { color: styles.color, background: styles.backgroundColor, text: element.textContent?.trim() };
+  });
+  const channel = value => {
+    const numbers = value.match(/[0-9.]+/g)?.slice(0,3).map(Number);
+    assert.ok(numbers?.length === 3, "Expected RGB CSS color: " + value);
+    const linear = numbers.map(v => {
+      const n = v / 255;
+      return n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4;
+    });
+    return linear[0]*.2126 + linear[1]*.7152 + linear[2]*.0722;
+  };
+  const fore = channel(style.color), back = channel(style.background);
+  const ratio = (Math.max(fore,back) + .05) / (Math.min(fore,back) + .05);
+  assert.ok(ratio >= minContrast, style.text + " contrast " + ratio.toFixed(2)
+    + " insufficient: " + JSON.stringify(style));
+}
+
 await waitForLocalServer();
 try {
   for (const [name, viewport] of [
@@ -52,6 +75,34 @@ try {
     page.setDefaultTimeout(10_000);
     page.setDefaultNavigationTimeout(20_000);
     try {
+      await verify(name + " empty-cart dark CTA visibly readable", page, async () => {
+        const response = await page.goto(new URL("/cart", base).href, { waitUntil: "domcontentloaded" });
+        assert.equal(response?.status(), 200);
+        const link = page.getByRole("link", { name: /Explore products/ }).first();
+        await link.waitFor();
+        assert.equal(await link.getAttribute("href"), "/shop");
+        await assertButtonContrast(link);
+      });
+      await verify(name + " unavailable-shop retry dark CTA visibly readable", page, async () => {
+        const response = await page.goto(new URL("/shop", base).href, { waitUntil: "domcontentloaded" });
+        assert.equal(response?.status(), 200);
+        const link = page.getByRole("link", { name: "Retry shop" });
+        await link.waitFor();
+        assert.equal(await link.getAttribute("href"), "/shop");
+        await assertButtonContrast(link);
+      });
+      await verify(name + " owner login input and accent CTA readable", page, async () => {
+        const response = await page.goto(new URL("/admin/login", base).href, { waitUntil: "domcontentloaded" });
+        assert.equal(response?.status(), 200);
+        await page.getByLabel("Password").waitFor();
+        const styles = await page.getByLabel("Password").evaluate(element => ({
+          color: getComputedStyle(element).color,
+          type: element.getAttribute("type"),
+        }));
+        assert.equal(styles.type, "password", "Admin password must remain masked.");
+        assert.equal(styles.color, "rgb(255, 255, 255)");
+        await assertButtonContrast(page.getByRole("button", { name: "Open admin panel" }), 10);
+      });
       await verify(name + " homepage render", page, async () => {
         const response = await page.goto(new URL("/", base).href, { waitUntil: "domcontentloaded" });
         assert.equal(response?.status(), 200);

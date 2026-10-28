@@ -61,7 +61,7 @@ export function PersonalAdminLogin() {
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 autoComplete="username"
-                className="mt-2 h-12 w-full rounded-2xl border border-white/15 bg-white/10 px-4 text-white outline-none placeholder:text-white/25 focus:border-[#d7ff47]"
+                className="mt-2 h-12 w-full rounded-2xl border border-white/15 bg-white/10 px-4 text-white outline-none placeholder:text-white/60 focus:border-[#d7ff47]"
                 placeholder="Owner username"
               />
             </label>
@@ -73,7 +73,7 @@ export function PersonalAdminLogin() {
                 onChange={(event) => setPassword(event.target.value)}
                 type="password"
                 autoComplete="current-password"
-                className="mt-2 h-12 w-full rounded-2xl border border-white/15 bg-white/10 px-4 text-white outline-none placeholder:text-white/25 focus:border-[#d7ff47]"
+                className="mt-2 h-12 w-full rounded-2xl border border-white/15 bg-white/10 px-4 text-white outline-none placeholder:text-white/60 focus:border-[#d7ff47]"
                 placeholder="••••••••"
               />
             </label>

@@ -48,6 +48,11 @@ export default async function ProductPage({ params }: PageProps) {
 
   return (
     <main className="pb-24 lg:pb-16">
+      {demoCatalogEnabled() ? <div role="status" className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8">
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950">
+          DEMO PREVIEW ONLY — sample product; live price, inventory and checkout are not configured.
+        </p>
+      </div> : null}
       <ProductBreadcrumbs product={product} />
 
       <section className="mx-auto grid max-w-7xl gap-3 px-4 pb-8 sm:gap-8 sm:px-6 sm:pb-14 lg:grid-cols-[1.08fr_.92fr] lg:gap-14 lg:px-8">

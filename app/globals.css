@@ -34,7 +34,12 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   text-rendering: optimizeLegibility;
 }
-a { color: inherit; text-decoration: none; }
+/* Anchor defaults must stay in Tailwind's base layer, not an unlayered
+   global rule: unlayered color:inherit overrides text-white, and unlayered
+   text-decoration:none overrides underline on links. */
+@layer base {
+  a { color: inherit; text-decoration: none; }
+}
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 img, video, canvas, svg { max-width: 100%; }

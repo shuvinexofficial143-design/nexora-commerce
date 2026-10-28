@@ -17,7 +17,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
     const products = await getCatalogProducts();
     return <main className="pb-24"><Container>
       <h1 className="pt-10 text-3xl font-black tracking-tight">Shop products</h1>
-      <p className="mt-2 text-sm text-black/50">Preview catalog — items are not guaranteed to be available for purchase.</p>
+      <p role="status" className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950">DEMO PREVIEW ONLY — sample products and example prices. Live inventory, checkout and payments are not enabled.</p>
       <CatalogShell key={query.categories.join(",")+query.sort} products={products}
         initialCategory={query.categories[0]} initialSort={query.sort} />
     </Container></main>;
