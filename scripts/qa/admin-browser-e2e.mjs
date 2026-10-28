@@ -184,6 +184,80 @@ try {
     const hidden = await ctx.request.get(new URL("/api/backend/products/" + active.slug, base).href);
     assert.equal(hidden.status(), 404);
   });
+  await verify("bulk-action-owner-only-validated-and-atomic-revisions", async () => {
+    const current = await product(ctx);
+    const second = await api(ctx, "/api/admin-app/products/manage", "POST", {
+      name: "QA Bulk Companion " + suffix,
+      sku: sku + "-B",
+      price: 549, status: "DRAFT",
+    });
+    const products = [
+      { id: current.id, updatedAt: current.updatedAt },
+      { id: second.id, updatedAt: second.updatedAt.toString() },
+    ];
+    const url = new URL("/api/admin-app/products/bulk", base).href;
+    const anonymous = await browser.newContext();
+    try {
+      const unauthorized = await anonymous.request.post(url, {
+        data: { action: "PUBLISH", products },
+      });
+      assert.equal(unauthorized.status(), 401, "Anonymous user must never run bulk actions");
+    } finally { await anonymous.close(); }
+    const invalid = await ctx.request.post(url, {
+      data: { action: "DELETE", products },
+    });
+    assert.equal(invalid.status(), 400, "Deleting products must never be a bulk action");
+    const duplicate = await ctx.request.post(url, {
+      data: { action: "PUBLISH", products: [products[0], products[0]] },
+    });
+    assert.equal(duplicate.status(), 400, "Duplicate product IDs must fail validation");
+
+    // One product changes after the user selected it. The stale multi-row request must change NONE.
+    await api(ctx, "/api/admin-app/products/" + second.id, "PATCH", { featured: true });
+    const stale = await ctx.request.post(url, { data: { action: "PUBLISH", products } });
+    assert.equal(stale.status(), 409, "Stale UI selections must reject the entire operation");
+    const listAfterConflict = await api(ctx, "/api/admin-app/products");
+    assert.equal(listAfterConflict.find((x) => x.id === current.id)?.status, "DRAFT");
+    assert.equal(listAfterConflict.find((x) => x.id === second.id)?.status, "DRAFT");
+  });
+
+  await verify("bulk-action-real-browser-confirmation-publish-feature-and-audit", async () => {
+    const qaSkuPrefix = "QA-E2E-" + suffix.toUpperCase();
+    const url = new URL("/api/admin-app/products/bulk", base).href;
+    async function useBulk(action, expectedChangeCount) {
+      await page.goto(new URL("/admin/products", base).href);
+      await page.getByPlaceholder("Search name, SKU, brand…").fill(qaSkuPrefix);
+      await page.getByRole("button", { name: "Select first 25 filtered" }).click();
+      await page.getByText("2 / 25 selected").waitFor();
+      await page.getByRole("combobox", { name: "Bulk product action" }).selectOption(action);
+      const request = page.waitForResponse((res) =>
+        res.url() === url && res.request().method() === "POST");
+      page.once("dialog", (dialog) => void dialog.accept());
+      await page.getByRole("button", { name: "Apply bulk action" }).click();
+      const response = await request;
+      const payload = await response.json();
+      assert.equal(response.status(), 200, "Bulk " + action + " returned: " + JSON.stringify(payload));
+      assert.equal(payload.data.changed, expectedChangeCount);
+      assert.equal(payload.data.requested, 2);
+    }
+
+    await useBulk("PUBLISH", 2);
+    let rows = (await api(ctx, "/api/admin-app/products")).filter((p) => p.sku.startsWith(qaSkuPrefix));
+    assert.equal(rows.length, 2);
+    assert.ok(rows.every((p) => p.status === "ACTIVE"));
+    await useBulk("FEATURE", 1); // companion was already featured by conflict-precondition test
+    rows = (await api(ctx, "/api/admin-app/products")).filter((p) => p.sku.startsWith(qaSkuPrefix));
+    assert.ok(rows.every((p) => p.featured));
+    await useBulk("UNFEATURE", 2);
+    await useBulk("MOVE_TO_DRAFT", 2);
+    rows = (await api(ctx, "/api/admin-app/products")).filter((p) => p.sku.startsWith(qaSkuPrefix));
+    assert.ok(rows.every((p) => p.status === "DRAFT" && !p.featured));
+
+    const audit = await api(ctx, "/api/admin-app/activity");
+    const bulkRecords = audit.filter((event) => String(event.action).startsWith("PRODUCT_BULK_"));
+    assert.equal(bulkRecords.length, 7, "Every actual product change must have a durable audit row");
+  });
+
   await ctx.close();
 } finally {
   await browser.close();
