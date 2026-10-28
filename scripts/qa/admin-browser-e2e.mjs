@@ -555,6 +555,51 @@ try {
     assert.equal(valid.status, "ACTIVE");
     await api(ctx, "/api/admin-app/products/" + original.id, "PATCH", { status: "DRAFT" });
   });
+
+  await verify("homepage-cms-mocked-media-upload-success-and-untrusted-response", async () => {
+    await page.goto(new URL("/admin/homepage", base).href);
+    const form = page.locator("form").first();
+    const preview = page.getByRole("region", { name: "Unsaved homepage banner preview" });
+    const before = await api(ctx, "/api/admin-app/banners");
+    const validUrl = "https://res.cloudinary.com/nexora-qa-only/image/upload/qa-banner.png";
+    let requests = 0;
+    await page.route("**/api/admin-app/media/sign", route => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: {
+        cloudName: "nexora-qa-only", apiKey: "qa-only", timestamp: 123456,
+        folder: "nexora/products/images", signature: "fake-signature", resourceType: "image",
+      } }),
+    }));
+    await page.route("https://api.cloudinary.com/**", route => {
+      if (route.request().method() === "OPTIONS") return route.fulfill({
+        status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "POST, OPTIONS", "access-control-allow-headers": "*" },
+      });
+      requests++;
+      return route.fulfill({
+        status: 200, contentType: "application/json",
+        headers: { "access-control-allow-origin": "*" },
+        body: JSON.stringify({ secure_url: requests === 1 ? validUrl : "https://untrusted.example/banner.png" }),
+      });
+    });
+    await page.route("https://res.cloudinary.com/**", route => route.abort());
+    const file = { name: "qa-banner.png", mimeType: "image/png", buffer: Buffer.from([137,80,78,71,13,10,26,10]) };
+    try {
+      await form.locator('input[type="file"]').first().setInputFiles(file);
+      await page.waitForFunction(url => document.querySelector('input[aria-label="Desktop image URL"]')?.value === url, validUrl);
+      await preview.getByRole("img", { name: "Banner image unavailable" }).waitFor();
+      await form.locator('input[type="file"]').nth(1).setInputFiles(file);
+      await form.getByRole("alert").getByText("Upload response returned an unsupported media URL.").waitFor();
+      assert.equal(await form.getByLabel("Mobile image URL").inputValue(), "");
+      assert.equal(requests, 2, "Both uploads must be locally intercepted; no provider traffic");
+      const after = await api(ctx, "/api/admin-app/banners");
+      assert.equal(after.length, before.length, "Mocked media upload and unsaved preview must not persist a banner");
+    } finally {
+      await page.unroute("**/api/admin-app/media/sign");
+      await page.unroute("https://api.cloudinary.com/**");
+      await page.unroute("https://res.cloudinary.com/**");
+    }
+  });
+
   await ctx.close();
 } finally {
   await browser.close();

@@ -33,10 +33,15 @@ export function AdminMediaUpload({
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const xhrRef = useRef<XMLHttpRequest | null>(null);
-  useEffect(() => () => { xhrRef.current?.abort(); }, []);
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => { abortRef.current?.abort(); xhrRef.current?.abort(); }, []);
+  function cancel() {
+    abortRef.current?.abort();
+    xhrRef.current?.abort();
+  }
 
-  async function getSignature() {
-    const response = await fetch("/api/admin-app/media/sign", {
+  async function getSignature(signal: AbortSignal) {
+    const response = await fetch("/api/admin-app/media/sign", { signal,
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
@@ -148,18 +153,23 @@ export function AdminMediaUpload({
       return;
     }
 
+    const controller = new AbortController();
+    abortRef.current = controller;
     setBusy(true);
     try {
-      const signature = await getSignature();
+      const signature = await getSignature(controller.signal);
+      if (controller.signal.aborted) throw new Error("Upload was cancelled.");
       const url = await uploadDirect(file, signature);
       onUploaded(url);
       setProgress(100);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Upload failed.",
+        controller.signal.aborted ? "Upload was cancelled." :
+          caught instanceof Error ? caught.message : "Upload failed.",
       );
     } finally {
       setBusy(false);
+      abortRef.current = null;
       xhrRef.current = null;
       if (inputRef.current) inputRef.current.value = "";
     }
@@ -190,6 +200,11 @@ export function AdminMediaUpload({
                 : "Upload image")}
         </button>
 
+        {busy ? <button type="button" onClick={cancel}
+          className="rounded-full border border-red-200 px-3 py-2 text-xs font-black text-red-700">
+          Cancel upload
+        </button> : null}
+
         <span className="text-[11px] font-bold text-black/35">
           {resourceType === "video"
             ? "Direct upload · max 100 MB"
@@ -207,7 +222,7 @@ export function AdminMediaUpload({
       ) : null}
 
       {error ? (
-        <p className="mt-2 text-xs font-bold text-red-700">{error}</p>
+        <p role="alert" className="mt-2 text-xs font-bold text-red-700">{error}</p>
       ) : null}
     </div>
   );
