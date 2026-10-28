@@ -979,6 +979,85 @@ try {
     }
   });
 
+
+  await verify("seller-onboarding-owner-credentials-profile-and-audit-rollback", async () => {
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+    const url = new URL("/api/admin-app/sellers/onboard", base).href;
+    const sellerEmail = "qa-seller-" + suffix + "@example.invalid";
+    const password = "QaSeller!Secret29-" + suffix;
+    const seller = {
+      email: sellerEmail, name: "QA Test Seller", storeName: "QA Gift Store",
+      password, commissionBps: 0, gstNumber: "",
+    };
+    let auditTrigger = false;
+    try {
+      const guest = await browser.newContext();
+      try {
+        assert.equal((await guest.request.post(url, { data: seller })).status(), 401, "Only Owner can onboard seller");
+      } finally { await guest.close(); }
+      for (const invalid of [
+        { ...seller, password: undefined },
+        { ...seller, password: "weak" },
+        { ...seller, password: "NexoraSeller@123" },
+        { ...seller, commissionBps: "0" },
+        { ...seller, commissionBps: -1 },
+        { ...seller, commissionBps: 10001 },
+        { ...seller, commissionBps: 10.2 },
+        { ...seller, email: "not-an-email" },
+      ]) {
+        const response = await ctx.request.post(url, { data: invalid });
+        assert.equal(response.status(), 400, "Bad Seller onboarding input must return 400");
+      }
+      const malformed = await ctx.request.post(url, {
+        headers: { "content-type": "application/json" }, data: '{"email":',
+      });
+      assert.equal(malformed.status(), 400, "Malformed JSON must not be accepted");
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "User" WHERE "email" = $1', [sellerEmail])).rows[0].n, 0);
+
+      await client.query("CREATE FUNCTION qa_reject_seller_onboard_audit() RETURNS trigger AS $qaseller$ BEGIN RAISE EXCEPTION 'QA seller audit rejected'; END; $qaseller$ LANGUAGE plpgsql");
+      await client.query('CREATE TRIGGER qa_reject_seller_onboard_audit_trg BEFORE INSERT ON "AdminActivityLog" FOR EACH ROW WHEN (NEW."action" = \'SELLER_ONBOARD\') EXECUTE FUNCTION qa_reject_seller_onboard_audit()');
+      auditTrigger = true;
+      const rejected = await ctx.request.post(url, { data: seller });
+      assert.equal(rejected.status(), 500, "Seller, Profile and Audit must roll back as one unit");
+      assert.equal((await rejected.json()).error, "Unexpected admin server error.", "SQL details must not leak");
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "User" WHERE "email" = $1', [sellerEmail])).rows[0].n, 0, "No orphan User allowed");
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "SellerProfile" s JOIN "User" u ON u."id"=s."userId" WHERE u."email" = $1', [sellerEmail])).rows[0].n, 0);
+
+      await client.query('DROP TRIGGER qa_reject_seller_onboard_audit_trg ON "AdminActivityLog"');
+      await client.query("DROP FUNCTION qa_reject_seller_onboard_audit()");
+      auditTrigger = false;
+      const accepted = await api(ctx, "/api/admin-app/sellers/onboard", "POST", seller);
+      assert.ok(accepted.userId && accepted.profileId);
+      assert.equal(accepted.email, sellerEmail);
+      assert.equal(accepted.password, undefined, "API must never echo Seller password");
+      assert.equal(accepted.passwordHash, undefined, "API must not expose Seller hash");
+      const user = await client.query('SELECT "id","role","status","passwordHash" FROM "User" WHERE "email" = $1', [sellerEmail]);
+      assert.equal(user.rows.length, 1);
+      assert.equal(user.rows[0].id, accepted.userId);
+      assert.equal(user.rows[0].role, "SELLER");
+      assert.notEqual(user.rows[0].passwordHash, password);
+      assert.match(user.rows[0].passwordHash, /^scrypt\$/);
+      const profile = await client.query('SELECT "id","userId","commissionBps","verificationStatus","payoutStatus" FROM "SellerProfile" WHERE "id" = $1', [accepted.profileId]);
+      assert.equal(profile.rows[0].userId, accepted.userId);
+      assert.equal(profile.rows[0].commissionBps, 0, "Explicit zero commission must not become default 1000");
+      assert.equal(profile.rows[0].verificationStatus, "PENDING");
+      assert.equal(profile.rows[0].payoutStatus, "HOLD");
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "AdminActivityLog" WHERE "entityId" = $1 AND "action" = $2', [accepted.profileId, "SELLER_ONBOARD"])).rows[0].n, 1);
+      const duplicate = await ctx.request.post(url, { data: seller });
+      assert.equal(duplicate.status(), 409);
+      assert.match((await duplicate.json()).error, /already registered/);
+      assert.equal((await client.query('SELECT count(*)::int AS n FROM "User" WHERE "email" = $1', [sellerEmail])).rows[0].n, 1);
+    } finally {
+      if (auditTrigger) await client.query('DROP TRIGGER IF EXISTS qa_reject_seller_onboard_audit_trg ON "AdminActivityLog"');
+      await client.query("DROP FUNCTION IF EXISTS qa_reject_seller_onboard_audit()");
+      await client.query('DELETE FROM "AdminActivityLog" WHERE "action" = $1 AND "entityId" IN (SELECT s."id" FROM "SellerProfile" s JOIN "User" u ON u."id"=s."userId" WHERE u."email"=$2)', ["SELLER_ONBOARD", sellerEmail]);
+      await client.query('DELETE FROM "SellerProfile" WHERE "userId" IN (SELECT "id" FROM "User" WHERE "email"=$1)', [sellerEmail]);
+      await client.query('DELETE FROM "User" WHERE "email"=$1', [sellerEmail]);
+      await client.end();
+    }
+  });
+
   await ctx.close();
 } finally {
   await browser.close();
