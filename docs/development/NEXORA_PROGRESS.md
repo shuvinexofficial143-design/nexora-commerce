@@ -1,5 +1,34 @@
-# NEXORA 4 — Admin development progress
+# NEXORA 4 — Admin Development Progress
 
+## 28 October 2026 — Product Bulk Actions (4/4 CI Jobs PASS)
+
+**Branch:** `feature/nexora-gift-store`
+**Latest verified functional HEAD:** `20fae2d6736b5e5b0a587f3a9066f9cddd2a2b40`
+**Exact CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40674836800 — **4/4 PASS**.
+**Owner-only real Chromium browser flow:** **7 PASS / 0 FAIL** (including two new bulk-action tests).
+
+### Implemented
+- `lib/admin/product-bulk.ts`: revision-pinned, atomic multi-product operation with four approved actions `PUBLISH`, `MOVE_TO_DRAFT`, `FEATURE`, `UNFEATURE`.
+- `app/api/admin-app/products/bulk/route.ts`: owner session authorization; strict 1–25 unique ID validation; no bulk delete, price, stock, inventory or variant operations; bad request 400, stale revision 409, missing auth 401.
+- Every changed Product has an `AdminActivityLog` row inside the same PostgreSQL transaction; if audit fails, the product changes roll back. Unchanged rows are returned separately.
+- `components/admin/personal-admin-app.tsx`: Product selection checkboxes, bulk action dropdown, selection counters, search/filter scoped selection, select filtered up to 25, clear selection, explicit browser confirmation and result/error state. Archived Product selection disabled. Stale conflicts force reload/reselection.
+- `tests/product-bulk.test.ts`: strict action/revision, ID uniqueness, limit, unsupported fields, date and invalid action tests.
+- `scripts/qa/admin-browser-e2e.mjs`: anonymous POST rejected, unsupported DELETE and duplicate IDs rejected, changed revision returns 409 and leaves *all* rows untouched; two-product Publish/Featured/Unfeatured/Move to Draft via actual browser confirmation; audit count and final persisted status verified.
+
+### Verified
+- GitHub Actions run `40674836800`, exact functional commit `20fae2d6736b5e5b0a587f3a9066f9cddd2a2b40`.
+- 4 jobs PASS: isolated PostgreSQL transaction/checkout tests, unit security TypeScript ESLint build, desktop/mobile storefront, authenticated owner CRUD+bulk Chromium E2E.
+- Owner browser 7 PASS / 0 FAIL (includes prior gallery/attributes/publish and new bulk checks).
+- **No Production Deploy, no live database migrations, no payment/refund activity.** Nexora 3 and QA branches untouched.
+
+### Remaining / next `next`
+1. Product Admin media: real Cloudinary upload failure handling and preview fallback (current E2E tests URL-based gallery, not external Cloudinary), product preview.
+2. More owner-auth negative tests and category/brand archive/reactivate browser workflows; admin audit failure rollback test and concurrent bulk race tests.
+3. CMS homepage banners and end-to-end preview, other Admin Operations.
+4. Reviewed additive schema `prisma/reviewed-migrations/20261028_admin_observability.sql` and prior catalog/banner migrations still **not applied to production**. A controlled migration review is required before live Owner writes.
+
+
+## Previous Progress
 ## Latest verified milestone — Authenticated Admin Browser E2E and Media Gallery (2026-10-28)
 
 Branch: `feature/nexora-gift-store`
