@@ -43,6 +43,7 @@ export function CheckoutPageClient() {
     paymentId: PaymentMethodId; deliveryLabel: string; itemCount: number;
   } | null>(null);
   const [attemptExists, setAttemptExists] = useState(false);
+  const [canRetryOriginal, setCanRetryOriginal] = useState(false);
   const [attemptChecking, setAttemptChecking] = useState(false);
   const [attemptError, setAttemptError] = useState("");
   const [recoveredOrder, setRecoveredOrder] = useState<CheckoutRecoveryResult | null>(null);
@@ -64,7 +65,7 @@ export function CheckoutPageClient() {
   }, []);
   useEffect(() => {
     if (!hydrated || !readCheckoutAttempt()) return;
-    void checkPreviousAttempt();
+    queueMicrotask(() => { void checkPreviousAttempt(); });
   }, [hydrated, checkPreviousAttempt]);
   useEffect(() => {
     let active = true;
@@ -150,6 +151,7 @@ export function CheckoutPageClient() {
       // The server returns the first committed order without new reservation.
       const order = await submitBackendOrder(pending.payload);
       submittedRef.current = null;
+      setCanRetryOriginal(false);
       try {
         sessionStorage.setItem("nexora-last-order", JSON.stringify({
           orderId: order.orderNumber, email: pending.email,
@@ -184,6 +186,7 @@ export function CheckoutPageClient() {
     clearPendingOnlineOrder();
     clearCheckoutAttempt();
     submittedRef.current = null;
+    setCanRetryOriginal(false);
     setAttemptExists(false);
     setRecoveredOrder(null);
     setAttemptError("");
@@ -210,7 +213,7 @@ export function CheckoutPageClient() {
         <div className="mt-3 flex flex-wrap gap-3">
           <button type="button" disabled={placing || attemptChecking} onClick={() => void checkPreviousAttempt()}
             className="rounded-full bg-black px-4 py-2 font-black text-white disabled:opacity-50">Check previous attempt</button>
-          {submittedRef.current ? <button type="button" disabled={placing || attemptChecking}
+          {canRetryOriginal ? <button type="button" disabled={placing || attemptChecking}
             onClick={() => void retryOriginalCheckout()} className="rounded-full border border-black/20 px-4 py-2 font-black disabled:opacity-50">
             Retry exact same order safely
           </button> : null}
@@ -355,8 +358,10 @@ export function CheckoutPageClient() {
         paymentId: paymentAtClick, deliveryLabel: deliveryAtClick.label,
         itemCount: linesAtClick.reduce((sum, line) => sum + line.quantity, 0),
       };
+      setCanRetryOriginal(true);
       const order = await submitBackendOrder(payload);
       submittedRef.current = null;
+      setCanRetryOriginal(false);
 
       // The DB order now exists. Never mask success because sessionStorage is
       // blocked, nor destroy items that the customer added meanwhile.
@@ -390,6 +395,7 @@ export function CheckoutPageClient() {
         else {
           // A definite validation failure does not represent an unknown order.
           submittedRef.current = null;
+          setCanRetryOriginal(false);
           clearCheckoutAttempt();
         }
       }
