@@ -1,27 +1,26 @@
 # NEXORA 4 — Admin Development Handoff
 
-**Date:** 2026-10-28
-**Repository:** `shuvinexofficial143-design/nexora-commerce`
-**ONLY WRITE BRANCH:** `feature/nexora-gift-store`
-**Exact CI-verified functional SHA:** `f8e0107d8224d89cf75488f2835670f8dc96a456`
-**CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40705333053 — **4/4 PASS**.
-**Owner Chromium/Postgres:** **21 PASS / 0 FAIL**.
-This documentation-only commit will be newer; on next `next`, fetch actual latest HEAD and check exact-head CI.
+Date: 2026-10-28
+Repo: `shuvinexofficial143-design/nexora-commerce`
+AUTHORIZED write branch: `feature/nexora-gift-store`
+Functional SHA: `bf17045e2156b1a1c1c69e4d786f1e9d2bb0456f`
+CI: https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40707138238 — 4/4 SUCCESS
+Owner Chromium (local disposable PostgreSQL): 22 PASS / 0 FAIL
 
-## New verified milestone: Inventory Adjustment audit and concurrency
+## Completed — Warehouse Transfer
+- `lib/admin/warehouse-transfer.ts`: validated distinct active warehouses, typed integer quantity 1–100000, reserve floor and destination limit, CAS against stale source/destination balances.
+- Warehouse source debit + destination credit, Transfer history header and item, two InventoryMovement entries and single Admin audit insert are in one Prisma transaction. Audit failure rolls back all writes.
+- Corrected raw SQL `"COMPLETED"` identifier to a bound status text value.
+- `app/api/admin-app/warehouses/transfer/route.ts`: owner authentication, HTTP 201 success; expected 400 validation, 409 conflict, generic 500 database error; removed duplicate post-commit audit.
+- NEW `prisma/reviewed-migrations/20261028_warehouse_transfer.sql`: additive raw history tables and constraints; only `scripts/qa/setup-admin-observability.mjs` applies it in disposable localhost `nexora_qa`. NOT applied in production.
+- `scripts/qa/admin-browser-e2e.mjs`: verified no unauthorized transfer, unsafe quantity or reserved-stock overdraw; SQL trigger rejects audit write and verifies rollback of stock, transfer history and movements; valid posting and concurrent transfer test pass.
 
-- `lib/admin/inventory-admin.ts`: `adjustStock(input, adminUserId?)` remains backward-compatible for direct QA callers. Owner route supplies authenticated ID, causing Stock InventoryItem update + InventoryMovement + Audit insert to commit or roll back as one Prisma transaction.
-- `StockAdjustmentError` maps safe business validation to HTTP 400; `StockAdjustmentConflict` maps failed compare-and-swap to HTTP 409. Invalid JSON and anonymous access rejected by the route; unknown DB exceptions remain generic HTTP 500.
-- Strict bounds on input integer delta, reason, and resulting stock, with reserve floor. CAS guards original onHand and reserved values.
-- `scripts/qa/admin-browser-e2e.mjs` new isolated test uses a QA-created Warehouse and InventoryItem. An audit trigger rejects INVENTORY_ADJUSTMENT and the test verifies no stock or InventoryMovement persisted. It checks valid adjustment with matching audit, concurrency correctness and final cleanup.
-- Exact functional run `40705333053`: 4/4 green, 21/21 Owner Browser PASS. Prior Product CRUD/Bulk, Homepage CMS, audit rollback, image upload cancel and Storefront all stay green.
+## Next `next`
+1. Read latest actual branch SHA + exact-head CI. Do not confuse docs-only SHA with functional SHA.
+2. Review Seller Onboarding and Order Status post-write audit paths separately. Avoid changing real orders/payment notifications without appropriate isolated testing.
+3. `components/admin/warehouse-transfer-panel.tsx` remains **demo-only**; no production Warehouse Transfer UI posting is enabled.
+4. Run isolated code + tests in `feature/nexora-gift-store` only; update Progress/Handoff and verify 4/4 exact-head CI.
+5. Production Vercel, Cloudinary provider, live payments/refunds and migrations NOT authorized; no production data touched.
+6. Do not edit `feature/nexora-gpt-customer-ops` or `feature/nexora-qa-automation`.
 
-## Next priorities and risks
-
-1. **Warehouse Transfer:** `lib/admin/warehouse-transfer.ts` and `app/api/admin-app/warehouses/transfer/route.ts` remain unchanged: separate audit after transfer commit and potential concurrent source-stock race; the raw SQL includes a suspicious `"COMPLETED"` identifier instead of a string literal and lacks dedicated real QA transfer E2E. Inspect schema and migration before modifying; add isolated tests with rollback and no production writes.
-2. Other Admin mutations: Seller onboarding and Order Status have independent audit/notification/email side effects. Audit safety and test boundaries before changing them.
-3. No Vercel production deploy, no production SQL migrations, no real Cashfree or Cloudinary calls or real customer inventory changes. QA must remain `localhost/nexora_qa`, Owner `@example.invalid`.
-4. Next `next` should make one meaningful safe code + regression increment, commit only to `feature/nexora-gift-store`, update both docs and verify exact-head 4/4 CI. Never touch Nexora 3 `feature/nexora-gpt-customer-ops` or QA `feature/nexora-qa-automation`.
-
-## Production boundary
-Catalog/Homepage and `prisma/reviewed-migrations/20261028_admin_observability.sql` are NOT applied in production. A separate backup, migration rehearsal and owner approval are required for production readiness.
+Production readiness still requires reviewed schema migrations, backup, staging rehearsal and owner approval.
