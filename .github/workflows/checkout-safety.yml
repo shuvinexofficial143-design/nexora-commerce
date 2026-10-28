@@ -133,3 +133,74 @@ jobs:
             ${{ runner.temp }}/local-next.log
             ${{ runner.temp }}/browser-evidence/**
           if-no-files-found: warn
+
+  authenticated-admin-browser:
+    name: Owner Admin authenticated Chromium + PostgreSQL E2E
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: nexora_qa
+          POSTGRES_PASSWORD: qa-${{ github.run_id }}-${{ github.run_attempt }}
+          POSTGRES_DB: nexora_qa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nexora_qa -d nexora_qa"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://nexora_qa:qa-${{ github.run_id }}-${{ github.run_attempt }}@127.0.0.1:5432/nexora_qa
+      DIRECT_URL: postgresql://nexora_qa:qa-${{ github.run_id }}-${{ github.run_attempt }}@127.0.0.1:5432/nexora_qa
+      NEXORA_QA_ALLOW_DB_INTEGRATION: "true"
+      NEXORA_QA_BASE_URL: http://127.0.0.1:3138/
+      ADMIN_USERNAME: nexora_qa_owner
+      ADMIN_PASSWORD: qa-${{ github.run_id }}-${{ github.run_attempt }}-owner
+      ADMIN_OWNER_EMAIL: nexora-qa-owner@example.invalid
+      PUBLIC_CUSTOMER_AUTH_ENABLED: "false"
+      NEXT_PUBLIC_CASHFREE_ENABLED: "false"
+      CASHFREE_CLIENT_ID: ""
+      CASHFREE_CLIENT_SECRET: ""
+      CASHFREE_ENV: sandbox
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Synchronize disposable PostgreSQL only
+        run: npx --no-install prisma db push
+      - name: Install isolated temporary Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "NEXORA_QA_PLAYWRIGHT_DIR=$RUNNER_TEMP/nexora-admin-browser" >> "$GITHUB_ENV"
+          echo "NEXORA_QA_EVIDENCE_DIR=$RUNNER_TEMP/admin-browser-evidence" >> "$GITHUB_ENV"
+          npm install --prefix "$RUNNER_TEMP/nexora-admin-browser" --no-save --no-package-lock --no-audit playwright@1.56.1
+          "$RUNNER_TEMP/nexora-admin-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Production build (no deploy)
+        env:
+          NODE_ENV: production
+        run: npm run build
+      - name: Browser owner login, product CRUD and publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --port 3138 > "$RUNNER_TEMP/owner-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          node scripts/qa/admin-browser-e2e.mjs 2>&1 | tee "$RUNNER_TEMP/owner-browser.log"
+      - name: Preserve isolated QA logs and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-owner-admin-browser-evidence
+          path: |
+            ${{ runner.temp }}/owner-server.log
+            ${{ runner.temp }}/owner-browser.log
+            ${{ runner.temp }}/admin-browser-evidence/**
+          if-no-files-found: warn
