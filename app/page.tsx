@@ -1,39 +1,31 @@
-import { AppDownloadBanner } from "@/components/home/app-download-banner";
-import { CategoryShowcase } from "@/components/home/category-showcase";
-import { CategoryStrip } from "@/components/home/category-strip";
-import { DealStrip } from "@/components/home/deal-strip";
-import { EditorialBanner } from "@/components/home/editorial-banner";
-import { FeaturedBrands } from "@/components/home/featured-brands";
-import { HeroSection } from "@/components/home/hero-section";
-import { MemberBanner } from "@/components/home/member-banner";
-import { NewArrivalsSection } from "@/components/home/new-arrivals-section";
-import { NewsletterSection } from "@/components/home/newsletter-section";
-import { PersonalizedSection } from "@/components/home/personalized-section";
-import { PromoGrid } from "@/components/home/promo-grid";
-import { RecentlyViewedSection } from "@/components/home/recently-viewed-section";
-import { SocialProofStrip } from "@/components/home/social-proof-strip";
-import { TrendingSearches } from "@/components/home/trending-searches";
-import { TrustStrip } from "@/components/home/trust-strip";
+import { catalogProducts } from "@/lib/catalog-data";
+import { mapBackendProductToCatalog } from "@/lib/catalog-backend";
+import { listProducts } from "@/lib/db/products";
+import { demoCatalogEnabled } from "@/lib/storefront/catalog-query";
+import { buildHomepageCollection } from "@/lib/storefront/homepage-collection";
+import { LiveStorefrontHome } from "@/components/home/live-storefront-home";
+import type { CatalogProduct } from "@/types/catalog";
 
-export default function HomePage() {
-  return (
-    <>
-      <HeroSection />
-      <CategoryStrip />
-      <NewArrivalsSection />
-      <TrendingSearches />
-      <FeaturedBrands />
-      <EditorialBanner />
-      <CategoryShowcase />
-      <PromoGrid />
-      <PersonalizedSection />
-      <DealStrip />
-      <MemberBanner />
-      <RecentlyViewedSection />
-      <AppDownloadBanner />
-      <SocialProofStrip />
-      <NewsletterSection />
-      <TrustStrip />
-    </>
-  );
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const demo = demoCatalogEnabled();
+  let products: CatalogProduct[] = [];
+  let unavailable = false;
+  if (demo) {
+    // Explicit QA/preview mode only. The public storefront never silently
+    // substitutes sample data for a failed live catalog.
+    products = catalogProducts;
+  } else {
+    try {
+      const result = await listProducts({ sort: "newest", limit: 48 });
+      products = result.items.map(mapBackendProductToCatalog);
+    } catch (error) {
+      unavailable = true;
+      console.error("NEXORA homepage catalog unavailable",
+        error instanceof Error ? error.name : "Unknown database error");
+    }
+  }
+  return <LiveStorefrontHome collection={buildHomepageCollection(products)}
+    demo={demo} unavailable={unavailable} />;
 }

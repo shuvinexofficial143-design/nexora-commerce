@@ -111,6 +111,32 @@ try {
         assert.equal(styles.color, "rgb(255, 255, 255)");
         await assertButtonContrast(page.getByRole("button", { name: "Open admin panel" }), 10);
       });
+      await verify(name + " redesigned homepage shows actual/labelled catalog and no fabricated claims", page, async () => {
+        const response = await page.goto(new URL("/", base).href, { waitUntil: "domcontentloaded" });
+        assert.equal(response?.status(), 200);
+        await page.getByRole("heading", { name: /FIND YOUR NEXT THING/i }).waitFor();
+        await page.getByRole("heading", { name: "Fresh from the collection." }).waitFor();
+        await page.getByRole("status").filter({ hasText: /DEMO PREVIEW ONLY/ }).waitFor();
+        assert.equal(await page.getByText("10k+", { exact: true }).count(), 0);
+        assert.equal(await page.getByText("4.8/5", { exact: true }).count(), 0);
+        assert.equal(await page.getByText("24/7", { exact: true }).count(), 0);
+        assert.equal(await page.getByRole("heading", { name: "Recently viewed" }).count(), 0);
+        assert.equal(await page.getByRole("button", { name: "Join" }).count(), 0);
+        const cta = page.getByRole("link", { name: "Explore collection" });
+        assert.equal(await cta.getAttribute("href"), "/shop");
+        const category = page.locator('main a[href="/shop?category=electronics"]');
+        await category.first().waitFor();
+        const card = page.locator('main a[href="/product/airwave-max-headphones"]');
+        await card.first().waitFor();
+      });
+      await verify(name + " homepage card and category navigation", page, async () => {
+        await page.goto(new URL("/", base).href, { waitUntil: "domcontentloaded" });
+        const link = page.locator('main a[href="/shop?category=electronics"]').first();
+        await link.waitFor();
+        await link.click();
+        await page.getByRole("heading", { name: /Shop products/i }).waitFor();
+        await page.getByText(/DEMO PREVIEW ONLY/).waitFor();
+      });
       await verify(name + " homepage render", page, async () => {
         const response = await page.goto(new URL("/", base).href, { waitUntil: "domcontentloaded" });
         assert.equal(response?.status(), 200);
