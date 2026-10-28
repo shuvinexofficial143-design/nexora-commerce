@@ -16,6 +16,11 @@ await client.connect();
 try {
   const sql = await readFile(new URL("../../prisma/reviewed-migrations/20261028_admin_observability.sql", import.meta.url), "utf8");
   await client.query(sql);
+  // SellerProfile is an additive raw SQL table; QA only, never production.
+  const sellerSql = await readFile(new URL("../../prisma/reviewed-migrations/20261028_seller_profile.sql", import.meta.url), "utf8");
+  await client.query(sellerSql);
+  const sellerCheck = await client.query('SELECT to_regclass(\'"SellerProfile"\') AS profile');
+  if (!sellerCheck.rows[0].profile) throw new Error("QA SellerProfile schema missing.");
   // Disposable database only: add reviewed transfer history tables for owner E2E.
   const transferSql = await readFile(new URL("../../prisma/reviewed-migrations/20261028_warehouse_transfer.sql", import.meta.url), "utf8");
   await client.query(transferSql);
