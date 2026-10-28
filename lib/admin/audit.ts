@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 
 type AdminActivityRow = Record<string, unknown> & { createdAt: Date };
 
@@ -10,8 +11,11 @@ export async function logAdmin(input: {
   entityId?: string;
   summary: string;
   metadata?: Record<string, unknown>;
-}) {
-  await getPrisma().$executeRaw`
+}, executor?: Pick<Prisma.TransactionClient, "$executeRaw">) {
+  // Product and media changes may share the transaction with their audit row.
+  // Other admin callers remain backward-compatible with standalone audit writes.
+  const db = executor ?? getPrisma();
+  await db.$executeRaw`
     insert into "AdminActivityLog" ("id","adminUserId","action","entityType","entityId","summary","metadata","createdAt")
     values (
       ${randomUUID()},

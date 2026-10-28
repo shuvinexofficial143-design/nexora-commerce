@@ -4,6 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { attributesForCategory,validateProductAttributes } from "@/lib/admin/product-attributes";
 import { parseTaxonomySelection } from "@/lib/admin/product-taxonomy";
 import { resolveCompareAtMinor } from "@/lib/admin/catalog-pricing";
+import { logAdmin } from "@/lib/admin/audit";
 import { normalizeProductGallery,GALLERY_START,GALLERY_MAX } from "@/lib/admin/product-gallery";
 import { getPrisma } from "@/lib/db/prisma";
 import {
@@ -22,7 +23,9 @@ const slug = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
-export async function createProduct(input: Record<string, unknown>) {
+export async function createProduct(input: Record<string, unknown>, adminUserId?:string) {
+  if(adminUserId!==undefined && (!adminUserId || adminUserId.length>128))
+    throw new ValidationError("Invalid admin identity.");
   const name = String(input.name ?? "").trim();
   const sku = String(input.sku ?? "").trim().toUpperCase();
   const price = Number(input.price);
@@ -98,11 +101,17 @@ export async function createProduct(input: Record<string, unknown>) {
       await tx.productImage.createMany({ data: productMedia });
     }
 
+    if(adminUserId)await logAdmin({
+      adminUserId,action:"PRODUCT_CREATE",entityType:"PRODUCT",entityId:product.id,
+      summary:`Created ${product.name}`,
+    },tx);
     return product;
   });
 }
 
-export async function updateProduct(id: string, input: Record<string, unknown>) {
+export async function updateProduct(id: string, input: Record<string, unknown>, adminUserId?:string) {
+  if(adminUserId!==undefined && (!adminUserId || adminUserId.length>128))
+    throw new ValidationError("Invalid admin identity.");
   const data: {
     name?: string;
     description?: string;
@@ -284,6 +293,10 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
       }
     }
 
+    if(adminUserId)await logAdmin({
+      adminUserId,action:"PRODUCT_UPDATE",entityType:"PRODUCT",entityId:product.id,
+      summary:`Updated ${product.name}`,
+    },tx);
     return product;
   });
 }
