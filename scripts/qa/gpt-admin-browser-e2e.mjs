@@ -96,6 +96,13 @@ try{
   });
   await verify("real-owner-login-browser-and-cookie",async()=>{
     await page.goto(endpoint("/admin/login"),{waitUntil:"domcontentloaded"});
+    // Wait for React hydration before typing/clicking: Next.js dev HTML can
+    // arrive before its onSubmit handler attaches. Otherwise the browser may
+    // perform a native form submit and never issue the expected JSON POST.
+    await page.waitForFunction(()=>{
+      const button=document.querySelector('form button[type="submit"],form button');
+      return button instanceof HTMLButtonElement && !button.disabled;
+    },null,{timeout:45000});
     await page.getByPlaceholder("Owner username").fill(process.env.ADMIN_USERNAME);
     await page.locator('input[type="password"]').fill(process.env.ADMIN_PASSWORD);
     const loginResponse=page.waitForResponse(resp=>

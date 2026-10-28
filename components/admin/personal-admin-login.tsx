@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export function PersonalAdminLogin() {
@@ -9,9 +9,16 @@ export function PersonalAdminLogin() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [hydrated,setHydrated]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    queueMicrotask(()=>{if(active)setHydrated(true);});
+    return ()=>{active=false;};
+  },[]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!hydrated || busy) return;
     if (!username.trim() || !password) {
       setError("Username and password are required.");
       return;
@@ -85,7 +92,7 @@ export function PersonalAdminLogin() {
             ) : null}
 
             <button
-              disabled={busy}
+              disabled={busy || !hydrated}
               className="h-12 w-full rounded-full bg-[#d7ff47] text-sm font-black text-black transition hover:bg-[#c7ed37] disabled:cursor-wait disabled:opacity-60"
             >
               {busy ? "Signing in…" : "Open admin panel"}
