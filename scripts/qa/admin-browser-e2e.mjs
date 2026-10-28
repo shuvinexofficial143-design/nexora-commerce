@@ -320,6 +320,39 @@ try {
     assert.equal(cat.description, "Category lifecycle verified");
   });
 
+
+  await verify("brand-browser-create-edit-deactivate-reactivate", async () => {
+    const slug = "qa-lifecycle-brand-" + suffix;
+    await page.goto(new URL("/admin/catalog", base).href);
+    const section = page.locator("section").filter({ has: page.getByRole("heading", { name: "Add brand" }) }).first();
+    const form = section.locator("form").first();
+    await form.locator("label").filter({ hasText: "Brand name" }).locator("input").fill("QA Lifecycle Brand " + suffix);
+    await form.locator("label").filter({ hasText: "Slug" }).locator("input").fill(slug);
+    const mutation = (verb) => page.waitForResponse(r =>
+      new URL(r.url()).pathname.startsWith("/api/admin-app/catalog/brands") && r.request().method() === verb);
+    let response = mutation("POST");
+    await form.getByRole("button", { name: "Create brand" }).click();
+    assert.equal((await response).status(), 201);
+    const row = () => section.locator(".divide-y > div").filter({ hasText: slug }).first();
+    await row().getByRole("button", { name: "Edit" }).waitFor();
+    await row().getByRole("button", { name: "Edit" }).click();
+    await form.locator("label").filter({ hasText: "Description" }).locator("textarea").fill("Brand lifecycle verified");
+    response = mutation("PATCH");
+    await form.getByRole("button", { name: "Save brand changes" }).click();
+    assert.equal((await response).status(), 200);
+    page.once("dialog", dialog => void dialog.accept());
+    response = mutation("DELETE");
+    await row().getByRole("button", { name: "Deactivate" }).click();
+    assert.equal((await response).status(), 200);
+    await row().getByRole("button", { name: "Activate" }).waitFor();
+    response = mutation("PATCH");
+    await row().getByRole("button", { name: "Activate" }).click();
+    assert.equal((await response).status(), 200);
+    const brand = (await api(ctx, "/api/admin-app/catalog/brands?inactive=true")).find(x => x.slug === slug);
+    assert.equal(brand.active, true);
+    assert.equal(brand.description, "Brand lifecycle verified");
+  });
+
   await ctx.close();
 } finally {
   await browser.close();
