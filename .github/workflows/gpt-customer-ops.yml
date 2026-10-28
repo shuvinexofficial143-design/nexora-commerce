@@ -192,7 +192,7 @@ jobs:
           echo "NEXORA_QA_EVIDENCE_DIR=$RUNNER_TEMP/nexora-admin-evidence" >> "$GITHUB_ENV"
           npm install --prefix "$RUNNER_TEMP/nexora-admin-browser" --no-save --no-package-lock --no-audit playwright@1.56.1
           "$RUNNER_TEMP/nexora-admin-browser/node_modules/.bin/playwright" install --with-deps chromium
-      - name: Run actual Owner Login + Admin CRUD + public read UI in localhost Chromium
+      - name: Run actual Owner Admin + COD Checkout Chromium on disposable localhost
         shell: bash
         env:
           NODE_ENV: development
@@ -202,6 +202,7 @@ jobs:
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           node scripts/qa/gpt-admin-browser-e2e.mjs 2>&1 | tee "$RUNNER_TEMP/nexora-owner-e2e.log"
+          node scripts/qa/gpt-checkout-browser-e2e.mjs 2>&1 | tee "$RUNNER_TEMP/nexora-checkout-e2e.log"
       - name: Upload owner E2E screenshots and evidence (QA-only)
         if: always()
         uses: actions/upload-artifact@v4
@@ -211,4 +212,5 @@ jobs:
             ${{ runner.temp }}/nexora-admin-evidence/**
             ${{ runner.temp }}/nexora-owner-local.log
             ${{ runner.temp }}/nexora-owner-e2e.log
+            ${{ runner.temp }}/nexora-checkout-e2e.log
           if-no-files-found: warn

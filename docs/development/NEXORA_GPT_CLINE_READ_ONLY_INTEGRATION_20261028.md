@@ -153,3 +153,14 @@ The GPT-only Admin Products response now also supplies the Cline-readable descri
 - Added a fourth independent GitHub Actions job `authenticated-admin-browser`: PostgreSQL 16 container, `prisma db push` to disposable DB only, Next.js dev on localhost for cookie compatibility, temporary Playwright outside repository, screenshots/log evidence on failure.
 - Maintains prior Unit/Build, isolated DB and 32 customer browser regressions without changing them. Cline/QA/main left untouched. **NO Vercel deployment** and **NO production/staging database writes**.
 - This milestone is complete only after the **new fourth GitHub CI job** and prior 3 jobs all pass on the exact latest HEAD. Follow up with CI error fixes if any.
+
+
+## 28 October 2026 — Real Local Checkout COD + Payment-Safety Browser E2E (CI verification pending)
+
+- Only GPT branch; **NO Vercel deployment, Production DB, real Cashfree payment, external email or order**.
+- Extend existing standalone disposable PostgreSQL + authenticated admin Chromium GitHub CI job (formerly 9/9 browser E2E checks) with `scripts/qa/gpt-checkout-browser-e2e.mjs`.
+- New 9 local-only checks: Cashfree session/status/webhook fail closed with gateway credentials disabled; real authoritative HTTP checkout preview confirms live price/stock without reservation; missing Idempotency-Key rejects guest and order writes; real COD guest POST creates exactly one order and reserved unit; same-key retry replays original order; same-key mutated cart returns conflict; email+capability-scoped recovery reveals only minimal order status, refuses other email; oversell blocks a second transaction; REAL Chromium customer checkout from temporary localStorage bag + typed delivery address to COD order success, then independently verify reserved stock and cleared browser bag.
+- Script refuses non-local `127.0.0.1:3137`, wrong database user/db, absent integration flag, configured Cashfree, configured email sender, enabled demo catalog. All SQL fixtures use bound params and PostgreSQL in disposable CI container. Evidence records checkout results and optional browser screenshots; no real customer contact/email is used.
+- Existing CI's prior Unit/TypeScript/ESLint/Build, PostgreSQL and 32 Browser regressions remain. The independent authenticated-admin job now tests both admin and real checkout paths, and keeps QA artifacts.
+- Source code of checkout/payment unchanged: this increment is a missing high-value **regression coverage gate**, not a claim Cashfree live payments were tested.
+- Must verify exact-HEAD CI 4/4 jobs success; follow up on any failures. Remaining: actual staging schema/runbook, third-party Cashfree sandbox, overall Cline/QA branch integration, final Vercel only after owner directive.
