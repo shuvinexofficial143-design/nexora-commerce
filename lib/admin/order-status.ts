@@ -52,6 +52,9 @@ export async function changeOwnerOrderStatus(input: {
   orderId: string; status: OwnerOrderStatus; adminUserId: string;
 }) {
   const { orderId, status, adminUserId } = input;
+  // Enforce this at the service boundary too, not only at HTTP routing.
+  // Internal callers must not bypass the refund/return lifecycle guard.
+  validateOwnerOrderStatus(status);
   if (!orderId || orderId.length > 128 || !adminUserId || adminUserId.length > 128) {
     throw new ValidationError("Invalid order or owner identity.");
   }
