@@ -429,3 +429,15 @@ Owner requested coding only; **NO VERCEL deployment** and no Production/staging 
 - Fixed public homepage banner starvation: formerly selecting five candidates from PostgreSQL before filtering hidden/archived-category campaigns could mask valid later campaigns. Now scan up to 1000 published candidates, filter invalid/hidden linked categories first, THEN take five live banners.
 - Added pure parsing/auth tests, disposable PostgreSQL tests for moving all active banners, stale/archived ID failures and six hidden banners ahead of a valid sixth-plus campaign. Existing schema is sufficient; no migration.
 - This milestone stays incomplete until exact-HEAD TypeScript, ESLint, production build, unit, isolated PostgreSQL and desktop/mobile Chromium regressions pass. Remaining Cline/QA integration and actual staging + payment verification are separate milestones.
+
+
+## 28 October 2026 — Cline Product Preview + GPT SKU-safe Unsaved Preview and Create-Draft Specs
+- Branch restriction: only GPT `feature/nexora-gpt-customer-ops`. **No Vercel deploy, no production database migration or writes, no Cline/QA/main branch changes.**
+- Rechecked Cline HEAD `c2024b1a3f1c39c89c1eaa9a4a09c685e1cfd0cc`; safely adapted its `components/admin/product-preview.tsx` into GPT rather than blindly merging divergent Product Admin code.
+- New pure `lib/admin/product-preview.ts`: preview uses only actual draft/name/description/media/price/stock input. Keeps approved HTTPS images, removes duplicate/untrusted images, validates supported video, never invents stock or customer testimonials.
+- **Critical SKU safety:** when a Product has independently priced variants, preview displays the effective lowest active SKU price (or **No active SKU price**) instead of misleading parent base price; never invents parent compare-at discount for SKU-priced items. Preview is explicitly admin-only and does not persist, publish, reserve stock, or guarantee real final checkout prices.
+- Admin Create-Draft and Edit forms both render unsaved product preview with gallery thumbnails and valid video notice. Existing Product Edit form is keyed by `product.id + updatedAt` to remount after a successful canonical save and prevent stale field state.
+- New create-draft editor supports **category-specific attribute values on initial creation** with strict server-side validation, instead of forcing a second Edit step. Category change clears incompatible unsaved values.
+- Added unit + SSR markup tests for missing/invalid parent/SKU prices, compare-at suppression, actual stock, approved media deduplication and non-mutating preview; a disposable PostgreSQL test verifies initial draft attribute persistence and ACTIVE publish validation.
+- This milestone is not marked verified until exact-HEAD Unit, TypeScript, ESLint, Production Build, Security, Disposable PostgreSQL and Chromium regression jobs pass.
+- Separate remaining blockers: full Cline + QA final feature integration review, real connected staging database, real Cashfree gateway sandbox, customer-side Order/Payment final E2E, and final Vercel deployment only when owner directs.

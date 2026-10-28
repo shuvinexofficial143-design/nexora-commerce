@@ -7,6 +7,7 @@ import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 import { AdminProductChoicesEditor } from "@/components/admin/admin-product-choices-editor";
 import { AdminProductVariantsEditor } from "@/components/admin/admin-product-variants-editor";
 import { ProductGalleryEditor } from "@/components/admin/product-gallery-editor";
+import { ProductPreviewPanel } from "@/components/admin/product-preview";
 import { BulkProductActions } from "@/components/admin/bulk-product-actions";
 import { HomepageBannersPanel } from "@/components/admin/homepage-banners-panel";
 import { CatalogVisibilityControls } from "@/components/admin/catalog-visibility-controls";
@@ -307,7 +308,7 @@ function Products() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
-    name: "", sku: "", price: "", compareAtPrice:"", description: "", videoUrl: "", posterUrl: "", categorySlug:"", brandSlug:"",images:[] as string[],
+    name: "", sku: "", price: "", compareAtPrice:"", description: "", videoUrl: "", posterUrl: "", categorySlug:"", brandSlug:"",images:[] as string[],attributes:{} as Record<string,unknown>,
   });
 
   const load = useCallback(() => {
@@ -350,7 +351,7 @@ function Products() {
           status: "DRAFT",
         }),
       });
-      setForm({ name: "", sku: "", price: "", compareAtPrice:"", description: "", videoUrl: "", posterUrl: "", categorySlug:"",brandSlug:"",images:[] });
+      setForm({ name: "", sku: "", price: "", compareAtPrice:"", description: "", videoUrl: "", posterUrl: "", categorySlug:"",brandSlug:"",images:[],attributes:{} });
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create product.");
@@ -438,7 +439,7 @@ function Products() {
               className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold"/>
           </label>
           <label className="text-xs font-black">Category
-            <select value={form.categorySlug} onChange={e=>setForm(current=>({...current,categorySlug:e.target.value}))}
+            <select value={form.categorySlug} onChange={e=>setForm(current=>({...current,categorySlug:e.target.value,attributes:{}}))}
               className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-3">
               <option value="">No category</option>
               {options.categories.map(o=><option key={o.id} value={o.slug}>{o.name}</option>)}
@@ -451,6 +452,10 @@ function Products() {
               {options.brands.map(o=><option key={o.id} value={o.slug}>{o.name}</option>)}
             </select>
           </label>
+          <ProductAttributeFields
+            categoryId={options.categories.find(c=>c.slug===form.categorySlug)?.id??""}
+            value={form.attributes}
+            onChange={attributes=>setForm(current=>({...current,attributes}))}/>
           <label className="md:col-span-2">
             <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">Product video</span>
             <input
@@ -493,6 +498,10 @@ function Products() {
               className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none focus:border-black"
             />
           </label>
+          <ProductPreviewPanel name={form.name} price={form.price}
+            compareAtPrice={form.compareAtPrice} description={form.description}
+            posterUrl={form.posterUrl} gallery={form.images} videoUrl={form.videoUrl}
+            status="DRAFT"/>
           <button disabled={busy} className="rounded-full bg-black px-5 py-3 text-sm font-black text-white md:col-span-2 disabled:opacity-50">
             {busy ? "Creating…" : "Create draft product"}
           </button>
@@ -535,7 +544,8 @@ function Products() {
                   </div>
                 </div>
               </summary>
-              <ProductEditForm product={product} options={options} onSave={(patch) => updateProduct(product, patch)} />
+              <ProductEditForm key={product.id+":"+product.updatedAt}
+                product={product} options={options} onSave={(patch) => updateProduct(product, patch)} />
             </details>
           ))}
           {!rows.length ? <p className="py-6 text-center text-sm font-bold text-black/35">No products yet.</p> : null}
@@ -616,6 +626,12 @@ function ProductEditForm({ product, options, onSave }: {
         <AdminMediaUpload resourceType="image" label="Upload new poster" onUploaded={setPosterUrl} />
       </label>
       <ProductGalleryEditor value={galleryImages} disabled={busy} onChange={setGalleryImages}/>
+      <ProductPreviewPanel name={name} price={price} compareAtPrice={compareAtPrice}
+        description={description} posterUrl={posterUrl} gallery={galleryImages}
+        videoUrl={videoUrl} status={product.status}
+        stockSource={product.stockSource} effectivePriceMinor={product.effectivePriceMinor}
+        availableStock={product.availableStock} activeVariantCount={product.activeVariantCount}
+        totalVariantCount={product.totalVariantCount}/>
       <div className="flex flex-wrap gap-2 md:col-span-2">
         <button disabled={busy} className="rounded-full bg-black px-4 py-2 text-xs font-black text-white">{busy ? "Saving…" : "Save changes"}</button>
         {["DRAFT", "ACTIVE", "ARCHIVED"].map((status) => (

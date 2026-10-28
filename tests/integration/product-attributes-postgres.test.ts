@@ -88,3 +88,19 @@ test("Disabling a spec definition removes it from public view without discarding
   assert.ok((item?.specifications ?? []).some(x=>x.label==="Fabric"));
   assert.ok(!(item?.specifications ?? []).some(x=>x.label==="RAM"));
 });
+
+test("create-draft form can save category specifications in one transaction",async()=>{
+  const draft=await createProduct({name:"Draft Specs "+id,
+    sku:"DR-SPEC-"+id,price:1100,status:"DRAFT",
+    categorySlug:"spec-"+id+"-clothing",attributes:{fabric:"Linen"},
+  });
+  const stored=await db.product.findUniqueOrThrow({where:{id:draft.id}});
+  assert.deepEqual(stored.attributes,{fabric:"Linen"});
+  assert.equal(stored.status,"DRAFT");
+  await updateProduct(draft.id,{status:"ACTIVE"});
+  const visible=await getProductBySlug(draft.slug);
+  assert.deepEqual(visible?.specifications,[{label:"Fabric",value:"Linen"}]);
+  await assert.rejects(createProduct({name:"Orphan Specs "+id,
+    sku:"OR-SP-"+id,price:100,status:"DRAFT",attributes:{fabric:"Linen"},
+  }),/Choose a category/);
+});
