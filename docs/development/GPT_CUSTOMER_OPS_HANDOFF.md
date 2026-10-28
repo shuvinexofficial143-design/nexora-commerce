@@ -245,10 +245,11 @@ Owner requested coding only; **NO VERCEL deployment** and no Production/staging 
 - Must verify exact-HEAD CI 4/4 jobs success; follow up on any failures. Remaining: actual staging schema/runbook, third-party Cashfree sandbox, overall Cline/QA branch integration, final Vercel only after owner directive.
 
 
-## 28 October 2026 — Checkout Fulfillment Warehouse and Concurrent Admin Stock Safety (CI pending)
+## 28 October 2026 — Checkout Fulfillment Warehouse and Concurrent Admin Stock Safety (verified)
 - Only `feature/nexora-gpt-customer-ops`; no Vercel deploy, production data or payment action, cross-branch change or schema migration.
 - Checkout preview now counts `InventoryItem` stock only when its `Warehouse.active` is true. The order transaction uses the same warehouse filter; its final guarded stock UPDATE also rechecks Warehouse.active so deactivation between quote and reservation fails closed.
 - Admin stock adjustments now use one conditional SQL UPDATE against the **current** onHand/reserved values rather than an unprotected read followed by an absolute write. This prevents lost increments, negative/overflow quantities and stock reductions below concurrently reserved units. Movement recording stays inside the same transaction.
 - Disposable PostgreSQL regressions added: inactive-only warehouse after a valid quote; mixed active/offline warehouses; reactivation; rejection with no order/movement; two concurrent stock adjustments; reserved-stock guard; simultaneous checkout and stock reduction.
 - Existing priced SKU variants keep their independent variant stock path; no parent-stock double reservation.
 - Exact new HEAD CI remains mandatory; do not treat this as production-ready until migration/schema and end-to-end staging checks are separately approved.
+- **Verification:** exact code commit `c9c7c6290fa2e637f07fb87d8fe2f6377444efb4`, GitHub Actions run [40713212969](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40713212969) completed **SUCCESS 4/4 jobs, 0 failures**: isolated PostgreSQL integration, Unit/TypeScript/ESLint/Build/Security, customer Chromium and authenticated Owner Admin + local COD Chromium. This is disposable QA evidence only, not live staging/production readiness.
