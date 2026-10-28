@@ -156,7 +156,7 @@ jobs:
       DATABASE_URL: postgresql://nexora_qa:qa-${{ github.run_id }}-${{ github.run_attempt }}@127.0.0.1:5432/nexora_qa
       DIRECT_URL: postgresql://nexora_qa:qa-${{ github.run_id }}-${{ github.run_attempt }}@127.0.0.1:5432/nexora_qa
       NEXORA_QA_ALLOW_DB_INTEGRATION: "true"
-      NEXORA_QA_BASE_URL: http://127.0.0.1:3138/
+      NEXORA_QA_BASE_URL: http://localhost:3138/
       ADMIN_USERNAME: nexora_qa_owner
       ADMIN_PASSWORD: qa-${{ github.run_id }}-${{ github.run_attempt }}-owner
       ADMIN_OWNER_EMAIL: nexora-qa-owner@example.invalid
