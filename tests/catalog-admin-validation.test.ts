@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeGallery } from "../lib/admin/product-admin";
-import { validateProductAttributes } from "../lib/admin/catalog-admin";
+import { normalizeCatalogSortOrder, validateProductAttributes } from "../lib/admin/catalog-admin";
 
 const definitions = [
   { slug: "material", name: "Material", type: "SELECT", required: true, active: true, options: ["Cotton", "Silk"] },
@@ -26,4 +26,19 @@ test("product gallery accepts approved HTTPS media and assigns stable order", ()
   ]);
   assert.throws(() => normalizeGallery(["http://example.com/image.jpg"], "Gift"), /HTTPS from/);
   assert.throws(() => normalizeGallery(["https://images.unsplash.com/photo-1", "https://images.unsplash.com/photo-1"], "Gift"), /unique/);
+});
+
+test("required category attributes reject omitted/null product attribute payloads", () => {
+  assert.throws(() => validateProductAttributes(definitions, null), /Material is required/);
+  assert.throws(() => validateProductAttributes(definitions, undefined), /Material is required/);
+  assert.deepEqual(validateProductAttributes([{ ...definitions[0], required: false }], null), {});
+});
+
+test("catalog display order accepts bounded integers and rejects silent coercion", () => {
+  assert.equal(normalizeCatalogSortOrder(undefined, 5), 5);
+  assert.equal(normalizeCatalogSortOrder(0), 0);
+  assert.equal(normalizeCatalogSortOrder(-10), -10);
+  for (const value of ["12", 1.2, Number.POSITIVE_INFINITY, 100001, -100001]) {
+    assert.throws(() => normalizeCatalogSortOrder(value), /Display order must be an integer/);
+  }
 });

@@ -36,17 +36,51 @@ export async function listCategories(input: { query?: string; includeArchived?: 
   });
 }
 
+export function normalizeCatalogSortOrder(value: unknown, fallback = 0): number {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < -100000 || value > 100000) {
+    throw new Error("Display order must be an integer between -100000 and 100000.");
+  }
+  return value;
+}
+
 export async function saveCategory(id: string | undefined, input: Record<string, unknown>) {
-  const name = text(input.name, "Category name", 2);
-  const slug = slugify(text(input.slug || name, "Category slug", 2));
-  if (!slug) throw new Error("Category slug is required.");
-  const parentId = typeof input.parentId === "string" && input.parentId ? input.parentId : null;
   const prisma = getPrisma();
+  const previous = id ? await prisma.category.findUnique({ where: { id } }) : null;
+  if (id && !previous) throw new Error("Category not found.");
+  if (input.archived === true && !previous?.archived) throw new Error("Use the archive action to archive a category.");
+
+  // PATCH must retain fields that the editor did not explicitly change.
+  const payload: Record<string, unknown> = { ...(previous ?? {}), ...input };
+  const name = text(payload.name, "Category name", 2);
+  const slug = slugify(text(payload.slug || name, "Category slug", 2));
+  if (!slug) throw new Error("Category slug is required.");
+  if (payload.parentId !== null && payload.parentId !== undefined && typeof payload.parentId !== "string") {
+    throw new Error("Parent category must be a valid category ID.");
+  }
+  const parentId = typeof payload.parentId === "string" ? payload.parentId.trim() || null : null;
   await assertParent(prisma, parentId, id);
-  const duplicate = await prisma.category.findFirst({ where: { slug, ...(id ? { NOT: { id } } : {}) }, select: { id: true } });
+
+  // A category with children cannot become a child itself, even if those children are archived.
+  if (id && parentId && parentId !== previous?.parentId) {
+    const children = await prisma.category.count({ where: { parentId: id } });
+    if (children) throw new Error("Move child categories before changing this category's parent.");
+  }
+  const duplicate = await prisma.category.findFirst({
+    where: { slug, ...(id ? { NOT: { id } } : {}) }, select: { id: true },
+  });
   if (duplicate) throw new Error("Category slug is already in use.");
-  const data = { name, slug, description: typeof input.description === "string" ? input.description.trim() || null : null, imageUrl: safeImageUrl(input.imageUrl), sortOrder: Number.isInteger(input.sortOrder) ? Number(input.sortOrder) : 0, visible: input.visible !== false, ...(parentId !== undefined ? { parentId } : {}) };
-  return id ? prisma.category.update({ where: { id }, data }) : prisma.category.create({ data: { ...data, id: randomUUID() } });
+
+  const archived = input.archived === false ? false : previous?.archived ?? false;
+  const data = {
+    name, slug, parentId, archived,
+    description: typeof payload.description === "string" ? payload.description.trim() || null : null,
+    imageUrl: safeImageUrl(payload.imageUrl),
+    sortOrder: normalizeCatalogSortOrder(payload.sortOrder),
+    visible: !archived && payload.visible !== false,
+  };
+  return id ? prisma.category.update({ where: { id }, data }) :
+    prisma.category.create({ data: { ...data, id: randomUUID() } });
 }
 
 export async function archiveCategory(id: string) {
@@ -62,13 +96,26 @@ export async function listBrands(input: { query?: string; includeInactive?: bool
 }
 
 export async function saveBrand(id: string | undefined, input: Record<string, unknown>) {
-  const name = text(input.name, "Brand name", 2);
-  const slug = slugify(text(input.slug || name, "Brand slug", 2));
   const prisma = getPrisma();
-  const duplicate = await prisma.brand.findFirst({ where: { slug, ...(id ? { NOT: { id } } : {}) }, select: { id: true } });
+  const previous = id ? await prisma.brand.findUnique({ where: { id } }) : null;
+  if (id && !previous) throw new Error("Brand not found.");
+  const payload: Record<string, unknown> = { ...(previous ?? {}), ...input };
+  const name = text(payload.name, "Brand name", 2);
+  const slug = slugify(text(payload.slug || name, "Brand slug", 2));
+  if (!slug) throw new Error("Brand slug is required.");
+  const duplicate = await prisma.brand.findFirst({
+    where: { slug, ...(id ? { NOT: { id } } : {}) }, select: { id: true },
+  });
   if (duplicate) throw new Error("Brand slug is already in use.");
-  const data = { name, slug, description: typeof input.description === "string" ? input.description.trim() || null : null, logoUrl: safeImageUrl(input.logoUrl), active: input.active !== false, featured: input.featured === true };
-  return id ? prisma.brand.update({ where: { id }, data }) : prisma.brand.create({ data: { ...data, id: randomUUID() } });
+  const data = {
+    name, slug,
+    description: typeof payload.description === "string" ? payload.description.trim() || null : null,
+    logoUrl: safeImageUrl(payload.logoUrl),
+    active: payload.active !== false,
+    featured: payload.featured === true,
+  };
+  return id ? prisma.brand.update({ where: { id }, data }) :
+    prisma.brand.create({ data: { ...data, id: randomUUID() } });
 }
 
 export async function archiveBrand(id: string) {
@@ -93,9 +140,8 @@ export async function saveAttributeDefinition(id: string | undefined, input: Rec
 export async function archiveAttributeDefinition(id: string) { return getPrisma().attributeDefinition.update({ where: { id }, data: { active: false } }); }
 
 export function validateProductAttributes(definitions: Array<{ slug: string; name: string; type: string; required: boolean; active: boolean; options: unknown }>, value: unknown) {
-  if (value == null) return {};
-  if (typeof value !== "object" || Array.isArray(value)) throw new Error("Product attributes must be an object.");
-  const input = value as Record<string, unknown>;
+  if (value != null && (typeof value !== "object" || Array.isArray(value))) throw new Error("Product attributes must be an object.");
+  const input = (value ?? {}) as Record<string, unknown>;
   const output: Record<string, unknown> = {};
   for (const definition of definitions.filter((item) => item.active)) {
     const current = input[definition.slug];
