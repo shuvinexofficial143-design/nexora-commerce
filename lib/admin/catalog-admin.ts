@@ -139,18 +139,52 @@ export async function saveAttributeDefinition(id: string | undefined, input: Rec
 }
 export async function archiveAttributeDefinition(id: string) { return getPrisma().attributeDefinition.update({ where: { id }, data: { active: false } }); }
 
-export function validateProductAttributes(definitions: Array<{ slug: string; name: string; type: string; required: boolean; active: boolean; options: unknown }>, value: unknown) {
-  if (value != null && (typeof value !== "object" || Array.isArray(value))) throw new Error("Product attributes must be an object.");
+export function validateProductAttributes(definitions: Array<{
+  slug: string; name: string; type: string; required: boolean; active: boolean; options: unknown;
+}>, value: unknown) {
+  if (value != null && (typeof value !== "object" || Array.isArray(value))) {
+    throw new Error("Product attributes must be an object.");
+  }
   const input = (value ?? {}) as Record<string, unknown>;
   const output: Record<string, unknown> = {};
   for (const definition of definitions.filter((item) => item.active)) {
     const current = input[definition.slug];
-    if (definition.required && (current == null || current === "" || (Array.isArray(current) && current.length === 0))) throw new Error(`${definition.name} is required.`);
-    if (current == null || current === "") continue;
-    if (definition.type === "NUMBER" && (typeof current !== "number" || !Number.isFinite(current))) throw new Error(`${definition.name} must be a number.`);
-    if (definition.type === "BOOLEAN" && typeof current !== "boolean") throw new Error(`${definition.name} must be true or false.`);
-    if (["SELECT", "COLOR"].includes(definition.type) && (!Array.isArray(definition.options) || !definition.options.includes(current))) throw new Error(`${definition.name} has an invalid value.`);
-    if (definition.type === "MULTI_SELECT" && (!Array.isArray(current) || !current.every((item) => Array.isArray(definition.options) && definition.options.includes(item)))) throw new Error(`${definition.name} has invalid values.`);
+    if (current == null || current === "" || (Array.isArray(current) && current.length === 0)) {
+      if (definition.required) throw new Error(definition.name + " is required.");
+      continue;
+    }
+    switch (definition.type) {
+      case "NUMBER":
+        if (typeof current !== "number" || !Number.isFinite(current)) throw new Error(definition.name + " must be a number.");
+        break;
+      case "BOOLEAN":
+        if (typeof current !== "boolean") throw new Error(definition.name + " must be true or false.");
+        break;
+      case "SELECT":
+      case "COLOR":
+        if (typeof current !== "string" || !Array.isArray(definition.options) || !definition.options.includes(current)) {
+          throw new Error(definition.name + " has an invalid value.");
+        }
+        break;
+      case "MULTI_SELECT":
+        if (!Array.isArray(current) || !current.every((item) => typeof item === "string" && Array.isArray(definition.options) && definition.options.includes(item))) {
+          throw new Error(definition.name + " has invalid values.");
+        }
+        break;
+      case "DATE":
+        if (typeof current !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(current) || Number.isNaN(Date.parse(current)) ||
+          new Date(current).toISOString().slice(0, 10) !== current) {
+          throw new Error(definition.name + " must be a valid date.");
+        }
+        break;
+      case "TEXT":
+      case "IMAGE_REQUEST":
+        if (typeof current !== "string" || !current.trim() || current.length > 2000) {
+          throw new Error(definition.name + " must be text under 2000 characters.");
+        }
+        break;
+      default: throw new Error("Unsupported product attribute type.");
+    }
     output[definition.slug] = current;
   }
   return output;
