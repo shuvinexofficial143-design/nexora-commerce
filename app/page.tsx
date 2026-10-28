@@ -4,6 +4,7 @@ import { listProducts } from "@/lib/db/products";
 import { demoCatalogEnabled } from "@/lib/storefront/catalog-query";
 import { buildHomepageCollection } from "@/lib/storefront/homepage-collection";
 import { LiveStorefrontHome } from "@/components/home/live-storefront-home";
+import { getPublishedHomepageBanners } from "@/lib/home-banners";
 import type { CatalogProduct } from "@/types/catalog";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ export default async function HomePage() {
         error instanceof Error ? error.name : "Unknown database error");
     }
   }
+  const banners = !demo && !unavailable ? await getPublishedHomepageBanners() : [];
   return <LiveStorefrontHome collection={buildHomepageCollection(products)}
-    demo={demo} unavailable={unavailable} />;
+    demo={demo} unavailable={unavailable} banners={banners} />;
 }

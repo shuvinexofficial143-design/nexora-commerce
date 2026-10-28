@@ -106,3 +106,16 @@ Customer-facing milestone based on user Vercel screenshots:
 - Added pure validation tests for category/brand input and isolated PostgreSQL E2E tests: options persist, create DRAFT and verify unlisted, activate product, record actual available stock, confirm live homepage and catalog pricing/category/brand, relocate category while atomically changing price, fail unknown slug without partial update, alter active SKU availability, archive and remove public visibility.
 - DB E2E requires local disposable PostgreSQL opt-in. Cline's Category hierarchy/Brand status flags/HomepageBanner schema remain distinct and unmerged. Future owner-approved integration branch and staging DB are still needed. Production remains untouched.
 - This milestone requires exact-HEAD CI before it can be described as verified.
+
+
+## 28 Oct 2026 — Homepage Banner CMS, GPT Branch Only (pending exact-HEAD CI)
+
+This milestone intentionally makes **NO VERCEL deployment**. User explicitly directed: keep coding/testing in GitHub until final release.
+
+- Reconciled Cline banner model read-only (Cline branch HEAD 41fa06c4ce32f28b9c64ea831fd41a0584f7bf2a); introduced an identically named `HomepageBanner` Prisma model with matching Cline field names and index on GPT branch, plus a reviewed additive SQL migration at `prisma/reviewed-migrations/20261028_homepage_banner_compatible.sql`. No external or production migration performed.
+- Authenticated owner `GET/POST /api/admin-app/banners`, `PATCH /api/admin-app/banners/[bannerId]` (matches Cline API path), only verified owner session, no-store responses, explicit audit records, meaningful HTTP 400/404 for invalid/not-found input. No delete/public write.
+- New `/admin/banners` owner UI with Create, desktop and mobile images, CTA destination/text, optional category, sort order, Draft/Published/Archived states, editor, media upload integration, and safe fallback when empty. Sidebar navigation added.
+- Public `app/page.tsx` uses dynamic server-side `getPublishedHomepageBanners`. Non-demo mode shows first published/non-archived banner as hero and up to four additional banners in order; when none exists, existing SKU-aware product spotlight remains. Demo catalog mode does not access live banner DB and cannot imply a real published campaign. SQL listing fails closed if unconfigured/unavailable.
+- All image URLs restricted to approved HTTPS hosts already allowed by Next image config; CTA internal shop/search/product/track-order only; dangerous external/protocol-relative URLs, oversized content, malformed slugs/fields and noninteger sort order rejected. Archived banners unpublish. Existing stale invalid records are filtered from public views.
+- Unit/security tests cover URL validation and anonymous GET/POST/PATCH denial; isolated PostgreSQL tests cover unpublished/draft privacy, published order, mobile image, atomic invalid edits, archive/unarchive and unpublish. CI must pass on the exact final SHA before claiming verified.
+- Cline and QA branches not changed or merged; integration conflict risk persists for other Cline catalog/brand/category models and the combined product-admin UI. No real Cashfree payment, email, customer order, returns/refunds, or production DB change.

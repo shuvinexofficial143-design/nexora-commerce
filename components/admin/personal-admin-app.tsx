@@ -6,6 +6,7 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 import { AdminProductChoicesEditor } from "@/components/admin/admin-product-choices-editor";
 import { AdminProductVariantsEditor } from "@/components/admin/admin-product-variants-editor";
+import { HomepageBannersPanel } from "@/components/admin/homepage-banners-panel";
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -1242,6 +1243,7 @@ export function PersonalAdminApp() {
   }, [router]);
 
   const section = useMemo(() => {
+    if (pathname.startsWith("/admin/banners")) return <HomepageBannersPanel />;
     if (pathname.startsWith("/admin/products")) return <Products />;
     if (pathname.startsWith("/admin/orders")) return <Orders />;
     if (pathname.startsWith("/admin/inventory")) return <Inventory />;

@@ -3,11 +3,13 @@ import Image from "next/image";
 import { Container } from "@/components/ui/container";
 import { CatalogProductCard } from "@/components/catalog/catalog-product-card";
 import type { HomepageCollection } from "@/lib/storefront/homepage-collection";
+import type { HomepageBannerData } from "@/lib/home-banners";
 
 type Props = {
   collection: HomepageCollection;
   demo: boolean;
   unavailable: boolean;
+  banners: HomepageBannerData[];
 };
 
 function CatalogSection({ title, eyebrow, description, products }: {
@@ -36,8 +38,10 @@ function CatalogSection({ title, eyebrow, description, products }: {
   );
 }
 
-export function LiveStorefrontHome({ collection, demo, unavailable }: Props) {
+export function LiveStorefrontHome({ collection, demo, unavailable, banners }: Props) {
   const featured = collection.spotlight;
+  const heroBanner = !demo && !unavailable ? banners[0] : undefined;
+  const secondaryBanners = !demo && !unavailable ? banners.slice(1,5) : [];
   return (
     <main className="pb-16">
       <Container>
@@ -53,14 +57,16 @@ export function LiveStorefrontHome({ collection, demo, unavailable }: Props) {
             <div className="flex flex-col justify-center px-6 py-14 sm:px-10 lg:px-16">
               <p className="w-fit rounded-full border border-white/20 px-4 py-2 text-[11px] font-black uppercase tracking-[.25em] text-[#d7ff47]">NEXORA / EVERYDAY DISCOVERY</p>
               <h1 className="mt-6 max-w-[650px] text-[clamp(3.2rem,7.5vw,7rem)] font-black leading-[.88] tracking-[-.075em]">
-                FIND YOUR
-                <span className="mt-1 block text-[#d7ff47]">NEXT THING.</span>
+                {heroBanner ? heroBanner.title : <>
+                  FIND YOUR
+                  <span className="mt-1 block text-[#d7ff47]">NEXT THING.</span>
+                </>}
               </h1>
               <p className="mt-6 max-w-[490px] text-base leading-7 text-white/70">
-                Explore thoughtful finds across the categories you love, with transparent product information and a clean shopping experience.
+                {heroBanner?.description ?? "Explore thoughtful finds across the categories you love, with transparent product information and a clean shopping experience."}
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Link href="/shop" className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#d7ff47] px-7 py-3 text-sm font-black text-black hover:bg-[#c6ef37]">Explore collection →</Link>
+                <Link href={heroBanner?.ctaHref ?? "/shop"} className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#d7ff47] px-7 py-3 text-sm font-black text-black hover:bg-[#c6ef37]">{heroBanner?.ctaText ?? "Explore collection"} →</Link>
                 <Link href="/search" className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/30 px-7 py-3 text-sm font-black text-white hover:bg-white/10">Find a product</Link>
               </div>
               <div className="mt-9 flex flex-wrap gap-3 text-[11px] font-bold text-white/65">
@@ -70,7 +76,18 @@ export function LiveStorefrontHome({ collection, demo, unavailable }: Props) {
               </div>
             </div>
             <div className="relative flex min-h-[270px] flex-col justify-end overflow-hidden bg-[#2b3328] lg:min-h-full">
-              {featured ? <>
+              {heroBanner ? <>
+                <Image src={heroBanner.imageUrl} alt={heroBanner.title} fill priority
+                  sizes="(max-width: 1024px) 100vw, 45vw"
+                  className={`object-cover ${heroBanner.mobileImageUrl ? "hidden sm:block" : ""}`}/>
+                {heroBanner.mobileImageUrl ? <Image src={heroBanner.mobileImageUrl}
+                  alt={heroBanner.title} fill priority sizes="100vw" className="object-cover sm:hidden"/> : null}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"/>
+                <div className="relative p-7 sm:p-9">
+                  <p className="text-xs font-black tracking-widest text-white">NEXORA COLLECTION</p>
+                  <p className="mt-2 text-sm font-semibold text-white/85">{heroBanner.title}</p>
+                </div>
+              </> : featured ? <>
                 <Image src={featured.image} alt={featured.name} fill priority sizes="(max-width: 1024px) 100vw, 45vw" className="object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
                 <div className="relative p-7 sm:p-9">
@@ -88,6 +105,20 @@ export function LiveStorefrontHome({ collection, demo, unavailable }: Props) {
             </div>
           </div>
         </section>
+        {secondaryBanners.length ? <section aria-label="More featured collections"
+          className="mt-6 grid gap-4 sm:grid-cols-2">
+          {secondaryBanners.map(banner=><Link key={banner.id} href={banner.ctaHref}
+            className="group relative flex min-h-[220px] overflow-hidden rounded-[26px] bg-[#19221b] text-white">
+            <Image src={banner.imageUrl} alt="" fill sizes="(max-width: 640px) 100vw, 50vw"
+              className="object-cover opacity-70 transition-transform group-hover:scale-105"/>
+            <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-transparent"/>
+            <div className="relative flex flex-col justify-end p-6">
+              <h2 className="text-2xl font-black">{banner.title}</h2>
+              {banner.description ? <p className="mt-2 max-w-sm text-sm text-white/80">{banner.description}</p> : null}
+              <span className="mt-4 text-sm font-black text-[#d7ff47]">{banner.ctaText} →</span>
+            </div>
+          </Link>)}
+        </section> : null}
         {unavailable || (!demo && !collection.categories.length) ? (
           <section role="status" className="mt-8 rounded-3xl border border-amber-200 bg-white p-7 sm:p-10">
             <h2 className="text-xl font-black">{unavailable ? "Live products are temporarily unavailable" : "The collection is being prepared"}</h2>
