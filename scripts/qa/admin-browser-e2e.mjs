@@ -689,6 +689,41 @@ try {
     }
   });
 
+
+  await verify("homepage-banner-validation-returns-actionable-400-without-write", async () => {
+    const valid = {
+      title: "QA Valid Banner " + suffix, description: "QA owner-safe",
+      imageUrl: img1, mobileImageUrl: "", ctaText: "Shop now",
+      ctaHref: "/shop", categorySlug: "", sortOrder: 10, published: false,
+    };
+    const previous = await api(ctx, "/api/admin-app/banners");
+    const invalidUrl = await ctx.request.post(new URL("/api/admin-app/banners", base).href, {
+      data: { ...valid, imageUrl: "http://untrusted.example/test.png" },
+    });
+    assert.equal(invalidUrl.status(), 400);
+    assert.match((await invalidUrl.json()).error, /approved HTTPS/);
+    const invalidRoute = await ctx.request.post(new URL("/api/admin-app/banners", base).href, {
+      data: { ...valid, ctaHref: "//untrusted.example" },
+    });
+    assert.equal(invalidRoute.status(), 400);
+    assert.match((await invalidRoute.json()).error, /internal CTA/);
+    const invalidJson = await ctx.request.post(new URL("/api/admin-app/banners", base).href, {
+      headers: { "content-type": "application/json" }, data: '{"title":',
+    });
+    assert.equal(invalidJson.status(), 400);
+    assert.match((await invalidJson.json()).error, /Invalid homepage banner/);
+    assert.equal((await api(ctx, "/api/admin-app/banners")).length, previous.length);
+
+    const row = await api(ctx, "/api/admin-app/banners", "POST", valid);
+    const patchUrl = new URL("/api/admin-app/banners/" + row.id, base).href;
+    const badPatch = await ctx.request.patch(patchUrl, { data: { ...valid, sortOrder: -4, title: "SHOULD NOT SAVE" } });
+    assert.equal(badPatch.status(), 400);
+    assert.match((await badPatch.json()).error, /Display order/);
+    const fetched = (await api(ctx, "/api/admin-app/banners")).find(x => x.id === row.id);
+    assert.equal(fetched.title, valid.title, "Bad PATCH cannot alter persisted Banner");
+    assert.equal(fetched.sortOrder, 10);
+  });
+
   await ctx.close();
 } finally {
   await browser.close();

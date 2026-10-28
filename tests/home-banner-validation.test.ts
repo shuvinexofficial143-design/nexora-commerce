@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateBanner } from "../lib/home-banners";
+import { BannerValidationError, validateBanner } from "../lib/home-banners";
 
 const base = {
   title: "Autumn Sale", description: "Seasonal collection",
@@ -27,4 +27,8 @@ test("homepage banner blocks unsafe images, cross-origin links, invalid order an
     assert.throws(() => validateBanner({ ...base, sortOrder: order }), /Display order must/);
   }
   assert.equal(validateBanner({ ...base, archived: true, published: true }).published, false);
+});
+
+test("validation failures have explicit BannerValidationError type", () => {
+  assert.throws(() => validateBanner({}), (error: unknown) => error instanceof BannerValidationError && /title or CTA/.test(error.message));
 });
