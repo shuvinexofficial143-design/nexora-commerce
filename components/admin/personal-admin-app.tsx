@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 import { ProductGalleryEditor } from "@/components/admin/product-gallery-editor";
+import type { BulkProductAction } from "@/lib/admin/product-bulk";
 import { CmsHeroEditor } from "@/components/admin/cms-hero-editor";
 import { CatalogManagement } from "@/components/admin/catalog-management";
 import { ProductAttributeEditor } from "@/components/admin/product-attribute-editor";
@@ -306,6 +307,22 @@ function Products() {
   const [draftGallery, setDraftGallery] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkAction, setBulkAction] = useState<BulkProductAction>("PUBLISH");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkNotice, setBulkNotice] = useState("");
+  const visibleProducts = rows.filter((product) =>
+    (statusFilter === "ALL" || product.status === statusFilter) &&
+    [product.name, product.sku, product.brand || "", product.category || ""].join(" ").toLowerCase().includes(query.toLowerCase())
+  );
+  const eligibleVisible = visibleProducts.filter((product) => product.status !== "ARCHIVED");
+  const selectedProducts = rows.filter((product) => selectedIds.includes(product.id));
+  const bulkLabels: Record<BulkProductAction, string> = {
+    PUBLISH: "Publish selected products",
+    MOVE_TO_DRAFT: "Move selected products to draft",
+    FEATURE: "Mark selected products featured",
+    UNFEATURE: "Remove selected products from featured",
+  };
   const [form, setForm] = useState({
     name: "", sku: "", price: "", compareAtPrice: "", description: "", videoUrl: "", posterUrl: "", categorySlug: "", brandSlug: "",
   });
@@ -372,6 +389,34 @@ function Products() {
     }
   }
 
+  async function applyBulkAction() {
+    if (!selectedProducts.length || selectedProducts.length > 25 || bulkBusy || busy) return;
+    const preview = selectedProducts.slice(0, 4).map((product) => product.name).join(", ");
+    const summary = selectedProducts.length > 4 ? preview + ", and more" : preview;
+    if (!window.confirm(bulkLabels[bulkAction] + " for " + selectedProducts.length + " product(s)?\n" + summary + "\nInventory, orders and pricing will not change.")) return;
+    setBulkBusy(true);
+    setBulkNotice("");
+    setError("");
+    try {
+      const result = await adminFetch<{ changed: number; unchanged: number }>("/api/admin-app/products/bulk", {
+        method: "POST",
+        body: JSON.stringify({
+          action: bulkAction,
+          products: selectedProducts.map((product) => ({ id: product.id, updatedAt: product.updatedAt })),
+        }),
+      });
+      setBulkNotice(result.changed + " products updated, " + result.unchanged + " already matched.");
+      setSelectedIds([]);
+      load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Bulk operation could not be completed.");
+      setSelectedIds([]);
+      load();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -380,6 +425,7 @@ function Products() {
       </div>
 
       {error ? <ErrorBlock error={error} retry={load} /> : null}
+      {bulkNotice ? <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{bulkNotice}</p> : null}
 
       <Panel title="Add product" description="Create a category-ready draft product with optional media">
         <form onSubmit={create} className="grid gap-3 md:grid-cols-2">
@@ -473,12 +519,31 @@ function Products() {
 
       <Panel title="All products" description={`${rows.length} products in database`}>
         <div className="mb-4 flex flex-wrap gap-2">
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, SKU, brand…" className="min-w-[240px] flex-1 rounded-full border border-black/10 bg-[#fafaf7] px-4 py-2.5 text-sm font-bold outline-none" />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-full border border-black/10 bg-[#fafaf7] px-4 py-2.5 text-sm font-bold"><option>ALL</option><option>DRAFT</option><option>ACTIVE</option><option>ARCHIVED</option></select>
+          <input value={query} onChange={(e) => { setQuery(e.target.value); setSelectedIds([]); }} placeholder="Search name, SKU, brand…" className="min-w-[240px] flex-1 rounded-full border border-black/10 bg-[#fafaf7] px-4 py-2.5 text-sm font-bold outline-none" />
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setSelectedIds([]); }} className="rounded-full border border-black/10 bg-[#fafaf7] px-4 py-2.5 text-sm font-bold"><option>ALL</option><option>DRAFT</option><option>ACTIVE</option><option>ARCHIVED</option></select>
+        </div>
+        <div className="mb-4 space-y-3 rounded-2xl border border-black/10 bg-[#f5f5f1] p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setSelectedIds(eligibleVisible.slice(0, 25).map((product) => product.id))} disabled={bulkBusy || eligibleVisible.length === 0} className="rounded-xl border border-black/20 bg-white px-3 py-2 text-xs font-black disabled:opacity-40">Select first 25 filtered</button>
+            <button type="button" onClick={() => setSelectedIds([])} disabled={bulkBusy || !selectedIds.length} className="rounded-xl border border-black/20 bg-white px-3 py-2 text-xs font-black disabled:opacity-40">Clear selection</button>
+            <span className="ml-auto text-xs font-black">{selectedProducts.length} / 25 selected</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select aria-label="Bulk product action" value={bulkAction} onChange={(event) => setBulkAction(event.target.value as BulkProductAction)} disabled={bulkBusy} className="min-w-[220px] flex-1 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-bold">
+              <option value="PUBLISH">Publish selected</option>
+              <option value="MOVE_TO_DRAFT">Move to draft</option>
+              <option value="FEATURE">Mark featured</option>
+              <option value="UNFEATURE">Remove featured</option>
+            </select>
+            <button type="button" onClick={() => void applyBulkAction()} disabled={bulkBusy || busy || selectedProducts.length === 0 || selectedProducts.length > 25} className="rounded-xl bg-black px-5 py-2 text-xs font-black text-white disabled:opacity-40">{bulkBusy ? "Applying…" : "Apply bulk action"}</button>
+          </div>
+          <p className="text-xs font-semibold text-black/50">Only selected products are affected. Confirmation required. Archived products are excluded. If a product changes after selection, refresh before retrying.</p>
         </div>
         <div className="space-y-3">
-          {rows.filter((product) => (statusFilter === "ALL" || product.status === statusFilter) && [product.name, product.sku, product.brand || "", product.category || ""].join(" ").toLowerCase().includes(query.toLowerCase())).map((product) => (
-            <details key={product.id} className="rounded-[22px] border border-black/10 bg-[#fafaf7] p-4">
+          {visibleProducts.map((product) => (
+            <div key={product.id} className="flex items-start gap-3">
+              <input aria-label={"Select product " + product.name} type="checkbox" disabled={bulkBusy || product.status === "ARCHIVED" || (!selectedIds.includes(product.id) && selectedIds.length >= 25)} checked={selectedIds.includes(product.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, product.id] : current.filter((id) => id !== product.id))} className="mt-6 h-4 w-4 shrink-0 accent-black" />
+              <details className="min-w-0 flex-1 rounded-[22px] border border-black/10 bg-[#fafaf7] p-4">
               <summary className="cursor-pointer list-none">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -498,7 +563,8 @@ function Products() {
                 attributesLoading={attributesLoading}
                 attributeError={attributeError}
                 onSave={(patch) => updateProduct(product, patch)} />
-            </details>
+              </details>
+            </div>
           ))}
           {!rows.length ? <p className="py-6 text-center text-sm font-bold text-black/35">No products yet.</p> : null}
         </div>
