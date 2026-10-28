@@ -76,3 +76,15 @@ The GPT-only Admin Products response now also supplies the Cline-readable descri
 - Public product serialization now presents only definitions explicitly ACTIVE, with stored valid attribute values as Specification rows. No guessed material, RAM, color, warranty or delivery claims. Normal SKU price/stock selection and order reservation logic unchanged.
 - Added pure validation tests, anonymous-owner API tests, and isolated PostgreSQL transactional integration: add definitions, required activation checks, safe read display, invalid update rollback, category-switch cleanup, deactivate without database loss.
 - Cline/QA/main branches remain untouched. **A final explicit integration review is still needed** for Cline admin catalog editor, new Product Attributes, SKU/priced variant schema, categories and banners. This milestone requires exact-head CI verification; do not declare it verified before successful run.
+
+
+## 28 Oct 2026 — GPT/Cline Integration Milestone: Product Image Gallery
+
+- **No Vercel deploy; no production schema migrations; no branch merge.** GPT feature branch only.
+- Independently compared live branch HEADs: GPT `bafeeceaf5da3f8cf4c105311fee188a0745a9d2`; Cline `924b7fcec971e507b6204e763be7e4443c34827f`; QA `69cc280e24cdb1e1e148b8199227e5190ff8d411`. Both product-admin.ts and personal-admin-app.tsx diverged substantially. Cline bulk publish currently bypasses GPT category-specific required attribute validation, so **DO NOT blindly copy bulk publishing**.
+- Safely ported Cline's `components/admin/product-gallery-editor.tsx` to GPT with separate, Cline-compatible `sortOrder` conventions: 0 primary poster, 1 video, 10..29 extra gallery images. Added `lib/admin/product-gallery.ts` normalization and admin serialized `galleryImages` in the existing GPT SKU-aware serializer without changing stock/price fields.
+- Admin Create/Edit Product Forms now allow up to 20 approved HTTPS images, upload, reorder/remove. Creation and updates use one existing Prisma transaction; extra gallery replaces only its reserved [10..29] records. Poster or video update/delete cannot accidentally overwrite or remove the first gallery image; unsupported/duplicate media inputs abort before updating product price/media.
+- Existing public Product page image mapping and Gallery read `ProductImage` records ordered by sortOrder, so extra images are visible without touching checkout/Pricing/SKU safety.
+- New pure unit tests and disposable PostgreSQL integration tests cover create with poster+video+gallery, admin serialization and live mapping, poster-only update, reorder/removal, invalid rollback and poster deletion without gallery loss.
+- Outstanding Cline features: bulk publish/draft/feature controls, compareAt price admin edit, category image metadata editor, Attribute advanced editor and QA-specific tests; require carefully reviewed ports or separate integration branch. Avoid a raw Cline merge that overwrites GPT checkout, order recovery, SKU, security, search and banner changes.
+- Exact final GPT HEAD CI must succeed before marking this milestone verified.

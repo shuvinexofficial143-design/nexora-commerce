@@ -1,4 +1,4 @@
-import { getYouTubeVideoId, isDirectVideoUrl } from "@/lib/product-media";
+import { primaryMedia,galleryFromMedia } from "@/lib/admin/product-gallery";
 
 export type AdminListProduct = {
   id: string; slug: string; sku: string; name: string; description: string;
@@ -18,10 +18,8 @@ export type AdminListProduct = {
  * Never let parent warehouse stock make an unavailable SKU purchasable.
  */
 export function serializeAdminProductListRow(product: AdminListProduct) {
-  const video = product.images.find(item =>
-    isDirectVideoUrl(item.url) || Boolean(getYouTubeVideoId(item.url)));
-  const poster = product.images.find(item =>
-    !isDirectVideoUrl(item.url) && !getYouTubeVideoId(item.url));
+  const {videoUrl,posterUrl}=primaryMedia(product.images);
+  const galleryImages=galleryFromMedia(product.images);
   const warehouseOnHand = product.inventory.reduce((n,x) => n + x.onHand,0);
   const warehouseReserved = product.inventory.reduce((n,x) => n + x.reserved,0);
   const activeVariants = product.variants.filter(x => x.active);
@@ -48,7 +46,7 @@ export function serializeAdminProductListRow(product: AdminListProduct) {
     activeVariantCount:activeVariants.length,
     totalVariantCount:product.variants.length,
     skuOnHand,skuReserved,availableStock,effectivePriceMinor,
-    videoUrl:video?.url ?? null, posterUrl:poster?.url ?? null,
+    videoUrl,posterUrl,galleryImages,
     media:product.images,updatedAt:product.updatedAt.toISOString(),
   };
 }

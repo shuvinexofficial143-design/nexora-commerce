@@ -3,6 +3,7 @@ import { ValidationError } from "@/lib/db/errors";
 import { Prisma } from "@/generated/prisma/client";
 import { attributesForCategory,validateProductAttributes } from "@/lib/admin/product-attributes";
 import { parseTaxonomySelection } from "@/lib/admin/product-taxonomy";
+import { normalizeProductGallery,GALLERY_START,GALLERY_MAX } from "@/lib/admin/product-gallery";
 import { getPrisma } from "@/lib/db/prisma";
 import {
   getYouTubeVideoId,
@@ -32,6 +33,7 @@ export async function createProduct(input: Record<string, unknown>) {
     throw new ValidationError("Invalid product details, price or description.");
   }
 
+  const gallery=normalizeProductGallery(input.images??[],name);
   const media = resolveProductMedia({
     videoUrl: typeof input.videoUrl === "string" ? input.videoUrl : undefined,
     posterUrl: typeof input.posterUrl === "string" ? input.posterUrl : undefined,
@@ -69,6 +71,7 @@ export async function createProduct(input: Record<string, unknown>) {
     });
 
     const productMedia = [
+      ...gallery.map(image=>({productId:product.id,...image})),
       ...(media.posterUrl
         ? [{
             productId: product.id,
@@ -136,7 +139,10 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
 
   if (typeof input.featured === "boolean") data.featured = input.featured;
 
-  const mediaUpdateRequested =
+  const galleryUpdateRequested=input.images!==undefined;
+  const gallery=galleryUpdateRequested?normalizeProductGallery(input.images,
+    typeof input.name==="string"?input.name:"Product"):undefined;
+  const mediaUpdateRequested = galleryUpdateRequested ||
     typeof input.videoUrl === "string" || typeof input.posterUrl === "string";
   const nextVideoUrl =
     typeof input.videoUrl === "string" ? input.videoUrl.trim() || null : undefined;
@@ -210,12 +216,12 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
         orderBy: { sortOrder: "asc" },
       });
 
-      const videoRecord = existing.find(
-        (item) => isDirectVideoUrl(item.url) || Boolean(getYouTubeVideoId(item.url)),
-      );
-      const posterRecord = existing.find(
-        (item) => !isDirectVideoUrl(item.url) && !getYouTubeVideoId(item.url),
-      );
+      // Gallery images have sortOrder >= 10. Never select one as the
+      // primary poster when editing/removing the poster independently.
+      const videoRecord = existing.find((item)=>item.sortOrder<GALLERY_START &&
+        (isDirectVideoUrl(item.url)||Boolean(getYouTubeVideoId(item.url))));
+      const posterRecord = existing.find((item)=>item.sortOrder<GALLERY_START &&
+        !isDirectVideoUrl(item.url) && !getYouTubeVideoId(item.url));
 
       if (nextVideoUrl !== undefined) {
         if (nextVideoUrl === null) {
@@ -235,6 +241,15 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
             },
           });
         }
+      }
+
+      if(gallery!==undefined){
+        // Replace ONLY reserved gallery rows. Poster/video and unknown legacy
+        // media rows are never affected, and failure rolls back all changes.
+        await tx.productImage.deleteMany({where:{productId:id,
+          sortOrder:{gte:GALLERY_START,lt:GALLERY_START+GALLERY_MAX}}});
+        if(gallery.length)await tx.productImage.createMany({data:
+          gallery.map(image=>({productId:id,...image}))});
       }
 
       if (nextPosterUrl !== undefined) {

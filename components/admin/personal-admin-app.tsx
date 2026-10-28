@@ -6,6 +6,7 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 import { AdminProductChoicesEditor } from "@/components/admin/admin-product-choices-editor";
 import { AdminProductVariantsEditor } from "@/components/admin/admin-product-variants-editor";
+import { ProductGalleryEditor } from "@/components/admin/product-gallery-editor";
 import { HomepageBannersPanel } from "@/components/admin/homepage-banners-panel";
 import { CatalogVisibilityControls } from "@/components/admin/catalog-visibility-controls";
 import { AttributeDefinitionManager, ProductAttributeFields } from "@/components/admin/product-attribute-controls";
@@ -72,6 +73,7 @@ type ProductRow = {
   reserved: number;
   videoUrl: string | null;
   posterUrl: string | null;
+  galleryImages?:string[];
   updatedAt: string;
 };
 
@@ -302,7 +304,7 @@ function Products() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
-    name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "", categorySlug:"", brandSlug:"",
+    name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "", categorySlug:"", brandSlug:"",images:[] as string[],
   });
 
   const load = useCallback(() => {
@@ -344,7 +346,7 @@ function Products() {
           status: "DRAFT",
         }),
       });
-      setForm({ name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "", categorySlug:"",brandSlug:"" });
+      setForm({ name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "", categorySlug:"",brandSlug:"",images:[] });
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create product.");
@@ -414,7 +416,7 @@ function Products() {
             <label key={key}>
               <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">{label}</span>
               <input
-                value={form[key as keyof typeof form]}
+                value={form[key as "name"|"sku"|"price"]}
                 onChange={(e) => setForm((current) => ({ ...current, [key]: e.target.value }))}
                 placeholder={placeholder}
                 type={key === "price" ? "number" : "text"}
@@ -468,6 +470,8 @@ function Products() {
               onUploaded={(url) => setForm((current) => ({ ...current, posterUrl: url }))}
             />
           </label>
+          <ProductGalleryEditor value={form.images} disabled={busy}
+            onChange={images=>setForm(current=>({...current,images}))}/>
           <label className="md:col-span-2">
             <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">Description</span>
             <textarea
@@ -540,6 +544,7 @@ function ProductEditForm({ product, options, onSave }: {
   const [attributes, setAttributes] = useState<Record<string,unknown>>(product.attributes ?? {});
   const [videoUrl, setVideoUrl] = useState(product.videoUrl || "");
   const [posterUrl, setPosterUrl] = useState(product.posterUrl || "");
+  const [galleryImages,setGalleryImages] = useState<string[]>(product.galleryImages ?? []);
   const [busy, setBusy] = useState(false);
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
@@ -547,7 +552,8 @@ function ProductEditForm({ product, options, onSave }: {
     setBusy(true);
     try {
       await onSave({ name, price: Number(price), description:description.trim() || undefined,
-        categorySlug:categorySlug || null,brandSlug:brandSlug || null,videoUrl,posterUrl,attributes });
+        categorySlug:categorySlug || null,brandSlug:brandSlug || null,videoUrl,posterUrl,attributes,
+        ...(JSON.stringify(galleryImages)!==JSON.stringify(product.galleryImages??[])?{images:galleryImages}:{}) });
     } finally {
       setBusy(false);
     }
@@ -588,6 +594,7 @@ function ProductEditForm({ product, options, onSave }: {
         <input value={posterUrl} onChange={(e) => setPosterUrl(e.target.value)} placeholder="Poster image URL" className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
         <AdminMediaUpload resourceType="image" label="Upload new poster" onUploaded={setPosterUrl} />
       </label>
+      <ProductGalleryEditor value={galleryImages} disabled={busy} onChange={setGalleryImages}/>
       <div className="flex flex-wrap gap-2 md:col-span-2">
         <button disabled={busy} className="rounded-full bg-black px-4 py-2 text-xs font-black text-white">{busy ? "Saving…" : "Save changes"}</button>
         {["DRAFT", "ACTIVE", "ARCHIVED"].map((status) => (
