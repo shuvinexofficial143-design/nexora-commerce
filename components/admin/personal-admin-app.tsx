@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
+import { ProductGalleryEditor } from "@/components/admin/product-gallery-editor";
 import { CmsHeroEditor } from "@/components/admin/cms-hero-editor";
 import { CatalogManagement } from "@/components/admin/catalog-management";
 import { ProductAttributeEditor } from "@/components/admin/product-attribute-editor";
@@ -302,6 +303,7 @@ function Products() {
   const [attributeError, setAttributeError] = useState("");
   const [attributesLoading, setAttributesLoading] = useState(true);
   const [draftAttributes, setDraftAttributes] = useState<Record<string, unknown>>({});
+  const [draftGallery, setDraftGallery] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [form, setForm] = useState({
@@ -341,11 +343,13 @@ function Products() {
           categorySlug: form.categorySlug,
           brandSlug: form.brandSlug,
           status: "DRAFT",
+          images: draftGallery,
           ...(attributes !== undefined ? { attributes } : {}),
         }),
       });
       setForm({ name: "", sku: "", price: "", compareAtPrice: "", description: "", videoUrl: "", posterUrl: "", categorySlug: "", brandSlug: "" });
       setDraftAttributes({});
+      setDraftGallery([]);
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create product.");
@@ -451,6 +455,7 @@ function Products() {
               onUploaded={(url) => setForm((current) => ({ ...current, posterUrl: url }))}
             />
           </label>
+          <ProductGalleryEditor value={draftGallery} onChange={setDraftGallery} disabled={busy} />
           <label className="md:col-span-2">
             <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">Description</span>
             <textarea
@@ -524,7 +529,7 @@ function ProductEditForm({ product, options, definitions, attributesLoading, att
   const [categorySlug, setCategorySlug] = useState(product.categorySlug || "");
   const [brandSlug, setBrandSlug] = useState(product.brandSlug || "");
   const [status, setStatus] = useState(product.status);
-  const [gallery, setGallery] = useState(product.media.filter((item) => item.sortOrder >= 10).map((item) => item.url).join("\n"));
+  const [gallery, setGallery] = useState<string[]>(product.media.filter((item) => item.sortOrder >= 10).map((item) => item.url));
   const [busy, setBusy] = useState(false);
   const [draftError, setDraftError] = useState("");
   const [draftAttributes, setDraftAttributes] = useState<Record<string, unknown>>(
@@ -546,7 +551,7 @@ function ProductEditForm({ product, options, definitions, attributesLoading, att
         ...(categorySlug !== (product.categorySlug ?? "") ? { categorySlug } : {}),
         ...(brandSlug !== (product.brandSlug ?? "") ? { brandSlug } : {}),
         ...(attrs !== undefined ? { attributes: attrs } : {}),
-        images: gallery.split("\n").map((value) => value.trim()).filter(Boolean),
+        images: gallery,
       });
     } catch (error) {
       setDraftError(error instanceof Error ? error.message : "Unable to save product changes.");
@@ -580,7 +585,7 @@ function ProductEditForm({ product, options, definitions, attributesLoading, att
         <input value={posterUrl} onChange={(e) => setPosterUrl(e.target.value)} placeholder="Poster image URL" className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
         <AdminMediaUpload resourceType="image" label="Upload new poster" onUploaded={setPosterUrl} />
       </label>
-      <label className="md:col-span-2"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-black/35">Gallery images</span><textarea value={gallery} onChange={(e) => setGallery(e.target.value)} rows={3} placeholder="One approved HTTPS image URL per line" className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" /><span className="mt-1 block text-[11px] font-bold text-black/40">These replace the additional gallery images; poster and video remain separate.</span></label>
+      <ProductGalleryEditor value={gallery} onChange={setGallery} disabled={busy} />
       <div className="flex flex-wrap gap-2 md:col-span-2">
         <button disabled={busy || attributesLoading || Boolean(attributeError)} className="rounded-full bg-black px-4 py-2 text-xs font-black text-white">{busy ? "Saving…" : "Save changes"}</button>
         {["DRAFT", "ACTIVE", "ARCHIVED"].map((nextStatus) => (

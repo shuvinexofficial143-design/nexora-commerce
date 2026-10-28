@@ -140,7 +140,13 @@ try {
     await attrs.getByRole("spinbutton", { name: /Storage GB/ }).fill("256");
     await attrs.getByRole("combobox", { name: /Case Color/ }).selectOption("Silver");
     await form.getByPlaceholder("Poster image URL").fill(img1);
-    await form.getByPlaceholder("One approved HTTPS image URL per line").fill(img1 + "\n" + img2);
+    const gallery = form.getByRole("group", { name: "Product gallery images" });
+    await gallery.getByRole("textbox", { name: "Add gallery image URL" }).fill(img1);
+    await gallery.getByRole("button", { name: "Add image URL" }).click();
+    await gallery.getByRole("textbox", { name: "Add gallery image URL" }).fill(img2);
+    await gallery.getByRole("button", { name: "Add image URL" }).click();
+    await gallery.getByRole("button", { name: "Move image 2 up" }).click();
+    await gallery.getByRole("button", { name: "Move image 1 down" }).click();
     await form.getByRole("button", { name: "Save changes" }).click();
     await page.waitForFunction(async (id) => {
       const result = await (await fetch("/api/admin-app/products")).json();
