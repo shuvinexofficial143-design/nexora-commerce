@@ -1,49 +1,34 @@
 # NEXORA 4 — Admin Development Handoff
 
-Date: 2026-10-28
-Repo: `shuvinexofficial143-design/nexora-commerce`
-Authorized write branch: `feature/nexora-gift-store`
-Latest CI-verified functional commit: `24e2ccfb64f5c34aedaa66afc4b54fc2109e4ab2`
-CI: https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40670637634 — all 3 jobs PASS, including 14 disposable PostgreSQL integration tests (0 fail).
-This documentation update creates a newer HEAD: check current branch and CI before future writes.
+**Date:** 2026-10-28
+**Repository:** `shuvinexofficial143-design/nexora-commerce`
+**Write branch ONLY:** `feature/nexora-gift-store`
+**Latest CI-verified functional HEAD:** `be78062aaf7be0c69ad300ac7fb0382e86e4e6cc`
+**CI run:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40673549944 — **4/4 jobs PASS**. Authenticated Owner Browser E2E is **5 PASS / 0 FAIL**.
 
-## Completed work
+This document-only commit postdates the tested functional commit; read current remote HEAD and latest CI before writing again.
 
-- Existing category/brand management + Product Admin/media + homepage banner CMS preserved.
-- Product Attribute Editor now renders dynamically from category-scoped definitions and handles numbers, text, selections, colors, multiple selections, Boolean, dates and text customization requests.
-- Create and Edit Product persist server-validated attributes, load existing values, and reject missing required attributes.
-- HTTP product Admin list includes attributes, while category/brand option API includes stable IDs.
-- Underlying service+database regression exercises create/draft/update/public product resolution/unpublish and invalid/inactive behavior in isolated PostgreSQL.
-- Last commits:
-  - `acfc083604fc2457b1f849bf0999f0418f72d66e` — AttributeEditor, editor parsing contract, unit tests.
-  - `2a3f43762b5eb54f2c27976217252c45515c789f` — Product Editor API wiring, definitions, persisted-value hydration.
-  - `24e2ccfb64f5c34aedaa66afc4b54fc2109e4ab2` — PostgreSQL admin catalog integration tests, stronger validation.
+## New functionality and exact code locations
 
-## Important source files
+- `scripts/qa/admin-browser-e2e.mjs` and `.github/workflows/checkout-safety.yml` — real QA owner login, Category/Brand/Attribute creation, Product draft, edit attributes/gallery, save/reload, publish/unpublish to public backend API.
+- `components/admin/product-gallery-editor.tsx` — reorder, remove, preview, URL additions, Cloudinary upload hook; `components/admin/personal-admin-app.tsx` wires Create + Edit fields and prevents unchanged empty descriptions from being resent.
+- `lib/db/prisma.ts` — bounded reusable PostgreSQL pool, avoids production connection explosion.
+- `lib/admin/product-admin.ts` — fallback description on blank optional input. Existing transactional gallery and required-attribute validation preserved.
+- `prisma/reviewed-migrations/20261028_admin_observability.sql` and `scripts/qa/setup-admin-observability.mjs` — reviewed raw SQL schema and QA-only local application. Production UNTOUCHED.
+- `tests/integration/admin-catalog-postgres.test.ts` — covered optional description fallback and previous attribute/publish/database regression checks.
 
-- `components/admin/personal-admin-app.tsx`
-- `components/admin/product-attribute-editor.tsx`
-- `lib/admin/attribute-input.ts`
-- `lib/admin/catalog-admin.ts`
-- `lib/admin/product-admin.ts`
-- `app/api/admin-app/catalog/options/route.ts`
-- `app/api/admin-app/products/route.ts`
-- `tests/admin-attribute-input.test.ts`
-- `tests/integration/admin-catalog-postgres.test.ts`
+## Mandatory safety boundaries
 
-## Important boundaries
+- Do not modify, merge or deploy `feature/nexora-gpt-customer-ops` (Nexora 3) or `feature/nexora-qa-automation` (QA).
+- Do not deploy production, apply unreviewed SQL, use live Cashfree/refund flows or change checkout/order/variant reservation contracts.
+- Existing raw Admin Audit/Notification SQL fails if tables are absent. Prisma db push does not create those raw tables. Controlled migrations are required before any real owner product write; do NOT hide audit errors by swallowing exceptions.
+- Current QA requires localhost, `nexora_qa` database/user, ephemeral owner and `NEXORA_QA_ALLOW_DB_INTEGRATION=true`. Keep fail-closed QA isolation.
+- Cloudinary upload is wired but NOT externally exercised by E2E; browser tests verify URL-based galleries rather than remote Cloudinary upload service.
+- No production web deployment was executed. Old customer/QA branches remain untouched.
 
-- Do not modify/merge `feature/nexora-gpt-customer-ops` (Nexora 3) or `feature/nexora-qa-automation`.
-- Do not deploy production, run live payment/refund operations, expose customer data, or apply production migrations.
-- Do not bypass stock reservation/checkout pricing or create a competing variant model.
-- Existing reviewed catalog and banner migrations are NOT applied to production.
-- PostgreSQL DB tests run with `NEXORA_QA_ALLOW_DB_INTEGRATION=true` and require local host, `nexora_qa` username and database. Never weaken the isolation guard.
-- Only backend service persistence tests were added for the new attribute flow. Authenticated browser/UI save-reload remains **unverified** (existing browser smoke workflow covers other paths).
+## When the user says `next`
 
-## On next user message `next`
-
-1. Fetch current branch HEAD and CI; read this handoff and progress docs.
-2. Build authenticated browser E2E for Product Admin create/edit/save/reload, type-specific attributes and Category/Brand workflows using disposable PostgreSQL, local server and test-owner login.
-3. Add tests for media/gallery and state transitions while preserving existing data contracts.
-4. Continue with meaningful product preview and guarded bulk actions only after successful tests.
-5. Commit via GitHub on the same Admin branch, re-check exact HEAD CI, update these docs, report real delivery and remaining gaps.
+1. First fetch latest HEAD/CI; fix any failed job.
+2. Review Product Admin bulk operations and gallery preview fallback; implement safe bulk status/featured controls with owner-only auth, validation, confirmations and transactional limits; **avoid bulk stock adjustments** unless checkout reservation invariants are explicitly verified.
+3. Add browser/HTTP tests for Category/Brand deactivate/reactivate, Product bulk actions, owner auth rejection, and audit integrity against disposable PostgreSQL.
+4. Maintain both progress/handoff docs, preserve earlier commits and avoid Vercel deployment until last.

@@ -1,6 +1,53 @@
 # NEXORA 4 — Admin development progress
 
-## Current milestone: Dynamic Category Product Attributes — CI VERIFIED
+## Latest verified milestone — Authenticated Admin Browser E2E and Media Gallery (2026-10-28)
+
+Branch: `feature/nexora-gift-store`
+**Last CI-verified functional HEAD:** `be78062aaf7be0c69ad300ac7fb0382e86e4e6cc`
+**Exact CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40673549944
+**Result:** **4/4 GitHub Actions jobs PASS**. New authenticated Owner Browser job reported **5 PASS / 0 FAIL**. Previous three jobs (unit/security/TypeScript/lint/build; disposable PostgreSQL checkout; isolated storefront desktop/mobile Chromium) also PASS.
+
+### Delivered
+
+1. Authenticated Owner Browser E2E: real username/password login, 401 anonymous rejection, owner-only Category/Brand/Attribute API write, required-attribute HTML constraint, Product draft creation, saved attributes, poster + gallery image editing, reload, and ACTIVE/DRAFT storefront visibility.
+2. New isolated CI job `authenticated-admin-browser` uses disposable PostgreSQL `nexora_qa`, temporary Playwright, local-only URL, and throw-on-non-QA database guards. No external checkout or payment actions.
+3. Gallery Editor (`components/admin/product-gallery-editor.tsx`): add approved HTTPS URLs, owner-uploaded images via existing Cloudinary signer, previews, move up/down, remove, duplicate prevention, 20-image limit. Create and Edit Product forms persist the ordered image list separately from poster/video.
+4. Fixed Production PrismaPg connection lifecycle: one process-reused bounded Pool (max 5), rather than a new pool for each request. This fixed the PostgreSQL client exhaustion observed during Browser E2E.
+5. Browser auth test now uses `localhost` for the secure-cookie local exception while maintaining Secure + HttpOnly production cookie rules unchanged.
+6. Added reviewed additive `prisma/reviewed-migrations/20261028_admin_observability.sql`: `AdminActivityLog` and `AdminNotification` required by existing raw SQL. Applied ONLY to disposable CI PostgreSQL with `scripts/qa/setup-admin-observability.mjs`; not production.
+7. Fixed blank optional product description mismatch: creating with empty description receives a valid safe default; editing without changing description no longer resends an invalid blank description. Browser E2E now asserts explicit HTTP 201 and 200, preventing successful-DB-write-but-500-response from being mistaken for success.
+8. Extended disposable PostgreSQL regression test to cover blank description default behavior, without changing checkout identity or payment pricing.
+
+### Verifications / evidence
+
+- E2E cases:
+  - Owner Login and Authorization — PASS
+  - Authenticated Category/Brand/Attribute setup and catalog render — PASS
+  - Browser Product creation with required attributes — PASS
+  - Edit Gallery + Attribute persistence across browser reload — PASS
+  - ACTIVE/DRAFT change + public product API visibility — PASS
+- Run `40673549944` on exact functional commit `be78062a` — **success**.
+- No Production Vercel deploy, Prod DB migrations, or payment/refund actions.
+- Nexora 3 and QA branches were not modified.
+
+### Deployment boundaries / urgent prerequisite
+
+**Production schema prerequisite:** The Admin audit/notification tables are used by raw SQL but are NOT declared in current Prisma schema, so `prisma db push` alone does not create them. Attempting Admin product writes before these tables exist can commit a product then fail its post-write audit logging, producing a 500 and retry risk. The reviewed SQL is a candidate for the controlled production migration process; it is NOT applied. Audit other custom raw SQL tables/migrations before any deployment.
+
+Previously reviewed additive SQL at `prisma/reviewed-migrations/20261021_catalog_management.sql` and `20261021_homepage_banner.sql` also remains un-applied to production pending review.
+
+### Remaining work / next `next`
+
+- Harden Product gallery: real Cloudinary upload success/error integration (Browser E2E currently verifies approved URL gallery and persistence, not external service upload), image preview failure/fallback, gallery reordering and poster behavior across updates.
+- Build Product Bulk Selection/Actions with explicit confirmation and strict Product-level stock/order safety; do not change checkout reservation or variant identities.
+- Add owner-role negative tests, catalog archive/restore HTTP browser tests, audit trail assertions and other raw SQL migration validation.
+- Homepage CMS preview and additional Admin modules remain incomplete.
+- Product variants/line item inventory remain owned by Nexora 3; never implement a parallel variant contract.
+- No Production deployment until reviewed migrations, environment configuration and actual owner smoke tests are approved.
+
+## Prior Development Milestone History
+
+## Previous milestone: Dynamic Category Product Attributes — CI VERIFIED
 
 Date: 28 October 2026
 Branch: `feature/nexora-gift-store`
