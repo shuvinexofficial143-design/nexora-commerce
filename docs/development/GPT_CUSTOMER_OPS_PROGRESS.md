@@ -325,3 +325,14 @@ Customer-facing milestone based on user Vercel screenshots:
 - The existing opt-in preview demo flag NEXORA_QA_DEMO_CATALOG remains separate, clearly marked and only active with no DATABASE_URL. Preview demo items are NOT purchasable as live inventory. No production data/migrations/payments were touched.
 - New pure helper and tests for category counts, deduplicated slugs, available SKU selection, brands, empty list and invalid URL slugs. New local Chromium desktop/mobile checks for homepage content/claims and category navigation. Exact HEAD CI required.
 - Cline's separately developed HomepageBanner, catalog hierarchy/Brand lifecycle require a reviewed integration branch before live CMS features may be merged. Do not claim CMS control is already connected.
+
+## 28 October 2026 — Owner Catalog Taxonomy to Live Homepage Integration
+
+**Only GPT branch. VERCEL DEPLOYMENT IS DELIBERATELY DEFERRED UNTIL FINAL RELEASE.** No Vercel API calls, preview builds, promotions, production updates, schema migrations or payment requests in this milestone.
+
+- Owner admin now provides a Categories and Brands management form and selectors in Create Draft Product and Edit Product. Create/list live category and brand options using the new authenticated `/api/admin-app/product-taxonomy` endpoint. Duplicate slugs conflict; invalid names/slugs are rejected.
+- Real Product create/update transactions can associate existing categories and brands via validated slugs, reject unknown targets without partial price updates, clear an association, edit description and retain existing video/poster behavior. Audit records for category/brand create.
+- Existing SKU-aware Shop/Live Homepage query is reused; no second catalog cache or fake merchandising data was introduced. Admin list already serializes categorySlug and brandSlug, so edit form can prefill live associations.
+- Added pure validation tests for category/brand input and isolated PostgreSQL E2E tests: options persist, create DRAFT and verify unlisted, activate product, record actual available stock, confirm live homepage and catalog pricing/category/brand, relocate category while atomically changing price, fail unknown slug without partial update, alter active SKU availability, archive and remove public visibility.
+- DB E2E requires local disposable PostgreSQL opt-in. Cline's Category hierarchy/Brand status flags/HomepageBanner schema remain distinct and unmerged. Future owner-approved integration branch and staging DB are still needed. Production remains untouched.
+- This milestone requires exact-HEAD CI before it can be described as verified.

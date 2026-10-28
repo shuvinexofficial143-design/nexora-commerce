@@ -60,7 +60,10 @@ type ProductRow = {
   totalVariantCount?: number;
   status: string;
   brand: string | null;
+  brandSlug?: string | null;
   category: string | null;
+  categorySlug?: string | null;
+  description?: string;
   onHand: number;
   reserved: number;
   videoUrl: string | null;
@@ -286,19 +289,43 @@ function Overview() {
   );
 }
 
+type TaxonomyOption = { id:string; name:string; slug:string };
+type TaxonomyOptions = {categories:TaxonomyOption[];brands:TaxonomyOption[]};
 function Products() {
   const [rows, setRows] = useState<ProductRow[]>([]);
+  const [options, setOptions] = useState<TaxonomyOptions>({categories:[],brands:[]});
+  const [newOption, setNewOption] = useState<{kind:"category"|"brand";name:string}>({kind:"category",name:""});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
-    name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "",
+    name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "", categorySlug:"", brandSlug:"",
   });
 
   const load = useCallback(() => {
     adminFetch<ProductRow[]>("/api/admin-app/products").then(setRows).catch((e) => setError(e.message));
   }, []);
 
-  useEffect(() => load(), [load]);
+  const loadOptions = useCallback(() => {
+    adminFetch<TaxonomyOptions>("/api/admin-app/product-taxonomy").then(setOptions)
+      .catch(e => setError(e instanceof Error ? e.message : "Catalog options unavailable."));
+  }, []);
+  useEffect(() => { load(); loadOptions(); }, [load,loadOptions]);
+
+  async function createOption(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!newOption.name.trim()) return;
+    setBusy(true); setError("");
+    try {
+      const created = await adminFetch<TaxonomyOption>("/api/admin-app/product-taxonomy", {
+        method:"POST",body:JSON.stringify(newOption),
+      });
+      setForm(current=>({...current,
+        [newOption.kind==="category"?"categorySlug":"brandSlug"]:created.slug}));
+      setNewOption(current=>({...current,name:""}));
+      loadOptions();
+    } catch(error) { setError(error instanceof Error ? error.message : "Cannot create catalog option."); }
+    finally {setBusy(false);}
+  }
 
   async function create(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -313,7 +340,7 @@ function Products() {
           status: "DRAFT",
         }),
       });
-      setForm({ name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "" });
+      setForm({ name: "", sku: "", price: "", description: "", videoUrl: "", posterUrl: "", categorySlug:"",brandSlug:"" });
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create product.");
@@ -344,6 +371,26 @@ function Products() {
 
       {error ? <ErrorBlock error={error} retry={load} /> : null}
 
+      <Panel title="Categories and brands" description="Add a category/brand, then assign it to an item.">
+        <form onSubmit={createOption} className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1 text-xs font-black">Option type
+            <select value={newOption.kind} onChange={e=>setNewOption({...newOption,kind:e.target.value as "category"|"brand"})}
+              className="rounded-xl border border-black/15 bg-white px-3 py-2.5">
+              <option value="category">Category</option><option value="brand">Brand</option>
+            </select>
+          </label>
+          <label className="min-w-[220px] flex-1 text-xs font-black">Name
+            <input required minLength={2} maxLength={80} value={newOption.name}
+              onChange={e=>setNewOption({...newOption,name:e.target.value})}
+              className="mt-1 w-full rounded-xl border border-black/15 bg-white px-3 py-2.5"
+              placeholder="Electronics, Apparel, Home…" />
+          </label>
+          <button disabled={busy} className="rounded-full bg-black px-5 py-3 text-xs font-black text-white disabled:opacity-50">
+            Add {newOption.kind}
+          </button>
+        </form>
+        <p className="mt-3 text-xs text-black/50">{options.categories.length} categories · {options.brands.length} brands saved</p>
+      </Panel>
       <Panel title="Add product" description="Create a draft product with optional product video">
         <form onSubmit={create} className="grid gap-3 md:grid-cols-2">
           {[
@@ -363,6 +410,20 @@ function Products() {
             </label>
           ))}
 
+          <label className="text-xs font-black">Category
+            <select value={form.categorySlug} onChange={e=>setForm(current=>({...current,categorySlug:e.target.value}))}
+              className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-3">
+              <option value="">No category</option>
+              {options.categories.map(o=><option key={o.id} value={o.slug}>{o.name}</option>)}
+            </select>
+          </label>
+          <label className="text-xs font-black">Brand
+            <select value={form.brandSlug} onChange={e=>setForm(current=>({...current,brandSlug:e.target.value}))}
+              className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-3">
+              <option value="">No brand</option>
+              {options.brands.map(o=><option key={o.id} value={o.slug}>{o.name}</option>)}
+            </select>
+          </label>
           <label className="md:col-span-2">
             <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">Product video</span>
             <input
@@ -444,7 +505,7 @@ function Products() {
                   </div>
                 </div>
               </summary>
-              <ProductEditForm product={product} onSave={(patch) => updateProduct(product, patch)} />
+              <ProductEditForm product={product} options={options} onSave={(patch) => updateProduct(product, patch)} />
             </details>
           ))}
           {!rows.length ? <p className="py-6 text-center text-sm font-bold text-black/35">No products yet.</p> : null}
@@ -454,9 +515,15 @@ function Products() {
   );
 }
 
-function ProductEditForm({ product, onSave }: { product: ProductRow; onSave: (patch: Record<string, unknown>) => Promise<void> }) {
+function ProductEditForm({ product, options, onSave }: {
+  product: ProductRow; options:TaxonomyOptions;
+  onSave: (patch:Record<string,unknown>)=>Promise<void>;
+}) {
   const [name, setName] = useState(product.name);
   const [price, setPrice] = useState(String(product.priceMinor / 100));
+  const [description, setDescription] = useState(product.description ?? "");
+  const [categorySlug, setCategorySlug] = useState(product.categorySlug ?? "");
+  const [brandSlug, setBrandSlug] = useState(product.brandSlug ?? "");
   const [videoUrl, setVideoUrl] = useState(product.videoUrl || "");
   const [posterUrl, setPosterUrl] = useState(product.posterUrl || "");
   const [busy, setBusy] = useState(false);
@@ -465,7 +532,8 @@ function ProductEditForm({ product, onSave }: { product: ProductRow; onSave: (pa
     event.preventDefault();
     setBusy(true);
     try {
-      await onSave({ name, price: Number(price), videoUrl, posterUrl });
+      await onSave({ name, price: Number(price), description:description.trim() || undefined,
+        categorySlug:categorySlug || null,brandSlug:brandSlug || null,videoUrl,posterUrl });
     } finally {
       setBusy(false);
     }
@@ -474,7 +542,26 @@ function ProductEditForm({ product, onSave }: { product: ProductRow; onSave: (pa
   return (
     <form onSubmit={save} className="mt-4 grid gap-3 border-t border-black/8 pt-4 md:grid-cols-2">
       <input value={name} onChange={(e) => setName(e.target.value)} className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
-      <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
+      <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" min="0" step="0.01"
+        aria-label="Product price" className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
+      <label className="text-xs font-black">Category
+        <select value={categorySlug} onChange={e=>setCategorySlug(e.target.value)}
+          className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5">
+          <option value="">No category</option>
+          {options.categories.map(o=><option key={o.id} value={o.slug}>{o.name}</option>)}
+        </select>
+      </label>
+      <label className="text-xs font-black">Brand
+        <select value={brandSlug} onChange={e=>setBrandSlug(e.target.value)}
+          className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5">
+          <option value="">No brand</option>
+          {options.brands.map(o=><option key={o.id} value={o.slug}>{o.name}</option>)}
+        </select>
+      </label>
+      <label className="text-xs font-black md:col-span-2">Description
+        <textarea rows={3} value={description} onChange={e=>setDescription(e.target.value)}
+          className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5"/>
+      </label>
       <label className="md:col-span-2">
         <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-black/35">Product video</span>
         <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="YouTube or HTTPS MP4/WebM URL" className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />

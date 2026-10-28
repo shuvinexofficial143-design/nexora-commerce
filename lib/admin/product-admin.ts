@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { ValidationError } from "@/lib/db/errors";
+import { parseTaxonomySelection } from "@/lib/admin/product-taxonomy";
 import { getPrisma } from "@/lib/db/prisma";
 import {
   getYouTubeVideoId,
@@ -20,9 +22,12 @@ export async function createProduct(input: Record<string, unknown>) {
   const name = String(input.name ?? "").trim();
   const sku = String(input.sku ?? "").trim().toUpperCase();
   const price = Number(input.price);
-
-  if (name.length < 2 || sku.length < 3 || !Number.isFinite(price) || price < 0) {
-    throw new Error("Invalid product details.");
+  const taxonomy = parseTaxonomySelection(input);
+  const description = typeof input.description === "string" ? input.description.trim() : "";
+  if (name.length < 2 || name.length > 160 || sku.length < 3 || sku.length > 80 ||
+    !Number.isFinite(price) || price < 0 || price > 1_000_000 ||
+    (description && description.length > 5000)) {
+    throw new ValidationError("Invalid product details, price or description.");
   }
 
   const media = resolveProductMedia({
@@ -33,15 +38,25 @@ export async function createProduct(input: Record<string, unknown>) {
   const prisma = getPrisma();
 
   return prisma.$transaction(async (tx) => {
+    const category = taxonomy.categorySlug ? await tx.category.findUnique({
+      where: { slug: taxonomy.categorySlug }, select: { id: true },
+    }) : null;
+    const brand = taxonomy.brandSlug ? await tx.brand.findUnique({
+      where: { slug: taxonomy.brandSlug }, select: { id: true },
+    }) : null;
+    if (taxonomy.categorySlug && !category) throw new ValidationError("Category no longer exists.");
+    if (taxonomy.brandSlug && !brand) throw new ValidationError("Brand no longer exists.");
     const product = await tx.product.create({
       data: {
         id: randomUUID(),
         slug: `${slug(name)}-${randomUUID().slice(0, 6)}`,
         sku,
         name,
-        description: String(input.description ?? `${name} on NEXORA`),
+        description: description || `${name} on NEXORA`,
         priceMinor: Math.round(price * 100),
         status: input.status === "ACTIVE" ? "ACTIVE" : "DRAFT",
+        categoryId: category?.id ?? null,
+        brandId: brand?.id ?? null,
       },
     });
 
@@ -75,22 +90,31 @@ export async function createProduct(input: Record<string, unknown>) {
 export async function updateProduct(id: string, input: Record<string, unknown>) {
   const data: {
     name?: string;
+    description?: string;
     priceMinor?: number;
+    categoryId?: string | null;
+    brandId?: string | null;
     status?: "DRAFT" | "ACTIVE" | "ARCHIVED";
     featured?: boolean;
   } = {};
 
   if (typeof input.name === "string") {
     const name = input.name.trim();
-    if (name.length < 2) throw new Error("Product name is required.");
+    if (name.length < 2 || name.length > 160) throw new ValidationError("Product name must be 2–160 characters.");
     data.name = name;
   }
 
   if (typeof input.price === "number") {
-    if (!Number.isFinite(input.price) || input.price < 0) {
-      throw new Error("Enter a valid product price.");
+    if (!Number.isFinite(input.price) || input.price < 0 || input.price > 1_000_000) {
+      throw new ValidationError("Enter a valid product price.");
     }
     data.priceMinor = Math.round(input.price * 100);
+  }
+  if (typeof input.description === "string") {
+    const description = input.description.trim();
+    if (!description || description.length > 5000)
+      throw new ValidationError("Description must be 1–5000 characters.");
+    data.description = description;
   }
 
   if (
@@ -120,13 +144,35 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
     );
   }
 
-  if (!Object.keys(data).length && !mediaUpdateRequested) {
+  const taxonomy = parseTaxonomySelection(input);
+  if (!Object.keys(data).length && !mediaUpdateRequested &&
+      taxonomy.categorySlug === undefined && taxonomy.brandSlug === undefined) {
     throw new Error("No product changes were provided.");
   }
 
   const prisma = getPrisma();
 
   return prisma.$transaction(async (tx) => {
+    if (taxonomy.categorySlug !== undefined) {
+      if (!taxonomy.categorySlug) data.categoryId = null;
+      else {
+        const category = await tx.category.findUnique({
+          where: { slug: taxonomy.categorySlug }, select: { id: true },
+        });
+        if (!category) throw new ValidationError("Category no longer exists.");
+        data.categoryId = category.id;
+      }
+    }
+    if (taxonomy.brandSlug !== undefined) {
+      if (!taxonomy.brandSlug) data.brandId = null;
+      else {
+        const brand = await tx.brand.findUnique({
+          where: { slug: taxonomy.brandSlug }, select: { id: true },
+        });
+        if (!brand) throw new ValidationError("Brand no longer exists.");
+        data.brandId = brand.id;
+      }
+    }
     const product = Object.keys(data).length
       ? await tx.product.update({ where: { id }, data })
       : await tx.product.findUniqueOrThrow({ where: { id } });
