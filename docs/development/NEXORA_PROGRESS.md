@@ -1,5 +1,34 @@
 # NEXORA 4 — Admin Development Progress
 
+## 28 October 2026 — CMS Hero Preview, Audit Rollback and Concurrent Bulk Safety
+
+**Write branch:** `feature/nexora-gift-store`
+**Last verified functional HEAD:** `5359f951033c8ee57ae18332613ec78915a5ae3f`
+**Exact GitHub Actions:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40679888720 — **4/4 jobs PASS**.
+**Authenticated Owner Browser:** **14 PASS / 0 FAIL** (4 new tests, 10 earlier tests still passing).
+
+### Meaningful changes
+- `components/admin/banner-preview.tsx` NEW: Admin-only live Desktop/Mobile homepage Banner visual, CTA text, title/description, image fallback, and draft/publish indicator. Preview does not write to DB.
+- `components/admin/cms-hero-editor.tsx`: safer Banner Create/Edit with clear loading/error/success, disabled repeat submissions, preview, Archive confirmation, and Restore as unpublished Draft.
+- `lib/home-banners.ts`: stricter allowed HTTPS image origins, safe same-origin CTA targets (reject scheme-relative links and backslash), bounded integer order and text lengths, archived banners always unpublished. `tests/home-banner-validation.test.ts` covers approved/rejected cases.
+- `scripts/qa/admin-browser-e2e.mjs`: PostgreSQL BEFORE INSERT audit failure injection proves **whole-product transaction rolls back** when `AdminActivityLog` insert fails (no product changes/no audit records); concurrent original-revision Publish and Feature requests commit at most one change and return 200/409; unconfigured Media Signer + fully intercepted Cloudinary failed upload; Owner Homepage Banner Preview/Create/Publish/Archive/Restore end to end.
+- All tests remain isolated to `nexora_qa` on localhost and ephemeral QA credentials. The audit trigger is created and removed inside test cleanup; it does not exist in production.
+- The test fixture initially had an incorrect PostgreSQL dollar delimiter; corrected with tagged `$qafunc$` delimiter. The *final* run proves the whole suite passed.
+
+### Verification
+1. Unit, security, TypeScript, ESLint and Build — PASS.
+2. Real disposable PostgreSQL checkout transaction and stock regressions — PASS.
+3. HTTP smoke + desktop/mobile Chromium Storefront — PASS.
+4. Owner-authenticated real Chromium + PostgreSQL — 14 PASS / 0 FAIL.
+No production deployment, no live migration, no Cashfree calls. Other Nexora branches remain untouched.
+
+### Remaining
+- Production HomepageBanner/AdminActivityLog/AdminNotification schema migrations require **separate controlled review and approval**, no production SQL applied.
+- Real Cloudinary provider upload remains untested against external service; only missing signer and intercepted failure paths verified.
+- Further Admin security hardening, real upload success under authorized sandbox, CMS Banner image media upload/SEO, and eventual final deployment readiness review remain.
+
+## Previous Milestones
+
 ## 28 October 2026 — Live Product Preview, Gallery Resilience & Catalog Browser E2E
 
 **Working branch:** `feature/nexora-gift-store`
