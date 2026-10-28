@@ -155,3 +155,16 @@ export function validateProductAttributes(definitions: Array<{ slug: string; nam
   }
   return output;
 }
+
+// Never allow new product assignments to hidden/archived categories or inactive brands.
+export function requireAssignableCategory(category: { id: string; archived: boolean; visible: boolean } | null): string {
+  if (!category || category.archived || !category.visible) {
+    throw new Error("Select an active, visible category.");
+  }
+  return category.id;
+}
+
+export function requireAssignableBrand(brand: { id: string; active: boolean } | null): string {
+  if (!brand || !brand.active) throw new Error("Select an active brand.");
+  return brand.id;
+}

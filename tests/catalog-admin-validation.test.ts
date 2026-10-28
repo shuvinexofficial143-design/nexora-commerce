@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeGallery } from "../lib/admin/product-admin";
-import { normalizeCatalogSortOrder, validateProductAttributes } from "../lib/admin/catalog-admin";
+import { normalizeCatalogSortOrder, requireAssignableBrand, requireAssignableCategory, validateProductAttributes } from "../lib/admin/catalog-admin";
 
 const definitions = [
   { slug: "material", name: "Material", type: "SELECT", required: true, active: true, options: ["Cotton", "Silk"] },
@@ -41,4 +41,15 @@ test("catalog display order accepts bounded integers and rejects silent coercion
   for (const value of ["12", 1.2, Number.POSITIVE_INFINITY, 100001, -100001]) {
     assert.throws(() => normalizeCatalogSortOrder(value), /Display order must be an integer/);
   }
+});
+
+
+test("product assignment rejects hidden/archived categories and inactive brands", () => {
+  assert.equal(requireAssignableCategory({ id: "c1", archived: false, visible: true }), "c1");
+  assert.throws(() => requireAssignableCategory({ id: "c1", archived: true, visible: false }), /active, visible category/);
+  assert.throws(() => requireAssignableCategory({ id: "c1", archived: false, visible: false }), /active, visible category/);
+  assert.throws(() => requireAssignableCategory(null), /active, visible category/);
+  assert.equal(requireAssignableBrand({ id: "b1", active: true }), "b1");
+  assert.throws(() => requireAssignableBrand({ id: "b1", active: false }), /active brand/);
+  assert.throws(() => requireAssignableBrand(null), /active brand/);
 });

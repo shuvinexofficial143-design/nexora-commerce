@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
-import { validateProductAttributes } from "@/lib/admin/catalog-admin";
+import { requireAssignableBrand, requireAssignableCategory, validateProductAttributes } from "@/lib/admin/catalog-admin";
 import type { Prisma } from "@/generated/prisma/client";
 import {
   getYouTubeVideoId,
@@ -56,6 +56,21 @@ export async function createProduct(input: Record<string, unknown>) {
   const prisma = getPrisma();
 
   return prisma.$transaction(async (tx) => {
+    const categorySlug = typeof input.categorySlug === "string" ? input.categorySlug.trim().toLowerCase() : "";
+    const brandSlug = typeof input.brandSlug === "string" ? input.brandSlug.trim().toLowerCase() : "";
+    const categoryId = categorySlug ? requireAssignableCategory(await tx.category.findUnique({
+      where: { slug: categorySlug }, select: { id: true, archived: true, visible: true },
+    })) : null;
+    const brandId = brandSlug ? requireAssignableBrand(await tx.brand.findUnique({
+      where: { slug: brandSlug }, select: { id: true, active: true },
+    })) : null;
+    if (!categoryId && input.attributes !== undefined) throw new Error("Choose a category before adding product attributes.");
+    const definitions = categoryId ? await tx.attributeDefinition.findMany({
+      where: { categoryId },
+      select: { slug: true, name: true, type: true, required: true, active: true, options: true },
+    }) : [];
+    // Enforce required attributes even when the incoming product omits an attributes field.
+    const attributes = categoryId ? validateProductAttributes(definitions, input.attributes) : undefined;
     const product = await tx.product.create({
       data: {
         id: randomUUID(),
@@ -66,13 +81,9 @@ export async function createProduct(input: Record<string, unknown>) {
         priceMinor: Math.round(price * 100),
         compareAtMinor: compareAt === null ? null : Math.round(compareAt * 100),
         status: input.status === "ACTIVE" ? "ACTIVE" : "DRAFT",
-        ...(typeof input.categorySlug === "string" && input.categorySlug.trim()
-          ? { category: { connect: { slug: input.categorySlug.trim().toLowerCase() } } }
-          : {}),
-        ...(typeof input.brandSlug === "string" && input.brandSlug.trim()
-          ? { brand: { connect: { slug: input.brandSlug.trim().toLowerCase() } } }
-          : {}),
-        ...(input.attributes !== undefined ? { attributes: await resolveAttributes(input.attributes, typeof input.categorySlug === "string" ? input.categorySlug : undefined) as Prisma.InputJsonValue } : {}),
+        ...(categoryId ? { category: { connect: { id: categoryId } } } : {}),
+        ...(brandId ? { brand: { connect: { id: brandId } } } : {}),
+        ...(attributes !== undefined ? { attributes: attributes as Prisma.InputJsonValue } : {}),
       },
     });
 
@@ -157,13 +168,27 @@ export async function updateProduct(id: string, input: Record<string, unknown>) 
 
   if (typeof input.categorySlug === "string") {
     const category = input.categorySlug.trim().toLowerCase();
-    data.categoryId = category ? (await getPrisma().category.findUniqueOrThrow({ where: { slug: category }, select: { id: true } })).id : null;
+    data.categoryId = category ? requireAssignableCategory(await getPrisma().category.findUnique({
+      where: { slug: category }, select: { id: true, archived: true, visible: true },
+    })) : null;
   }
   if (typeof input.brandSlug === "string") {
     const brand = input.brandSlug.trim().toLowerCase();
-    data.brandId = brand ? (await getPrisma().brand.findUniqueOrThrow({ where: { slug: brand }, select: { id: true } })).id : null;
+    data.brandId = brand ? requireAssignableBrand(await getPrisma().brand.findUnique({
+      where: { slug: brand }, select: { id: true, active: true },
+    })) : null;
   }
-  if (input.attributes !== undefined) data.attributes = await resolveAttributes(input.attributes, typeof input.categorySlug === "string" ? input.categorySlug : undefined, id) as Prisma.InputJsonValue;
+  if (input.attributes !== undefined) {
+    if (data.categoryId === null) throw new Error("Choose a category before adding product attributes.");
+    data.attributes = await resolveAttributes(input.attributes, typeof input.categorySlug === "string" ? input.categorySlug : undefined, id) as Prisma.InputJsonValue;
+  } else if (data.categoryId !== undefined) {
+    const previous = await getPrisma().product.findUniqueOrThrow({ where: { id }, select: { categoryId: true } });
+    if (previous.categoryId !== data.categoryId) {
+      // Never carry attribute values from an old category into an unrelated category.
+      data.attributes = data.categoryId === null ? {} :
+        await resolveAttributes({}, typeof input.categorySlug === "string" ? input.categorySlug : undefined, id) as Prisma.InputJsonValue;
+    }
+  }
 
   const mediaUpdateRequested =
     typeof input.videoUrl === "string" || typeof input.posterUrl === "string" || Array.isArray(input.images);

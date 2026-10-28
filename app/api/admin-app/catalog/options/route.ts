@@ -19,8 +19,8 @@ export async function GET(request: Request) {
     if (!session) return adminFailure(request, "Admin authorization required.", 401);
 
     const [categories, brands] = await Promise.all([
-      getPrisma().category.findMany({ orderBy: { name: "asc" }, select: { name: true, slug: true } }),
-      getPrisma().brand.findMany({ orderBy: { name: "asc" }, select: { name: true, slug: true } }),
+      getPrisma().category.findMany({ where: { archived: false, visible: true }, orderBy: { name: "asc" }, select: { name: true, slug: true } }),
+      getPrisma().brand.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { name: true, slug: true } }),
     ]);
 
     return adminJson(request, { categories, brands });
