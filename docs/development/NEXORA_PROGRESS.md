@@ -1,5 +1,28 @@
 # NEXORA 4 — Admin Development Progress
 
+## 28 October 2026 — Seller Onboarding Secure Credential & Atomic Audit
+
+**Authorized branch:** `feature/nexora-gift-store`  
+**Functional SHA:** `304530352f15d0e0865c3143b85add166b5dbbe1`  
+**CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40715987552 — **4/4 PASS**  
+**Owner Chromium/PostgreSQL:** **24 PASS / 0 FAIL** (disposable localhost QA).
+
+### Changes
+- New reviewed additive `20261028_seller_profile.sql`, applied by gated QA setup to local `nexora_qa` ONLY; not deployed or migrated to Production.
+- Owner Seller Onboarding no longer supplies a hard-coded shared password: requires unique explicit strong password, hashes with scrypt before transaction and never echoes secrets in API output.
+- Email/name/store/GST and commission integer 0–10000 bps validated; correct 400/409 responses; duplicate email protected.
+- User + SellerProfile + Audit use one Prisma transaction. Correct parameterized PENDING/HOLD SQL; rejected audit rolls back User/Profile creation.
+- Added one real Chromium/QA PostgreSQL regression: anonymous/weak/invalid rejects, simulated Audit rejection, no orphan User/Profile, valid 0-commission seller with hashed password and one Audit, duplicate conflict. 24/24 Owner tests verified.
+- No live Seller, order, inventory, payment, email, provider or Production database changes.
+
+### Remaining
+- Seller Approval/Edit API still needs typed input validation, authorization/approval-state review and atomic Audit.
+- Seller account ACTIVE while verificationStatus PENDING: clarify approval semantics before Production.
+- Durable Order Status email/notification outbox, deterministic concurrency QA and production migration/backup still pending.
+- Warehouse Transfer UI remains demo-only; Live provider upload not verified.
+
+## Earlier Milestones
+
 ## 28 October 2026 — Atomic Owner Order Status Audit + Reserved Stock Rollback
 
 **Authorized branch:** `feature/nexora-gift-store`  
