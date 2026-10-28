@@ -85,6 +85,6 @@ test("Disabling a spec definition removes it from public view without discarding
   const record=await db.product.findUniqueOrThrow({where:{id:productId}});
   assert.deepEqual(record.attributes,{fabric:"Cotton"});
   const item=await getProductBySlug(productSlug);
-  assert.ok(item?.specifications.some(x=>x.label==="Fabric"));
-  assert.ok(!item?.specifications.some(x=>x.label==="RAM"));
+  assert.ok((item?.specifications ?? []).some(x=>x.label==="Fabric"));
+  assert.ok(!(item?.specifications ?? []).some(x=>x.label==="RAM"));
 });
