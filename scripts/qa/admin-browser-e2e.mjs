@@ -83,7 +83,7 @@ try {
   page.setDefaultTimeout(15000);
 
   await verify("owner-login-and-authorization", async () => {
-    assert.equal((await ctx.request.get(new URL("/api/admin-app/products", base))).status(), 401);
+    assert.equal((await ctx.request.get(new URL("/api/admin-app/products", base).href)).status(), 401);
     await page.goto(new URL("/admin/login", base).href);
     await page.getByPlaceholder("Owner username").fill(process.env.ADMIN_USERNAME);
     await page.locator('input[type="password"]').fill(process.env.ADMIN_PASSWORD);
@@ -168,12 +168,12 @@ try {
     const details = page.locator("details").filter({ hasText: name }).first();
     await details.getByRole("button", { name: "ACTIVE", exact: true }).click();
     const active = await status(ctx, "ACTIVE");
-    const publicProduct = await ctx.request.get(new URL("/api/backend/products/" + active.slug, base));
+    const publicProduct = await ctx.request.get(new URL("/api/backend/products/" + active.slug, base).href);
     assert.equal(publicProduct.status(), 200);
     assert.equal((await publicProduct.json()).data.sku, sku);
     await details.getByRole("button", { name: "DRAFT", exact: true }).click();
     await status(ctx, "DRAFT");
-    const hidden = await ctx.request.get(new URL("/api/backend/products/" + active.slug, base));
+    const hidden = await ctx.request.get(new URL("/api/backend/products/" + active.slug, base).href);
     assert.equal(hidden.status(), 404);
   });
   await ctx.close();
