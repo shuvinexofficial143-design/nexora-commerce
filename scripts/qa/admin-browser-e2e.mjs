@@ -282,7 +282,7 @@ try {
   await verify("category-browser-create-hide-edit-archive-restore", async () => {
     const slug = "qa-lifecycle-category-" + suffix;
     await page.goto(new URL("/admin/catalog", base).href);
-    const section = page.locator("section").filter({ has: page.getByRole("heading", { name: "Add category" }) }).first();
+    const section = page.locator(".grid.items-start.gap-6 > section").first();
     const form = section.locator("form").first();
     await form.locator("label").filter({ hasText: "Category name" }).locator("input").fill("QA Lifecycle Category " + suffix);
     await form.locator("label").filter({ hasText: "Slug" }).locator("input").fill(slug);
@@ -324,7 +324,7 @@ try {
   await verify("brand-browser-create-edit-deactivate-reactivate", async () => {
     const slug = "qa-lifecycle-brand-" + suffix;
     await page.goto(new URL("/admin/catalog", base).href);
-    const section = page.locator("section").filter({ has: page.getByRole("heading", { name: "Add brand" }) }).first();
+    const section = page.locator(".grid.items-start.gap-6 > section").nth(1);
     const form = section.locator("form").first();
     await form.locator("label").filter({ hasText: "Brand name" }).locator("input").fill("QA Lifecycle Brand " + suffix);
     await form.locator("label").filter({ hasText: "Slug" }).locator("input").fill(slug);
