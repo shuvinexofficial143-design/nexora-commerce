@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BannerPreview, type BannerDraft } from "@/components/admin/banner-preview";
+import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 
 type Banner = {
   id: string; title: string; description: string | null; imageUrl: string;
   mobileImageUrl: string | null; ctaText: string; ctaHref: string;
-  categorySlug: string | null; sortOrder: number; published: boolean; archived: boolean;
+  categorySlug: string | null; sortOrder: number; published: boolean; archived: boolean; updatedAt: string;
 };
 const empty: BannerDraft = {
   title: "", description: "", imageUrl: "", mobileImageUrl: "",
@@ -87,6 +88,28 @@ export function CmsHeroEditor() {
       setError(caught instanceof Error ? caught.message : "Could not change archive status.");
     } finally { setBusy(false); }
   }
+  const orderedRows = rows.filter((row) => !row.archived);
+  async function moveBanner(id: string, delta: number) {
+    if (busy || orderedRows.length > 100) return;
+    const index = orderedRows.findIndex(row => row.id === id);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= orderedRows.length) return;
+    const proposed = [...orderedRows];
+    [proposed[index], proposed[target]] = [proposed[target], proposed[index]];
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await request<{ reordered: number }>("/api/admin-app/banners/reorder", {
+        method: "POST",
+        body: JSON.stringify({ items: proposed.map(row => ({ id: row.id, updatedAt: row.updatedAt })) }),
+      });
+      await load();
+      if (editing) reset();
+      setNotice("Homepage banner order saved successfully.");
+    } catch (caught) {
+      await load();
+      setError(caught instanceof Error ? caught.message : "Could not reorder banners.");
+    } finally { setBusy(false); }
+  }
   const setValue = (key: keyof BannerDraft, value: string | boolean) => setForm((current) => ({ ...current, [key]: value }));
   return <div className="space-y-5">
     {error ? <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error} <button type="button" onClick={() => void load()} className="underline">Retry</button></p> : null}
@@ -98,13 +121,19 @@ export function CmsHeroEditor() {
           title: "Title", ctaText: "CTA text", ctaHref: "CTA link", categorySlug: "Category / collection",
           sortOrder: "Display order", imageUrl: "Desktop image URL", mobileImageUrl: "Mobile image URL",
         };
-        return <label key={key} className={"grid gap-1 text-xs font-black text-black/40 " + (key.includes("Url") ? "md:col-span-2" : "")}>
-          {labels[key]}
-          <input aria-label={labels[key]} required={["title","ctaText","ctaHref","imageUrl"].includes(key)}
-            value={form[key]} onChange={(event) => setValue(key, event.target.value)}
-            type={key === "sortOrder" ? "number" : "text"} min={key === "sortOrder" ? 0 : undefined}
-            className={inputClass} />
-        </label>;
+        const isImage = key === "imageUrl" || key === "mobileImageUrl";
+        return <div key={key} className={"grid gap-1 " + (key.includes("Url") ? "md:col-span-2" : "")}>
+          <label className="grid gap-1 text-xs font-black text-black/40">
+            {labels[key]}
+            <input aria-label={labels[key]} required={["title","ctaText","ctaHref","imageUrl"].includes(key)}
+              value={form[key]} onChange={(event) => setValue(key, event.target.value)}
+              type={key === "sortOrder" ? "number" : isImage ? "url" : "text"}
+              min={key === "sortOrder" ? 0 : undefined} className={inputClass} />
+          </label>
+          {isImage ? <AdminMediaUpload resourceType="image"
+            label={key === "imageUrl" ? "Upload banner desktop image" : "Upload banner mobile image"}
+            onUploaded={url => setValue(key, url)} /> : null}
+        </div>;
       })}
       <label className="grid gap-1 text-xs font-black text-black/40 md:col-span-2">Description
         <textarea aria-label="Banner description" value={form.description} onChange={(event) => setValue("description", event.target.value)}
@@ -122,6 +151,7 @@ export function CmsHeroEditor() {
     </form>
     {loading ? <p role="status" className="text-sm font-bold text-black/40">Loading homepage banners…</p> : null}
     <div className="space-y-2">
+      {orderedRows.length > 100 ? <p role="alert" className="text-xs font-bold text-amber-800">More than 100 active banners: reorder is disabled until the list is reduced.</p> : null}
       {rows.map((row) => <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
         <div className="min-w-0">
           <p className="font-black">{row.title}</p>
@@ -129,6 +159,10 @@ export function CmsHeroEditor() {
         </div>
         <div className="flex gap-2">
           {!row.archived ? <>
+            <button type="button" aria-label={"Move banner " + row.title + " up"} disabled={busy || orderedRows.length > 100 || orderedRows[0]?.id === row.id}
+              onClick={() => void moveBanner(row.id, -1)} className={pill}>↑</button>
+            <button type="button" aria-label={"Move banner " + row.title + " down"} disabled={busy || orderedRows.length > 100 || orderedRows[orderedRows.length - 1]?.id === row.id}
+              onClick={() => void moveBanner(row.id, 1)} className={pill}>↓</button>
             <button type="button" disabled={busy} onClick={() => edit(row)} className={pill}>Edit</button>
             <button type="button" disabled={busy} onClick={() => void setArchived(row, true)} className={pill + " text-red-700"}>Archive</button>
           </> : <button type="button" disabled={busy} onClick={() => void setArchived(row, false)} className={pill}>Restore</button>}
