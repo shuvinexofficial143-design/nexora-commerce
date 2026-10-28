@@ -258,6 +258,26 @@ try {
     assert.equal(bulkRecords.length, 7, "Every actual product change must have a durable audit row");
   });
 
+
+  await verify("unsaved-product-preview-and-image-error-state", async () => {
+    await page.route("https://images.unsplash.com/photo-1", route => route.abort());
+    await page.goto(new URL("/admin/products", base).href);
+    const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: "Add product" }) }).first();
+    const preview = panel.getByRole("region", { name: "Live product preview" });
+    await panel.getByPlaceholder("Gift product").fill("Unsaved QA preview " + suffix);
+    await preview.getByText("Unsaved QA preview " + suffix).waitFor();
+    const gallery = panel.getByRole("group", { name: "Product gallery images" });
+    await gallery.getByRole("textbox", { name: "Add gallery image URL" }).fill(img1);
+    await gallery.getByRole("button", { name: "Add image URL" }).click();
+    await preview.getByRole("img", { name: /Image unavailable/ }).waitFor();
+    await gallery.locator('input[type="file"]').setInputFiles({
+      name: "empty.png", mimeType: "image/png", buffer: Buffer.alloc(0),
+    });
+    await gallery.getByText("Empty files cannot be uploaded.").waitFor();
+    assert.equal((await api(ctx, "/api/admin-app/products")).some(p => p.name === "Unsaved QA preview " + suffix), false);
+    await page.unroute("https://images.unsplash.com/photo-1");
+  });
+
   await ctx.close();
 } finally {
   await browser.close();
