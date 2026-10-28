@@ -122,7 +122,11 @@ try {
     await attrs.getByRole("spinbutton", { name: /Storage GB/ }).fill("128");
     await attrs.getByRole("combobox", { name: /Case Color/ }).selectOption("Black");
     await attrs.getByRole("combobox", { name: /Waterproof/ }).selectOption("false");
+    const responsePromise = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/admin-app/products/manage" && response.request().method() === "POST");
     await form.getByRole("button", { name: "Create draft product" }).click();
+    const created = await responsePromise;
+    const createPayload = await created.json();
+    assert.equal(created.status(), 201, "Product API response: " + JSON.stringify(createPayload));
     await page.getByText(name, { exact: true }).first().waitFor();
     const row = await product(ctx);
     assert.equal(row.status, "DRAFT");
