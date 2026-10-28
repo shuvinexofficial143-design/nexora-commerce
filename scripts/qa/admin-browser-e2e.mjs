@@ -724,6 +724,82 @@ try {
     assert.equal(fetched.sortOrder, 10);
   });
 
+
+  await verify("stock-adjustment-owner-api-atomic-audit-rollback-and-validation", async () => {
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+    const current = await product(ctx);
+    const warehouseId = "qa-adjust-wh-" + suffix;
+    const inventoryId = "qa-adjust-inv-" + suffix;
+    const warehouseCode = "QA-ADJUST-" + suffix.toUpperCase();
+    let triggered = false;
+    try {
+      await client.query(
+        'INSERT INTO "Warehouse" ("id","code","name","city","state","active","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,true,now(),now())',
+        [warehouseId, warehouseCode, "QA Stock Audit", "QA", "QA"],
+      );
+      await client.query(
+        'INSERT INTO "InventoryItem" ("id","productId","warehouseId","onHand","reserved","reorderLevel","updatedAt") VALUES ($1,$2,$3,20,5,5,now())',
+        [inventoryId, current.id, warehouseId],
+      );
+      const adjustment = { inventoryId, delta: 3, note: "QA verified adjustment" };
+      const url = new URL("/api/admin-app/inventory/adjust", base).href;
+      const anonymous = await browser.newContext();
+      try {
+        assert.equal((await anonymous.request.post(url, { data: adjustment })).status(), 401);
+      } finally { await anonymous.close(); }
+      for (const body of [
+        { ...adjustment, delta: "3" }, { ...adjustment, delta: 0 },
+        { ...adjustment, delta: 1.2 }, { ...adjustment, note: "x" },
+        { ...adjustment, delta: -16 },
+      ]) {
+        const failure = await ctx.request.post(url, { data: body });
+        assert.equal(failure.status(), 400, "Invalid stock adjustment must be client error");
+      }
+      await client.query("CREATE FUNCTION qa_reject_stock_audit() RETURNS trigger AS $qa_adjust$ BEGIN RAISE EXCEPTION 'QA stock audit denied'; END; $qa_adjust$ LANGUAGE plpgsql");
+      await client.query('CREATE TRIGGER qa_reject_stock_audit_trg BEFORE INSERT ON "AdminActivityLog" FOR EACH ROW WHEN (NEW."action" = \'INVENTORY_ADJUSTMENT\') EXECUTE FUNCTION qa_reject_stock_audit()');
+      triggered = true;
+      const auditFailure = await ctx.request.post(url, { data: adjustment });
+      assert.equal(auditFailure.status(), 500);
+      assert.equal((await auditFailure.json()).error, "Unexpected admin server error.");
+      const notChanged = await client.query('SELECT "onHand","reserved" FROM "InventoryItem" WHERE "id" = $1', [inventoryId]);
+      assert.equal(notChanged.rows[0].onHand, 20);
+      assert.equal(notChanged.rows[0].reserved, 5);
+      const movements = await client.query('SELECT count(*)::int AS total FROM "InventoryMovement" WHERE "reference" = $1', ["ADMIN:" + inventoryId]);
+      assert.equal(movements.rows[0].total, 0, "Movement must roll back when audit insert fails");
+      await client.query('DROP TRIGGER qa_reject_stock_audit_trg ON "AdminActivityLog"');
+      await client.query("DROP FUNCTION qa_reject_stock_audit()");
+      triggered = false;
+      const valid = await api(ctx, "/api/admin-app/inventory/adjust", "POST", adjustment);
+      assert.equal(valid.onHand, 23, "Valid adjustment must update stock after recovery");
+      const movementAfter = await client.query('SELECT count(*)::int AS total FROM "InventoryMovement" WHERE "reference" = $1', ["ADMIN:" + inventoryId]);
+      assert.equal(movementAfter.rows[0].total, 1);
+      const auditAfter = await client.query('SELECT count(*)::int AS total FROM "AdminActivityLog" WHERE "action" = $1 AND "entityId" = $2', ["INVENTORY_ADJUSTMENT", inventoryId]);
+      assert.equal(auditAfter.rows[0].total, 1);
+      const requests = await Promise.all([
+        ctx.request.post(url, { data: { ...adjustment, delta: 2 } }),
+        ctx.request.post(url, { data: { ...adjustment, delta: 4 } }),
+      ]);
+      const codes = requests.map(x => x.status());
+      assert.ok(codes.every(x => x === 200 || x === 409), "Concurrent writes must succeed or return conflict, not 500");
+      const expected = 23 + (codes[0] === 200 ? 2 : 0) + (codes[1] === 200 ? 4 : 0);
+      const final = await client.query('SELECT "onHand" FROM "InventoryItem" WHERE "id" = $1', [inventoryId]);
+      assert.equal(final.rows[0].onHand, expected, "No concurrent stock update may be lost");
+      const finalMoves = await client.query('SELECT count(*)::int AS total FROM "InventoryMovement" WHERE "reference" = $1', ["ADMIN:" + inventoryId]);
+      const finalAudits = await client.query('SELECT count(*)::int AS total FROM "AdminActivityLog" WHERE "action" = $1 AND "entityId" = $2', ["INVENTORY_ADJUSTMENT", inventoryId]);
+      assert.equal(finalMoves.rows[0].total, 1 + codes.filter(x => x === 200).length);
+      assert.equal(finalAudits.rows[0].total, finalMoves.rows[0].total);
+    } finally {
+      if (triggered) await client.query('DROP TRIGGER IF EXISTS qa_reject_stock_audit_trg ON "AdminActivityLog"');
+      await client.query("DROP FUNCTION IF EXISTS qa_reject_stock_audit()");
+      await client.query('DELETE FROM "InventoryMovement" WHERE "reference" = $1', ["ADMIN:" + inventoryId]);
+      await client.query('DELETE FROM "AdminActivityLog" WHERE "entityId" = $1 AND "action" = $2', [inventoryId, "INVENTORY_ADJUSTMENT"]);
+      await client.query('DELETE FROM "InventoryItem" WHERE "id" = $1', [inventoryId]);
+      await client.query('DELETE FROM "Warehouse" WHERE "id" = $1', [warehouseId]);
+      await client.end();
+    }
+  });
+
   await ctx.close();
 } finally {
   await browser.close();
