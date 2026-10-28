@@ -143,7 +143,7 @@ export function LiveStorefrontHome({ collection, demo, unavailable }: Props) {
         <section className="mt-8 grid gap-5 rounded-[34px] bg-[#d7ff47] px-6 py-9 sm:px-10 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.24em]">Clear shopping</p>
-            <h2 className="mt-3 text-3xl font-black tracking-[-.05em] sm:text-5xl">Know what you're choosing.</h2>
+            <h2 className="mt-3 text-3xl font-black tracking-[-.05em] sm:text-5xl">Know what you&apos;re choosing.</h2>
             <p className="mt-3 max-w-xl text-sm font-semibold text-black/65">Review product options, check current pricing and availability, and track an existing order. No invented delivery guarantees or ratings.</p>
           </div>
           <div className="flex flex-wrap gap-3">
