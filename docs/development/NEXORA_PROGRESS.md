@@ -1,5 +1,20 @@
 # NEXORA 4 — Admin Development Progress
 
+## 28 October 2026 — Warehouse Transfer Atomic Audit and Concurrency
+
+**Functional SHA:** `bf17045e2156b1a1c1c69e4d786f1e9d2bb0456f`  
+**CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40707138238 — **4/4 PASS**.  
+**Owner Chromium:** 22 PASS / 0 FAIL (localhost disposable `nexora_qa`).
+
+- Fixed raw SQL Transfer status; added reviewed Transfer Header+Item SQL with FK/quantity constraints. It is **NOT deployed to production**; QA-only setup script installs in disposable database.
+- Validated active distinct warehouses, typed transfer quantity, reserved stock floor and destination capacity; compare-and-swap prevents concurrent overdraw.
+- Transactionally linked source debit, destination credit, Transfer Header/Item, two stock movements and exactly one Owner Audit. Any audit/history failure rolls back everything.
+- Owner API rejects invalid/malformed input (400), stock conflicts (409), unauthenticated users (401), and never exposes raw database failures.
+- Browser test injected failing audit, checked complete rollback, validated successful transfer and concurrent reservations; all 22 Browser tests PASS.
+- Pending: Seller onboarding/Order Status audit safety; transfer UI remains demo only; production reviewed migrations and provider verification require separate owner approval.
+
+## Earlier Milestones
+
 ## 28 October 2026 — Atomic Inventory Stock Adjustment and Concurrency Guard
 
 **Authorized branch:** `feature/nexora-gift-store`  
