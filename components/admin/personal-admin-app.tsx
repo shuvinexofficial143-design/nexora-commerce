@@ -6,6 +6,8 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminMediaUpload } from "@/components/admin/admin-media-upload";
 import { CmsHeroEditor } from "@/components/admin/cms-hero-editor";
 import { CatalogManagement } from "@/components/admin/catalog-management";
+import { ProductAttributeEditor } from "@/components/admin/product-attribute-editor";
+import { activeProductAttributes, normalizeAttributeDraft, type ProductAttributeDefinition } from "@/lib/admin/attribute-input";
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -61,6 +63,7 @@ type ProductRow = {
   category: string | null;
   categorySlug: string | null;
   brandSlug: string | null;
+  attributes: Record<string, unknown> | null;
   onHand: number;
   reserved: number;
   videoUrl: string | null;
@@ -69,7 +72,7 @@ type ProductRow = {
   updatedAt: string;
 };
 
-type CatalogOption = { name: string; slug: string };
+type CatalogOption = { id: string; name: string; slug: string };
 type CatalogOptions = { categories: CatalogOption[]; brands: CatalogOption[] };
 
 type OrderRow = {
@@ -295,6 +298,10 @@ function Products() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [options, setOptions] = useState<CatalogOptions>({ categories: [], brands: [] });
+  const [attributeDefinitions, setAttributeDefinitions] = useState<ProductAttributeDefinition[]>([]);
+  const [attributeError, setAttributeError] = useState("");
+  const [attributesLoading, setAttributesLoading] = useState(true);
+  const [draftAttributes, setDraftAttributes] = useState<Record<string, unknown>>({});
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [form, setForm] = useState({
@@ -310,6 +317,10 @@ function Products() {
     adminFetch<CatalogOptions>("/api/admin-app/catalog/options")
       .then(setOptions)
       .catch((e) => setError(e.message));
+    adminFetch<ProductAttributeDefinition[]>("/api/admin-app/catalog/attributes")
+      .then((data) => { setAttributeDefinitions(data); setAttributeError(""); })
+      .catch((e: Error) => setAttributeError(e.message))
+      .finally(() => setAttributesLoading(false));
   }, []);
 
   async function create(event: React.FormEvent<HTMLFormElement>) {
@@ -317,6 +328,10 @@ function Products() {
     setBusy(true);
     setError("");
     try {
+      if (attributesLoading || attributeError) throw new Error("Category attributes could not be loaded. Please retry.");
+      const categoryId = options.categories.find((item) => item.slug === form.categorySlug)?.id;
+      const definitions = activeProductAttributes(attributeDefinitions, categoryId);
+      const attributes = categoryId ? normalizeAttributeDraft(definitions, draftAttributes) : undefined;
       await adminFetch("/api/admin-app/products/manage", {
         method: "POST",
         body: JSON.stringify({
@@ -326,9 +341,11 @@ function Products() {
           categorySlug: form.categorySlug,
           brandSlug: form.brandSlug,
           status: "DRAFT",
+          ...(attributes !== undefined ? { attributes } : {}),
         }),
       });
       setForm({ name: "", sku: "", price: "", compareAtPrice: "", description: "", videoUrl: "", posterUrl: "", categorySlug: "", brandSlug: "" });
+      setDraftAttributes({});
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create product.");
@@ -347,6 +364,7 @@ function Products() {
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not update product.");
+      throw e;
     }
   }
 
@@ -381,7 +399,7 @@ function Products() {
 
           <label>
             <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">Category</span>
-            <select value={form.categorySlug} onChange={(e) => setForm((current) => ({ ...current, categorySlug: e.target.value }))} className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none focus:border-black">
+            <select value={form.categorySlug} onChange={(e) => { setForm((current) => ({ ...current, categorySlug: e.target.value })); setDraftAttributes({}); }} className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none focus:border-black">
               <option value="">Select category</option>
               {options.categories.map((option) => <option key={option.slug} value={option.slug}>{option.name}</option>)}
             </select>
@@ -394,6 +412,14 @@ function Products() {
             </select>
           </label>
 
+          {form.categorySlug ? <ProductAttributeEditor
+            definitions={activeProductAttributes(attributeDefinitions, options.categories.find((item) => item.slug === form.categorySlug)?.id)}
+            value={draftAttributes}
+            onChange={setDraftAttributes}
+            loading={attributesLoading}
+            error={attributeError}
+            disabled={busy}
+          /> : null}
           <label className="md:col-span-2">
             <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-black/40">Product video</span>
             <input
@@ -434,7 +460,7 @@ function Products() {
               className="w-full rounded-2xl border border-black/10 bg-[#f7f7f3] px-4 py-3 text-sm font-bold outline-none focus:border-black"
             />
           </label>
-          <button disabled={busy} className="rounded-full bg-black px-5 py-3 text-sm font-black text-white md:col-span-2 disabled:opacity-50">
+          <button disabled={busy || attributesLoading || Boolean(attributeError)} className="rounded-full bg-black px-5 py-3 text-sm font-black text-white md:col-span-2 disabled:opacity-50">
             {busy ? "Creating…" : "Create draft product"}
           </button>
         </form>
@@ -462,7 +488,11 @@ function Products() {
                   </div>
                 </div>
               </summary>
-              <ProductEditForm product={product} options={options} onSave={(patch) => updateProduct(product, patch)} />
+              <ProductEditForm product={product} options={options}
+                definitions={attributeDefinitions}
+                attributesLoading={attributesLoading}
+                attributeError={attributeError}
+                onSave={(patch) => updateProduct(product, patch)} />
             </details>
           ))}
           {!rows.length ? <p className="py-6 text-center text-sm font-bold text-black/35">No products yet.</p> : null}
@@ -476,7 +506,14 @@ function Homepage() {
   return <div className="space-y-6"><div><p className="text-xs font-black uppercase tracking-[.18em] text-black/35">Storefront CMS</p><h1 className="mt-1 text-3xl font-black tracking-[-.05em]">Homepage banners</h1><p className="mt-2 max-w-2xl text-sm font-medium text-black/50">Create and publish category-aware banners. Changes persist only when the reviewed HomepageBanner migration has been applied.</p></div><CmsHeroEditor /></div>;
 }
 
-function ProductEditForm({ product, options, onSave }: { product: ProductRow; options: CatalogOptions; onSave: (patch: Record<string, unknown>) => Promise<void> }) {
+function ProductEditForm({ product, options, definitions, attributesLoading, attributeError, onSave }: {
+  product: ProductRow;
+  options: CatalogOptions;
+  definitions: ProductAttributeDefinition[];
+  attributesLoading: boolean;
+  attributeError: string;
+  onSave: (patch: Record<string, unknown>) => Promise<void>;
+}) {
   const [name, setName] = useState(product.name);
   const [price, setPrice] = useState(String(product.priceMinor / 100));
   const [compareAtPrice, setCompareAtPrice] = useState(product.compareAtMinor == null ? "" : String(product.compareAtMinor / 100));
@@ -489,12 +526,30 @@ function ProductEditForm({ product, options, onSave }: { product: ProductRow; op
   const [status, setStatus] = useState(product.status);
   const [gallery, setGallery] = useState(product.media.filter((item) => item.sortOrder >= 10).map((item) => item.url).join("\n"));
   const [busy, setBusy] = useState(false);
+  const [draftError, setDraftError] = useState("");
+  const [draftAttributes, setDraftAttributes] = useState<Record<string, unknown>>(
+    product.attributes && !Array.isArray(product.attributes) ? product.attributes : {}
+  );
+  const categoryId = options.categories.find((item) => item.slug === categorySlug)?.id;
+  const applicableDefinitions = activeProductAttributes(definitions, categoryId);
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     try {
-      await onSave({ name, price: Number(price), compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null, description, featured, videoUrl, posterUrl, categorySlug, brandSlug, status, images: gallery.split("\n").map((value) => value.trim()).filter(Boolean) });
+      setDraftError("");
+      if (attributesLoading || attributeError) throw new Error("Category attributes could not be loaded.");
+      const attrs = categoryId ? normalizeAttributeDraft(applicableDefinitions, draftAttributes) : undefined;
+      await onSave({
+        name, price: Number(price), compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null,
+        description, featured, videoUrl, posterUrl, status,
+        ...(categorySlug !== (product.categorySlug ?? "") ? { categorySlug } : {}),
+        ...(brandSlug !== (product.brandSlug ?? "") ? { brandSlug } : {}),
+        ...(attrs !== undefined ? { attributes: attrs } : {}),
+        images: gallery.split("\n").map((value) => value.trim()).filter(Boolean),
+      });
+    } catch (error) {
+      setDraftError(error instanceof Error ? error.message : "Unable to save product changes.");
     } finally {
       setBusy(false);
     }
@@ -502,13 +557,19 @@ function ProductEditForm({ product, options, onSave }: { product: ProductRow; op
 
   return (
     <form onSubmit={save} className="mt-4 grid gap-3 border-t border-black/8 pt-4 md:grid-cols-2">
+      {draftError ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700 md:col-span-2">{draftError}</p> : null}
       <input value={name} onChange={(e) => setName(e.target.value)} className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
       <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
       <input value={compareAtPrice} onChange={(e) => setCompareAtPrice(e.target.value)} type="number" min={price} placeholder="Compare-at price (optional)" className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
       <label className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold"><input checked={featured} onChange={(e) => setFeatured(e.target.checked)} type="checkbox" /> Featured product</label>
       <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Product description" className="md:col-span-2 rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
-      <select value={categorySlug} onChange={(e) => setCategorySlug(e.target.value)} className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold"><option value="">Uncategorized</option>{options.categories.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}</select>
+      <select value={categorySlug} onChange={(e) => { setCategorySlug(e.target.value); setDraftAttributes({}); }} className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold"><option value="">Uncategorized</option>{options.categories.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}</select>
       <select value={brandSlug} onChange={(e) => setBrandSlug(e.target.value)} className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold"><option value="">No brand</option>{options.brands.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}</select>
+      {categorySlug ? <ProductAttributeEditor
+        definitions={applicableDefinitions} value={draftAttributes}
+        onChange={setDraftAttributes} loading={attributesLoading}
+        error={attributeError} disabled={busy}
+      /> : null}
       <label className="md:col-span-2">
         <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-black/35">Product video</span>
         <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="YouTube or HTTPS MP4/WebM URL" className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" />
@@ -521,12 +582,13 @@ function ProductEditForm({ product, options, onSave }: { product: ProductRow; op
       </label>
       <label className="md:col-span-2"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-black/35">Gallery images</span><textarea value={gallery} onChange={(e) => setGallery(e.target.value)} rows={3} placeholder="One approved HTTPS image URL per line" className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-bold" /><span className="mt-1 block text-[11px] font-bold text-black/40">These replace the additional gallery images; poster and video remain separate.</span></label>
       <div className="flex flex-wrap gap-2 md:col-span-2">
-        <button disabled={busy} className="rounded-full bg-black px-4 py-2 text-xs font-black text-white">{busy ? "Saving…" : "Save changes"}</button>
+        <button disabled={busy || attributesLoading || Boolean(attributeError)} className="rounded-full bg-black px-4 py-2 text-xs font-black text-white">{busy ? "Saving…" : "Save changes"}</button>
         {["DRAFT", "ACTIVE", "ARCHIVED"].map((nextStatus) => (
           <button
             key={nextStatus}
             type="button"
-            onClick={() => { setStatus(nextStatus); void onSave({ status: nextStatus }); }}
+            disabled={busy}
+            onClick={() => { setBusy(true); setDraftError(""); void onSave({ status: nextStatus }).then(() => setStatus(nextStatus)).catch((error: unknown) => setDraftError(error instanceof Error ? error.message : "Status update failed.")).finally(() => setBusy(false)); }}
             className={`rounded-full px-4 py-2 text-xs font-black ${status === nextStatus ? "bg-[#d7ff47]" : "bg-black/5"}`}
           >
             {nextStatus}

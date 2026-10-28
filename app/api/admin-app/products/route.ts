@@ -59,6 +59,7 @@ export async function GET(request: Request) {
         category: product.category?.name ?? null,
          categorySlug: product.category?.slug ?? null,
          brandSlug: product.brand?.slug ?? null,
+        attributes: product.attributes,
         onHand: product.inventory.reduce((sum, item) => sum + item.onHand, 0),
         reserved: product.inventory.reduce((sum, item) => sum + item.reserved, 0),
         videoUrl: video?.url ?? null,
