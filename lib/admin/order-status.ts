@@ -80,6 +80,22 @@ export async function changeOwnerOrderStatus(input: {
       };
     }
     if (status === "DELIVERED" || status === "CANCELLED") {
+      // Keep the reusable settlement helper idempotent for existing callers.
+      // But a nonterminal order with settlement movements already recorded
+      // signals inconsistent legacy state and must not silently advance.
+      const [baseSettled, skuSettled] = await Promise.all([
+        tx.inventoryMovement.findFirst({
+          where: { reference: order.orderNumber, note: { startsWith: "ORDER_SETTLED:" } },
+          select: { id: true },
+        }),
+        tx.productVariantMovement.findFirst({
+          where: { reference: order.orderNumber, type: { in: ["OUTBOUND", "RELEASE"] } },
+          select: { id: true },
+        }),
+      ]);
+      if (baseSettled || skuSettled) {
+        throw new ConflictError("Order already has settlement movements; manual reconciliation required.");
+      }
       await reconcileOrder(tx, order, status === "DELIVERED" ? "DELIVER" : "CANCEL");
     }
     const updated = await tx.order.update({
