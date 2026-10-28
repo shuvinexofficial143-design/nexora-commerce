@@ -495,9 +495,11 @@ Owner requested coding only; **NO VERCEL deployment** and no Production/staging 
 - Full new scope includes both Admin PATCH endpoints, PostgreSQL order row lock, atomic audit, stock movement, and lifecycle guards. Existing low-level reconciliation helper remains idempotent for legacy consumers; owner status transitions reject inconsistent preexisting settlement rows.
 - **Remaining:** owner-approved staging migrations and raw `AdminActivityLog` schema, staging role/permissions, full real-service end-to-end validation, Cashfree sandbox, cross-branch Admin compatibility review and release authorization.
 
-## 28 October 2026 — Owner Inventory Adjustment + Atomic Audit (CI pending)
+## 28 October 2026 — Owner Inventory Adjustment + Atomic Audit (verified)
 - Baseline: `ad78a7203d92a9640945aa65b487aff14748662f`, GitHub Actions `40716627710` (4/4 PASS).
 - Confirmed defect: Admin stock adjustment previously committed guarded stock+movement transaction but wrote `INVENTORY_ADJUSTMENT` audit separately. Audit failure could leave unaudited stock changes.
 - Fix: Authenticated Owner HTTP handler now passes verified actor to `adjustStock()`. Stock, movement and audit commit in the SAME transaction, so either audit or movement failure rolls back the stock. No post-commit duplicate audit. Retained atomic conditional SQL against checkout reservations.
 - Strict typed bounded stock input (no numeric/string coercion), invalid admin identity check, explicit HTTP 400 validation and 409 stock conflict. Compatible with Nexora 4 pattern without branch merge.
 - Disposable QA regression tests cover successful audit, audit/movement injected failures, simultaneous Owner adjustments, reserved-stock rejection, invalid actor and inputs. No Prisma schema/production database changes, payments or Vercel deploy. Verify exact-HEAD CI before marking COMPLETE.
+- **Verified code CI:** commit `c21315a8147edbf75d0b2d75a976db08165768af`, GitHub Actions run [`40718459346`](https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40718459346) completed **SUCCESS 4/4 jobs (0 failed)**: Unit/TypeScript/ESLint/Build/Security, disposable PostgreSQL, customer Chromium and authenticated Owner Admin/COD browser tests. This is isolated QA evidence, NOT production readiness.
+- Final documentation checkpoint itself triggers another exact-HEAD workflow; verify its separate run before reporting final branch HEAD green.
