@@ -1,5 +1,21 @@
 # NEXORA 4 — Admin Development Progress
 
+## 29 October 2026 — Seller Approval atomicity, pending-state login, 25/25 browser QA
+
+**Branch:** `feature/nexora-gift-store`  
+**Verified functional SHA:** `35165afbd4eeea1a882cca9b61b5d60b58a6acd9`  
+**CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40864792540 — **4/4 PASS**  
+**Owner Chromium / disposable PostgreSQL:** **25 PASS / 0 FAIL**.
+
+- Seller Onboarding defaults User to PENDING_VERIFICATION rather than ACTIVE until real Owner approval.
+- Owner Seller PATCH accepts bounded Commission (0–10000 integer basis points) and PENDING/APPROVED/REJECTED only; rejects payout edits and unexpected fields; correct 400/404/409/500 responses.
+- SellerProfile verification, User ACTIVE/PENDING_VERIFICATION/SUSPENDED state, and SELLER_REVIEW Audit now commit/rollback atomically under row locks. Identical concurrent approvals yield one audit; unchanged requests are idempotent.
+- New isolated QA test checks no anonymous review, malformed requests, missing seller, simulated audit failure rollback, approval/rejection and unchanged payout HOLD.
+- Interim CI run `40864069614` failed on previously shared Product rollback fixture (400 validation instead of 500 audit). Isolated DRAFT Product test replaced shared fixture; full corrected CI `40864792540` passed all 25 Owner Browser tests.
+- Seller Approval UI remains a mock/demo, not wired to production. Legacy ACTIVE accounts with PENDING verification need separately reviewed access backfill; payouts and Production migrations remain unapproved. No live data or Vercel production changes.
+
+## Earlier Milestones
+
 ## 28 October 2026 — Seller Onboarding Secure Credential & Atomic Audit
 
 **Authorized branch:** `feature/nexora-gift-store`  
