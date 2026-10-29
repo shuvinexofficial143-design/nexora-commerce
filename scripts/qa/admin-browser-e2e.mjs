@@ -1036,6 +1036,7 @@ try {
       assert.equal(user.rows.length, 1);
       assert.equal(user.rows[0].id, accepted.userId);
       assert.equal(user.rows[0].role, "SELLER");
+      assert.equal(user.rows[0].status, "PENDING_VERIFICATION", "Unapproved seller cannot hold an active login session");
       assert.notEqual(user.rows[0].passwordHash, password);
       assert.match(user.rows[0].passwordHash, /^scrypt\$/);
       const profile = await client.query('SELECT "id","userId","commissionBps","verificationStatus","payoutStatus" FROM "SellerProfile" WHERE "id" = $1', [accepted.profileId]);
@@ -1054,6 +1055,89 @@ try {
       await client.query('DELETE FROM "AdminActivityLog" WHERE "action" = $1 AND "entityId" IN (SELECT s."id" FROM "SellerProfile" s JOIN "User" u ON u."id"=s."userId" WHERE u."email"=$2)', ["SELLER_ONBOARD", sellerEmail]);
       await client.query('DELETE FROM "SellerProfile" WHERE "userId" IN (SELECT "id" FROM "User" WHERE "email"=$1)', [sellerEmail]);
       await client.query('DELETE FROM "User" WHERE "email"=$1', [sellerEmail]);
+      await client.end();
+    }
+  });
+
+
+  await verify("seller-review-owner-approval-rollback-idempotency-and-suspension", async () => {
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+    const email = "qa-review-" + suffix + "@example.invalid";
+    const seller = { name:"QA Review Seller", storeName:"QA Review Store",
+      email, password:"QA!SellerReview42-"+suffix, commissionBps:900 };
+    const url = new URL("/api/admin-app/sellers", base).href;
+    let auditTrigger = false;
+    try {
+      const created = await api(ctx,"/api/admin-app/sellers/onboard","POST",seller);
+      const id = created.profileId;
+      const read = () => client.query('SELECT s."verificationStatus",s."payoutStatus",s."commissionBps",u."status"::text AS "userStatus" FROM "SellerProfile" s JOIN "User" u ON u."id"=s."userId" WHERE s."id"=$1',[id]);
+      const before = (await read()).rows[0];
+      assert.equal(before.verificationStatus,"PENDING");
+      assert.equal(before.userStatus,"PENDING_VERIFICATION");
+      assert.equal(before.payoutStatus,"HOLD");
+      const guest = await browser.newContext();
+      try {
+        assert.equal((await guest.request.patch(url,{data:{id,verificationStatus:"APPROVED"}})).status(),401);
+      } finally { await guest.close(); }
+      for (const invalid of [
+        {id,verificationStatus:"ALLOWED"},
+        {id,verificationStatus:true},
+        {id,commissionBps:"100"},
+        {id,commissionBps:-1},
+        {id,commissionBps:10001},
+        {id,commissionBps:4.5},
+        {id,payoutStatus:"READY"},
+        {id,adminUserId:"fake-owner",verificationStatus:"APPROVED"},
+        {id},
+      ]) {
+        const response = await ctx.request.patch(url,{data:invalid});
+        assert.equal(response.status(),400,"Bad Seller review must never persist");
+      }
+      const absent = await ctx.request.patch(url,{data:{id:"qa-nonexistent",verificationStatus:"APPROVED"}});
+      assert.equal(absent.status(),404);
+      const malformed = await ctx.request.patch(url,{headers:{"content-type":"application/json"},data:'{"id":'});
+      assert.equal(malformed.status(),400);
+      assert.deepEqual((await read()).rows[0],before);
+
+      await client.query("CREATE FUNCTION qa_reject_seller_review_audit() RETURNS trigger AS $qr$ BEGIN RAISE EXCEPTION 'QA seller review audit rejected'; END; $qr$ LANGUAGE plpgsql");
+      await client.query('CREATE TRIGGER qa_reject_seller_review_audit_trg BEFORE INSERT ON "AdminActivityLog" FOR EACH ROW WHEN (NEW."action" = \'SELLER_REVIEW\') EXECUTE FUNCTION qa_reject_seller_review_audit()');
+      auditTrigger = true;
+      const rejected = await ctx.request.patch(url,{data:{id,verificationStatus:"APPROVED",commissionBps:0}});
+      assert.equal(rejected.status(),500,"Audit failure must roll back Seller verification and User activation");
+      assert.equal((await rejected.json()).error,"Unexpected admin server error.");
+      assert.deepEqual((await read()).rows[0],before,"No Seller/User data may change after audit failure");
+      await client.query('DROP TRIGGER qa_reject_seller_review_audit_trg ON "AdminActivityLog"');
+      await client.query("DROP FUNCTION qa_reject_seller_review_audit()");
+      auditTrigger = false;
+
+      const requests = await Promise.all([
+        ctx.request.patch(url,{data:{id,verificationStatus:"APPROVED",commissionBps:0}}),
+        ctx.request.patch(url,{data:{id,verificationStatus:"APPROVED",commissionBps:0}}),
+      ]);
+      assert.deepEqual(requests.map(r=>r.status()),[200,200],"Both identical Owner review retries succeed");
+      assert.equal((await Promise.all(requests.map(r=>r.json()))).filter(r=>r.data.unchanged === false).length,1,
+        "Only first approval can produce the audit");
+      const accepted = (await read()).rows[0];
+      assert.equal(accepted.verificationStatus,"APPROVED");
+      assert.equal(accepted.userStatus,"ACTIVE");
+      assert.equal(accepted.commissionBps,0);
+      assert.equal(accepted.payoutStatus,"HOLD","Approval cannot unlock payout");
+      const count = async () => (await client.query('SELECT count(*)::int AS n FROM "AdminActivityLog" WHERE "action"=$1 AND "entityId"=$2',["SELLER_REVIEW",id])).rows[0].n;
+      assert.equal(await count(),1);
+      const noChange = await api(ctx,"/api/admin-app/sellers","PATCH",{id,verificationStatus:"APPROVED",commissionBps:0});
+      assert.equal(noChange.unchanged,true);
+      assert.equal(await count(),1);
+      await api(ctx,"/api/admin-app/sellers","PATCH",{id,verificationStatus:"REJECTED"});
+      assert.equal((await read()).rows[0].userStatus,"SUSPENDED");
+      assert.equal((await read()).rows[0].payoutStatus,"HOLD");
+      assert.equal(await count(),2);
+    } finally {
+      if(auditTrigger)await client.query('DROP TRIGGER IF EXISTS qa_reject_seller_review_audit_trg ON "AdminActivityLog"');
+      await client.query("DROP FUNCTION IF EXISTS qa_reject_seller_review_audit()");
+      await client.query('DELETE FROM "AdminActivityLog" WHERE "entityId" IN (SELECT "id" FROM "SellerProfile" WHERE "userId" IN (SELECT "id" FROM "User" WHERE "email"=$1))',[email]);
+      await client.query('DELETE FROM "SellerProfile" WHERE "userId" IN (SELECT "id" FROM "User" WHERE "email"=$1)',[email]);
+      await client.query('DELETE FROM "User" WHERE "email"=$1',[email]);
       await client.end();
     }
   });
