@@ -57,7 +57,7 @@ async function notificationCount(id:string,type:string){
   const rows=await db.$queryRawUnsafe<Array<{n:bigint}>>(
     'SELECT COUNT(*) n FROM "AdminNotification" WHERE "entityType"=$1 AND "entityId"=$2 AND "type"=$3',
     "ORDER",id,type);
-  return Number(rows[0]?.n??0n);
+  return Number(rows[0]?.n??0);
 }
 async function signedWebhook(number:string){
   const body=JSON.stringify({type:"PAYMENT_SUCCESS_WEBHOOK",

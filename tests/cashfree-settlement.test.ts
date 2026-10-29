@@ -13,7 +13,7 @@ test("strict Cashfree success proof requires exact matching amount, INR and gate
   },order),"cf-001");
 });
 test("missing payment_amount, currency or gateway ID must never turn order PAID",()=>{
-  for(const missing of [
+  const invalidPayments: Array<Parameters<typeof verifySuccessfulCashfreePayment>[0]> = [
     {payment_currency:"INR",cf_payment_id:"p1"},
     {payment_amount:1299,cf_payment_id:"p1"},
     {payment_amount:1299,payment_currency:"INR"},
@@ -21,7 +21,9 @@ test("missing payment_amount, currency or gateway ID must never turn order PAID"
     {payment_amount:0,payment_currency:"INR",cf_payment_id:"p1"},
     {payment_amount:Infinity,payment_currency:"INR",cf_payment_id:"p1"},
     {payment_amount:1299,payment_currency:"INR",cf_payment_id:""},
-  ])assert.throws(()=>verifySuccessfulCashfreePayment(missing,order),/payment|currency|gateway/i);
+  ];
+  for(const missing of invalidPayments)
+    assert.throws(()=>verifySuccessfulCashfreePayment(missing,order),/payment|currency|gateway/i);
 });
 test("underpayment, overpayment, fractional paise, non-INR and unsafe values fail closed",()=>{
   for(const amount of [1298.99,1299.01,1299.001,1298.999,100000000000000])
