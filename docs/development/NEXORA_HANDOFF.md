@@ -1,30 +1,27 @@
 # NEXORA 4 — Admin Development Handoff
 
-Date: 2026-10-28
+Date: 2026-10-29
 Repository: `shuvinexofficial143-design/nexora-commerce`
-**WRITE ONLY:** `feature/nexora-gift-store`
-**Verified functional SHA:** `304530352f15d0e0865c3143b85add166b5dbbe1`
-**CI:** https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40715987552 — **4/4 PASS**.
-**Real Owner Chromium / disposable PostgreSQL:** **24 PASS / 0 FAIL**.
-This document will get a newer docs-only commit; verify actual latest HEAD/CI on every `next`.
+Authorized write branch: `feature/nexora-gift-store`
+Verified functional commit: `35165afbd4eeea1a882cca9b61b5d60b58a6acd9`
+Functional CI: https://github.com/shuvinexofficial143-design/nexora-commerce/actions/runs/40864792540 — 4/4 PASS.
+Owner Chromium + disposable PostgreSQL: **25 PASS / 0 FAIL**.
+A documentation-only commit follows; always verify latest actual GitHub HEAD and CI.
 
-## Verified milestone: Secure Seller Onboarding
+## Seller Approval/Edit milestone
 
-1. Added `prisma/reviewed-migrations/20261028_seller_profile.sql` with additive SellerProfile table, unique User foreign key, bounded commission and server-only RLS. **Production schema NOT migrated**. `scripts/qa/setup-admin-observability.mjs` applies it ONLY in explicitly opt-in localhost `nexora_qa`.
-2. `lib/admin/seller-onboarding.ts`: removes shared default credential, requires explicitly supplied 12–128-character password with letter, number and symbol; rejects previous shared default. Validates email/name/store, optional GST format, and commission integer 0–10000 bps (explicit 0 supported). Password is salted/scrypt hashed before transaction and never returned.
-3. Creates User, SellerProfile and exactly one `SELLER_ONBOARD` Audit inside a single Prisma transaction; any error rolls back all three. Parameterizes PENDING and HOLD correctly in SQL. Duplicate seller email returns typed conflict.
-4. `app/api/admin-app/sellers/onboard/route.ts`: Owner-only 401; malformed/invalid input 400; duplicate 409; unexpected DB/audit error generic 500; success 201 has only userId/profileId/email.
-5. `scripts/qa/admin-browser-e2e.mjs`: one new real browser/API/Postgres test rejects anonymous/weak/missing password/invalid commission/malformed JSON; deliberately fails Audit insert and verifies no orphan User/Profile; proves valid seller created with hashed password, pending verification/HOLD payout, commission 0, one audit and duplicate 409. Cleans QA data.
-6. Functional CI `40715987552` is 4/4 success and Owner Chromium **24/24 PASS**, all older Admin/Storefront/Checkout regressions preserved.
+- `lib/admin/seller-onboarding.ts`: newly created Seller User starts PENDING_VERIFICATION, not ACTIVE. SellerProfile verification PENDING, payout HOLD.
+- `lib/admin/sellers.ts`: Owner reviews strictly accept verificationStatus PENDING/APPROVED/REJECTED and commissionBps integer 0–10000. Other fields (including payout updates) rejected. Row lock serializes reviews. APPROVED activates user; REJECTED suspends; PENDING restricts session. User status + profile + SELLER_REVIEW audit are a single transaction; audit failure rolls back. Identical retries write no duplicate audit. Owner listing includes userStatus.
+- `app/api/admin-app/sellers/route.ts`: Owner-only GET/PATCH; appropriate 400, 404, 409, generic 500 and successful response.
+- `scripts/qa/admin-browser-e2e.mjs`: new isolated PostgreSQL/Owner browser test verifies invalid/unauthorized updates, audit rollback, two concurrent approvals, payout stays HOLD, idempotency, suspension. Previously flaky Product Audit test now uses its own draft fixture.
+- Interim CI `40864069614` failed on that shared-Product QA assertion (400 instead of 500). Corrected exact functional run `40864792540` passed **4/4** and **25/25 Owner tests**.
 
-## Remaining and next
+## Remaining safeguards
 
-- Seller *approval/update* route `app/api/admin-app/sellers/route.ts` and `lib/admin/sellers.ts` still accept broadly coerced input and lack atomic admin audit. Review and secure as next increment; do not bypass approval controls.
-- Order status post-commit customer emails and Admin notifications are still best-effort; durable outbox/retry not implemented. Deterministic simultaneous Order Status update test still missing.
-- Seller onboarding creates an ACTIVE User with SellerProfile verificationStatus PENDING; verify business approval/login authorization semantics before enabling multi-vendor production.
-- Warehouse Transfer admin UI remains DEMO-only. Reviewed SellerProfile, Warehouse Transfer, Admin Observability, Catalog and Homepage SQL remain unapplied to Production.
-- No Vercel Production deployment, live Cloudinary, Cashfree/refund, emails, real seller account or stock/customer changes.
-- Next `next`: verify latest head and 4/4 CI; implement safe owner Admin improvements with disposable QA tests; update both docs.
-- Never modify `feature/nexora-gpt-customer-ops` or `feature/nexora-qa-automation`.
+- Seller Approval Queue UI still DEMO-only, not connected to real Owner API.
+- Existing legacy ACTIVE Seller accounts with PENDING profile status need separately approved access audit/backfill.
+- No KYC, payout, seller settlement or real financial approval implemented. Order status email/outbox still best-effort.
+- Reviewed migrations are NOT applied to Production. No Vercel deploy, live orders, live sellers, stock, provider calls or payments.
+- Do not edit Nexora 3 or QA branches.
 
-Production needs explicit owner approval, schema diff review, database backup and staging rehearsal.
+Next `next`: verify true latest SHA/CI. Evaluate safe real Seller Approval UI wiring and pending legacy access safety in isolated QA before production. Update docs, verify exact final CI.
