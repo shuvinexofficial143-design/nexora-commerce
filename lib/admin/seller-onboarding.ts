@@ -42,7 +42,7 @@ export async function onboardSeller(input: Record<string, unknown>, adminUserId:
   try {
     return await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
-        data: { id: randomUUID(), email, name, passwordHash, role: "SELLER", status: "ACTIVE" },
+        data: { id: randomUUID(), email, name, passwordHash, role: "SELLER", status: "PENDING_VERIFICATION" },
       });
       const profileId = randomUUID();
       const verification = "PENDING", payout = "HOLD";
