@@ -247,6 +247,9 @@ export async function createCashfreePaymentSession(
   if (order.paymentStatus === "PAID") {
     throw new Error("This order is already paid.");
   }
+  if (["CANCELLED","RETURN_REQUESTED","RETURNED","REFUNDED"].includes(order.status)) {
+    throw new Error("This order is closed. Online payment cannot be started.");
+  }
 
   const existing = await getCashfreeOrder(order.orderNumber).catch(() => null);
   if (existing?.payment_session_id) {
@@ -328,114 +331,122 @@ export function verifyCashfreeWebhookSignature(
   return timingSafeEqual(received, calculated);
 }
 
+
+/** Bank-provided success data must contain a complete auditable INR amount,
+ * currency and gateway payment identifier. Missing values never imply paid.
+ */
+export function verifySuccessfulCashfreePayment(
+  payment: CashfreePayment,
+  order: { totalMinor:number; currency:string },
+) {
+  const amount=payment.payment_amount;
+  if (typeof amount!=="number"||!Number.isFinite(amount)||amount<=0||
+      !Number.isSafeInteger(order.totalMinor)||order.totalMinor<=0) {
+    throw new Error("Cashfree successful payment is missing a valid amount.");
+  }
+  const paise=amount*100;
+  const rounded=Math.round(paise);
+  if(!Number.isSafeInteger(rounded)||Math.abs(paise-rounded)>0.000001||
+     rounded!==order.totalMinor)
+    throw new Error("Cashfree payment amount does not match the local order.");
+  if(!payment.payment_currency||payment.payment_currency!==order.currency||
+     order.currency!=="INR")
+    throw new Error("Cashfree payment currency does not match the local order.");
+  const id=payment.cf_payment_id;
+  if((typeof id!=="number"&&typeof id!=="string")||
+     !String(id).trim()||String(id).length>100)
+    throw new Error("Cashfree successful payment has no valid gateway identifier.");
+  return String(id);
+}
+
+const paymentManualReviewStatuses=new Set([
+  "CANCELLED","RETURN_REQUESTED","RETURNED","REFUNDED",
+]);
+
+/** Fetch signed-provider API state BEFORE locking the local order. Lock the
+ * Order row during reconciliation so webhook + return-page status requests
+ * cannot each generate a second paid event, nor resurrect cancelled orders.
+ */
 export async function syncCashfreePayment(orderNumber: string) {
-  const prisma = getPrisma();
-  const order = await prisma.order.findUnique({
-    where: { orderNumber },
-    select: {
-      id: true,
-      orderNumber: true,
-      totalMinor: true,
-      currency: true,
-      paymentMethod: true,
-      paymentStatus: true,
-      status: true,
-    },
+  const prisma=getPrisma();
+  const candidate=await prisma.order.findUnique({
+    where:{orderNumber},select:{id:true,paymentMethod:true},
   });
-
-  if (!order) throw new Error("Local order not found.");
-  if (order.paymentMethod !== "cashfree") {
+  if(!candidate)throw new Error("Local order not found.");
+  if(candidate.paymentMethod!=="cashfree")
     throw new Error("Order is not a Cashfree payment order.");
-  }
 
-  const payments = await getCashfreePayments(order.orderNumber);
-  const successful = payments.find(
-    (payment) => payment.payment_status === "SUCCESS",
-  );
-  const pending = payments.some(
-    (payment) => payment.payment_status === "PENDING",
-  );
-
-  if (successful) {
-    if (
-      typeof successful.payment_amount === "number" &&
-      Math.round(successful.payment_amount * 100) !== order.totalMinor
-    ) {
-      throw new Error("Cashfree payment amount does not match the local order.");
+  const payments=await getCashfreePayments(orderNumber);
+  const settled=await prisma.$transaction(async tx=>{
+    const locked=await tx.$queryRawUnsafe<Array<{id:string}>>(
+      'SELECT "id" FROM "Order" WHERE "id" = $1 FOR UPDATE',candidate.id,
+    );
+    if(locked.length!==1)throw new Error("Local order not found.");
+    const order=await tx.order.findUniqueOrThrow({where:{id:candidate.id},select:{
+      id:true,orderNumber:true,totalMinor:true,currency:true,paymentMethod:true,
+      paymentStatus:true,status:true,
+    }});
+    if(order.paymentMethod!=="cashfree")
+      throw new Error("Order is not a Cashfree payment order.");
+    const success=payments.find(payment=>payment.payment_status==="SUCCESS");
+    if(success){
+      const cfPaymentId=verifySuccessfulCashfreePayment(success,order);
+      if(order.paymentStatus==="PAID")
+        return {state:"SUCCESS" as const,paymentStatus:"PAID" as const,
+          orderStatus:order.status,cfPaymentId,changedToPaid:false,manualReview:false};
+      const manualReview=paymentManualReviewStatuses.has(order.status);
+      const confirmed=order.status==="PENDING"?"CONFIRMED" as const:order.status;
+      await tx.order.update({where:{id:order.id},data:{
+        paymentStatus:"PAID",...(order.status==="PENDING"?{status:"CONFIRMED" as const}:{}),
+      }});
+      return {state:"SUCCESS" as const,paymentStatus:"PAID" as const,
+        orderStatus:confirmed,cfPaymentId,changedToPaid:true,manualReview};
     }
-
-    if (
-      successful.payment_currency &&
-      successful.payment_currency !== order.currency
-    ) {
-      throw new Error("Cashfree payment currency does not match the local order.");
+    // A previously verified paid order must NEVER regress to FAILED because
+    // the payment provider returns stale or incomplete events.
+    if(order.paymentStatus==="PAID"){
+      return {state:"SUCCESS" as const,paymentStatus:"PAID" as const,
+        orderStatus:order.status,cfPaymentId:null,changedToPaid:false,manualReview:false};
     }
-
-    if (order.paymentStatus !== "PAID") {
-      await prisma.order.update({
-        where: { id: order.id },
-        data: {
-          paymentStatus: "PAID",
-          ...(order.status === "PENDING" ? { status: "CONFIRMED" as const } : {}),
-        },
-      });
-
-      await Promise.allSettled([
-        sendOrderEmailSafe(order.id, "PAYMENT_CONFIRMED"),
-        notify({
-          type: "PAYMENT_PAID",
-          title: "Online payment confirmed",
-          message: `${order.orderNumber} was paid successfully through Cashfree`,
-          entityType: "ORDER",
-          entityId: order.id,
-          severity: "SUCCESS",
-        }),
-      ]);
+    const pending=payments.some(payment=>payment.payment_status==="PENDING");
+    if(pending||!payments.length){
+      return {state:"PENDING" as const,paymentStatus:order.paymentStatus,
+        orderStatus:order.status,cfPaymentId:null,changedToPaid:false,manualReview:false};
     }
+    if(order.paymentStatus==="FAILED")
+      return {state:"FAILED" as const,paymentStatus:"FAILED" as const,
+        orderStatus:order.status,cfPaymentId:null,changedToPaid:false,manualReview:false};
+    await tx.order.update({where:{id:order.id},data:{paymentStatus:"FAILED"}});
+    return {state:"FAILED" as const,paymentStatus:"FAILED" as const,
+      orderStatus:order.status,cfPaymentId:null,changedToPaid:false,manualReview:false,
+      changedToFailed:true};
+  },{maxWait:10000,timeout:15000});
 
-    return {
-      state: "SUCCESS" as const,
-      paymentStatus: "PAID" as const,
-      orderStatus: order.status === "PENDING" ? "CONFIRMED" : order.status,
-      cfPaymentId: successful.cf_payment_id ? String(successful.cf_payment_id) : null,
-    };
-  }
-
-  if (pending) {
-    return {
-      state: "PENDING" as const,
-      paymentStatus: order.paymentStatus,
-      orderStatus: order.status,
-      cfPaymentId: null,
-    };
-  }
-
-  if (
-    payments.length &&
-    order.paymentStatus !== "PAID" &&
-    order.paymentStatus !== "FAILED"
-  ) {
-    await prisma.order.update({
-      where: { id: order.id },
-      data: { paymentStatus: "FAILED" },
-    });
-
+  // External notifications happen ONLY for the winning committed transition,
+  // never for duplicate webhooks or a concurrent status poll.
+  if(settled.changedToPaid){
     await Promise.allSettled([
+      ...(settled.manualReview ? [] : [sendOrderEmailSafe(candidate.id,"PAYMENT_CONFIRMED")]),
       notify({
-        type: "PAYMENT_FAILED",
-        title: "Online payment failed",
-        message: `${order.orderNumber} has no successful Cashfree payment`,
-        entityType: "ORDER",
-        entityId: order.id,
-        severity: "WARNING",
+        type:settled.manualReview?"PAYMENT_PAID_REVIEW":"PAYMENT_PAID",
+        title:settled.manualReview?"Payment after terminal order needs review":"Online payment confirmed",
+        message:settled.manualReview
+          ? orderNumber+" received payment after cancellation/return. Review refund manually."
+          :orderNumber+" was paid successfully through Cashfree",
+        entityType:"ORDER",entityId:candidate.id,
+        severity:settled.manualReview?"WARNING":"SUCCESS",
       }),
     ]);
+  }else if("changedToFailed" in settled&&settled.changedToFailed){
+    await Promise.allSettled([notify({
+      type:"PAYMENT_FAILED",title:"Online payment failed",
+      message:orderNumber+" has no successful Cashfree payment",
+      entityType:"ORDER",entityId:candidate.id,severity:"WARNING",
+    })]);
   }
 
   return {
-    state: payments.length ? ("FAILED" as const) : ("PENDING" as const),
-    paymentStatus: payments.length ? ("FAILED" as const) : order.paymentStatus,
-    orderStatus: order.status,
-    cfPaymentId: null,
+    state:settled.state,paymentStatus:settled.paymentStatus,
+    orderStatus:settled.orderStatus,cfPaymentId:settled.cfPaymentId,
   };
 }
