@@ -17,7 +17,7 @@ test("missing payment_amount, currency or gateway ID must never turn order PAID"
     {payment_currency:"INR",cf_payment_id:"p1"},
     {payment_amount:1299,cf_payment_id:"p1"},
     {payment_amount:1299,payment_currency:"INR"},
-    {payment_amount:"1299",payment_currency:"INR",cf_payment_id:"p1"},
+    {payment_amount:"1299" as unknown as number,payment_currency:"INR",cf_payment_id:"p1"},
     {payment_amount:0,payment_currency:"INR",cf_payment_id:"p1"},
     {payment_amount:Infinity,payment_currency:"INR",cf_payment_id:"p1"},
     {payment_amount:1299,payment_currency:"INR",cf_payment_id:""},
