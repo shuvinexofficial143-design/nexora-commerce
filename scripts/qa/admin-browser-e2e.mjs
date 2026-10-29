@@ -608,7 +608,16 @@ try {
     await dbClient.connect();
     let triggerCreated = false;
     const candidateSku = "QA-ROLLBACK-" + suffix.toUpperCase();
+    const isolatedSku = "QA-ROLLBACK-EDIT-" + suffix.toUpperCase();
+    let isolatedId = null;
     try {
+      // Dedicated draft prevents previous publish/category/browser tests from
+      // turning the audit-rollback assertion into a 400 publish-validation test.
+      const isolated = await api(ctx, "/api/admin-app/products/manage", "POST", {
+        name: "QA Atomic Edit " + suffix, sku: isolatedSku, price: 699,
+        posterUrl: img1, status: "DRAFT",
+      });
+      isolatedId = isolated.id;
       await dbClient.query("CREATE FUNCTION qa_reject_single_product_audit() RETURNS trigger AS $qaudit$ BEGIN RAISE EXCEPTION 'QA single product audit rejection'; END; $qaudit$ LANGUAGE plpgsql");
       await dbClient.query('CREATE TRIGGER qa_reject_single_product_audit_trg BEFORE INSERT ON "AdminActivityLog" FOR EACH ROW WHEN (NEW."action" IN (\'PRODUCT_CREATE\',\'PRODUCT_UPDATE\')) EXECUTE FUNCTION qa_reject_single_product_audit()');
       triggerCreated = true;
@@ -622,14 +631,16 @@ try {
       const created = await dbClient.query('SELECT "id" FROM "Product" WHERE "sku" = $1', [candidateSku]);
       assert.equal(created.rows.length, 0, "Failed audit must roll back product and its media");
 
-      const original = await product(ctx);
+      const original = (await api(ctx, "/api/admin-app/products")).find(v => v.id === isolatedId);
+      assert.ok(original && original.status === "DRAFT", "Isolated rollback fixture must remain a draft");
       const auditBefore = await dbClient.query('SELECT count(*)::int AS total FROM "AdminActivityLog" WHERE "entityId" = $1', [original.id]);
       const updateFailure = await ctx.request.patch(new URL("/api/admin-app/products/" + original.id, base).href, {
         data: { description: "QA this update must not persist " + suffix, posterUrl: img2 },
       });
       assert.equal(updateFailure.status(), 500, "Failed audit must fail the entire Product edit");
       assert.equal((await updateFailure.json()).error, "Unexpected admin server error.");
-      const after = await product(ctx);
+      const after = (await api(ctx, "/api/admin-app/products")).find(v => v.id === isolatedId);
+      assert.ok(after, "Rollback fixture must remain after failed audit");
       assert.equal(after.description, original.description, "Product description must roll back");
       assert.equal(after.posterUrl, original.posterUrl, "Poster media change must roll back");
       assert.equal(after.updatedAt, original.updatedAt, "Product revision must remain unchanged");
@@ -638,6 +649,10 @@ try {
     } finally {
       if (triggerCreated) await dbClient.query('DROP TRIGGER IF EXISTS qa_reject_single_product_audit_trg ON "AdminActivityLog"');
       await dbClient.query("DROP FUNCTION IF EXISTS qa_reject_single_product_audit()");
+      if (isolatedId) {
+        await dbClient.query('DELETE FROM "AdminActivityLog" WHERE "entityId"=$1', [isolatedId]);
+        await dbClient.query('DELETE FROM "Product" WHERE "id"=$1', [isolatedId]);
+      }
       await dbClient.end();
     }
   });
